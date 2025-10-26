@@ -1,6 +1,8 @@
 cpp/generated
 cpp/build/
-
 .vscode
-
 python/generated
+
+testing-martin/libpg_query
+**/a.out
+
