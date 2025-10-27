@@ -1,0 +1,16 @@
+syntax = "proto2";
+
+import "QueryPlan.proto";
+import "WorkItem.proto";
+
+message WorkRequest {
+    oneof requestItem {
+        QueryPlan queryPlan = 1;
+        WorkItem workItem = 2;
+        QueryPlanString queryPlanString = 3;
+    }
+}
+
+message ForwardedWorkRequest {
+    required WorkRequest request = 1;
+}

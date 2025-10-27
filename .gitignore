@@ -1,0 +1,6 @@
+cpp/generated
+cpp/build/
+
+.vscode
+
+python/generated
