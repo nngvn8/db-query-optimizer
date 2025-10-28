@@ -6,8 +6,3 @@ message QueryPlan {
   optional uint32 planid = 1;
   repeated WorkItem planitems = 2;
 }
-
-message QueryPlanString {
-  optional uint32 planid = 1;
-  optional string planstring = 2;
-}

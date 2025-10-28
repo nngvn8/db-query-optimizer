@@ -9,7 +9,9 @@ A repository for the Optimizer project at the Dresden Database Research Group in
 ## Installation
 Tested on Ubuntu 24.04.
 
-### Requirements
+## Requirements
+
+### Direct on Host
 
 #### System Packages (Linux)
 - protobuf-compiler
@@ -21,7 +23,33 @@ Tested on Ubuntu 24.04.
 #### Python
 see python/requirements.txt
 
+### Docker
+
+#### System Packages (Linux)
+
+- docker
+- ssh-agent
+
+#### What to do
+
+- generate SSH-Key on Host and make known to GitLab
+- add your user to docker group so that you can use docker without sudo
+
+```
+eval "$(ssh-agent -s)"
+ssh-add ~/.ssh/id_ed25519           # filename depends on type of key; private key
+
+export DOCKER_BUILDKIT=1
+docker build --ssh default -t optimizer:latest .
+docker run -dit -e SSH_AUTH_SOCK=/ssh-agent -v "$SSH_AUTH_SOCK":/ssh-agent optimizer:latest bash       # suggestion on how to run it
+```
+
+Now you should be able to connect to this docker container (e.g. through VS Code) and work directly inside of it.
+
 ## Usage
+
+### Direct on System
+
 ```
 ./regenerate_proto.sh                       # Generate the protobuf files for C++ and Python
 
@@ -30,14 +58,41 @@ cd cpp
 cmake -S . -B build                         # Generating the Buildfiles
 cmake --build build --config Release        # Compiling the project
 
-# Executing the server
+# Executing the C++ example server
 ./build/bin/optimizer-server
+
+# Executing the C++ example client
+./build/bin/optimizer-client
+
+# Execute the Compute Unit Dummy
+./build/bin/optimizer-compute-unit
 
 # Running the Python example TCP-Client
 cd python
 pipenv install -r requirements.txt
-pipenv run python execute_ssb.py -string    # For running in the simple string mode
+pipenv run python execute_ssb.py
 ```
+
+### Docker
+
+Most is already done. To run anything:
+
+```
+# Executing the C++ example server
+./build/bin/optimizer-server
+
+# Executing the C++ example client
+./build/bin/optimizer-client
+
+# Execute the Compute Unit Dummy
+./build/bin/optimizer-compute-unit
+
+# Running the Python example TCP-Client
+cd python
+pipenv run python execute_ssb.py
+```
+
+You should be able to pull and push, etc. from inside the container.
 
 
 ## Authors and acknowledgment

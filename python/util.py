@@ -19,20 +19,6 @@ def create_query_plan(**kwargs) -> msg.TCPMessage:
     request.queryPlan.CopyFrom(qplan)
     plan.payload = request.SerializeToString()
     return plan
-
-
-def create_query_plan_string(**kwargs) -> msg.TCPMessage:
-    plan = msg.TCPMessage(unit_type=msg.UnitType.QueryPlaner, package_type=msg.TCPPackageType.Work)
-    if "target_uuid" in kwargs:
-        print(f"Setting Target UUID to '{kwargs['target_uuid']}'")
-        plan.tgt_uuid = kwargs["target_uuid"]
-    qplan = QueryPlan.QueryPlanString()
-    qplan.planid = kwargs["planId"]
-    qplan.planstring = kwargs["planString"]
-    request = WorkRequest.WorkRequest()
-    request.queryPlanString.CopyFrom(qplan)
-    plan.payload = request.SerializeToString()
-    return plan
     
 
 def create_work_item(**kwargs) -> WorkItem.WorkItem:

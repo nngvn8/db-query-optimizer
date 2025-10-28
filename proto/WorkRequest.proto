@@ -7,7 +7,6 @@ message WorkRequest {
     oneof requestItem {
         QueryPlan queryPlan = 1;
         WorkItem workItem = 2;
-        QueryPlanString queryPlanString = 3;
     }
 }
 
