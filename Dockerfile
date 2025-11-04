@@ -12,7 +12,7 @@ mkdir -p -m 0700 /root/.ssh
 ssh-keyscan -t ed25519 gitlab.hrz.tu-chemnitz.de >> /root/.ssh/known_hosts
 
 # Clone private repos over SSH using the forwarded agent
-git clone git@gitlab.hrz.tu-chemnitz.de:ws25-db-sya/ws25-optimizer-rust.git
+git clone git@gitlab.hrz.tu-chemnitz.de:ws25-db-sya/ws25-optimizer-rust.git ws25-optimizer-cpp
 EOF
 
 WORKDIR /ws25-optimizer-cpp

@@ -20,3 +20,11 @@
 
 ## sql-parser
 * Parses into C++ objects instead of JSON file
+
+## NOTES
+* Optimization
+    * Plan Enumeration: Choose among different plans
+    * Cost Model: Selection of Physical Operator (which type of join, selection), cost estimation of each model
+    * Cardinality Estimation: histograms, size of data
+    * Rule based optimizations first (after the above is done): Grammar and logical programming also 
+* Parser:AST -> Optimizer: logical plan -> Operator Selection: physical plan -> Translation: Protobuf package
