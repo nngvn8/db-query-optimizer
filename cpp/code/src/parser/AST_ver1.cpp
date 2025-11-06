@@ -154,6 +154,9 @@ std::unique_ptr<ASTNode> exploreTable(hsql::TableRef* table){
 }
 
 int main() {
+    
+    //This version supports single SPJ (selection, projection, join) Queries, can be extended further.
+    
     const std::string query = "SELECT j.id, j.name, t.id FROM testtable t JOIN jointable j ON t.id = j.id WHERE testtable.name = 12";
     hsql::SQLParserResult result;
 
