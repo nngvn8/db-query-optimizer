@@ -1,0 +1,125 @@
+SELECT c.name, o.order_total FROM Orders o JOIN Customers c ON o.customer_id = c.id WHERE o.order_date > '2024-01-01';
+{
+    "stmts": [
+        {
+            "stmt": {
+                "SelectStmt": {
+                    "fromClause": [
+                        {
+                            "JoinExpr": {
+                                "jointype": "JOIN_INNER",
+                                "larg": {
+                                    "RangeVar": {
+                                        "alias": {
+                                            "aliasname": "o"
+                                        },
+                                        "inh": true,
+                                        "location": 34,
+                                        "relname": "orders",
+                                        "relpersistence": "p"
+                                    }
+                                },
+                                "quals": {
+                                    "A_Expr": {
+                                        "kind": "AEXPR_OP",
+                                        "lexpr": {
+                                            "ColumnRef": {
+                                                "fields": [
+                                                    { "String": { "sval": "o" } },
+                                                    { "String": { "sval": "customer_id" } }
+                                                ],
+                                                "location": 63
+                                            }
+                                        },
+                                        "location": 77,
+                                        "name": [
+                                            { "String": { "sval": "=" } }
+                                        ],
+                                        "rexpr": {
+                                            "ColumnRef": {
+                                                "fields": [
+                                                    { "String": { "sval": "c" } },
+                                                    { "String": { "sval": "id" } }
+                                                ],
+                                                "location": 79
+                                            }
+                                        }
+                                    }
+                                },
+                                "rarg": {
+                                    "RangeVar": {
+                                        "alias": {
+                                            "aliasname": "c"
+                                        },
+                                        "inh": true,
+                                        "location": 48,
+                                        "relname": "customers",
+                                        "relpersistence": "p"
+                                    }
+                                }
+                            }
+                        }
+                    ],
+                    "limitOption": "LIMIT_OPTION_DEFAULT",
+                    "op": "SETOP_NONE",
+                    "targetList": [
+                        {
+                            "ResTarget": {
+                                "location": 7,
+                                "val": {
+                                    "ColumnRef": {
+                                        "fields": [
+                                            { "String": { "sval": "c" } },
+                                            { "String": { "sval": "name" } }
+                                        ],
+                                        "location": 7
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            "ResTarget": {
+                                "location": 15,
+                                "val": {
+                                    "ColumnRef": {
+                                        "fields": [
+                                            { "String": { "sval": "o" } },
+                                            { "String": { "sval": "order_total" } }
+                                        ],
+                                        "location": 15
+                                    }
+                                }
+                            }
+                        }
+                    ],
+                    "whereClause": { 
+                        "A_Expr": {
+                            "kind": "AEXPR_OP",
+                            "lexpr": {
+                                "ColumnRef": {
+                                    "fields": [
+                                        { "String": { "sval": "o" } },
+                                        { "String": { "sval": "order_date" } }
+                                    ],
+                                    "location": 90
+                                }
+                            },
+                            "location": 103,
+                            "name": [
+                                { "String": { "sval": ">" } }
+                            ],
+                            "rexpr": {
+                                "A_Const": {
+                                    "location": 105,
+                                    "sval": { "sval": "2024-01-01" }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "stmt_len": 117
+        }
+    ],
+    "version": 170005
+}
