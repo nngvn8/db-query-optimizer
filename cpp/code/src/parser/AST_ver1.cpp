@@ -10,6 +10,8 @@ int main() {
     auto root = generateASTNode(query);
     std::cout<<endl<<"parsed tree Pre-order traversal : "<<endl;
     printAST(root);
+    //a basic predicate pushdown
+    root = predicatePushDown(root);
     generateDotFile(root,"testpic6.dot");
     std::cout<<"\n\n";
 }
