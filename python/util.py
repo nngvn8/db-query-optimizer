@@ -57,7 +57,7 @@ def create_work_item(**kwargs) -> WorkItem.WorkItem:
             witem.mapData.CopyFrom(item)    
         elif itemType == "aggregate":
             item = create_aggregate_item(**kwargs)
-            witem.aggregateData.CopyFrom(item)
+            witem.aggData.CopyFrom(item)
         elif itemType == "fetch":
             item = create_fetch_item(**kwargs)
             witem.fetchData.CopyFrom(item)

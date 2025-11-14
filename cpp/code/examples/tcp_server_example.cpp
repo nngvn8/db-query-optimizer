@@ -256,8 +256,10 @@ int main(int argc, char* argv[]) {
 
         tuddbs::TCPMetaInfo info;
         info.package_type = tuddbs::TCPPackageType::UuidForUnitResponse;
-        info.payload_size = response.ByteSizeLong();
-        void* out_mem = malloc(sizeof(tuddbs::TCPMetaInfo) + info.payload_size);
+        info.src_uuid = meta->src_uuid;
+        info.tgt_uuid = meta->tgt_uuid;
+        void* out_mem = malloc(info.bytesize());
+        tuddbs::Utility::serializeItemToMemory(out_mem, response, info);
         ClientInfo* requester = server.getClientByUuid(meta->src_uuid);
         if (requester) {
             server.sendTo(requester, reinterpret_cast<const char*>(out_mem), info.bytesize());
