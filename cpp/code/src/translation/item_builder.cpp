@@ -35,7 +35,21 @@ WorkItem ItemBuilder::createWorkItem(const uint32_t& planId, const uint32_t& ite
     return workItem;
 }
 
+WorkItem ItemBuilder::createFetchItem(const TableColumn* inputColumn, const bool printToFile) {
+    WorkItem workItem = createWorkItem();
+    FetchItem* fetchItem = workItem.mutable_fetchdata();
+
+    ColumnMessage* inputColumnMsg = fetchItem->mutable_inputcolumn();
+    setTableColumnType(inputColumnMsg, inputColumn);
+
+    fetchItem->set_printtofile(printToFile);
+    return workItem;
+}
+
 WorkItem ItemBuilder::createFetchItem(const FetchNode& node) {
+    // TODO if we do not use nodes use implementation above with parameters
+    // return createFetchItem(node.inputColumn, node.printToFile);
+
     WorkItem workItem = createWorkItem();
     FetchItem* fetchItem = workItem.mutable_fetchdata();
 
