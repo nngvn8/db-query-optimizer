@@ -97,4 +97,6 @@ class ItemBuilder {
         WorkItem createSetOperationItem(const SetOperationNode& node);
         WorkItem createFetchItem(const FetchNode& node);
         WorkItem createResultItem(const ResultNode& node);
+
+        WorkItem createFetchItem(const TableColumn* inputColumn, const bool printToFile);
 };
