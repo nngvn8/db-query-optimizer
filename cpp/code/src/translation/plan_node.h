@@ -31,12 +31,15 @@ struct Measures {
     int cacheMisses;
 };
 
+// TODO build dfs for sequentialization
+
 class PlanNode {
     public:
         std::string nodeType;
         std::unique_ptr<std::string> nodeOperator;
+        std::unique_ptr<std::string> physNodeOperator; // TODO: implement mapping
 
-        std::vector<PlanNode*> children;
+        std::vector<std::unique_ptr<PlanNode>> children; // TODO: fill properly with dfs
 
         PlanParams planParams;
         Estimates estimates;

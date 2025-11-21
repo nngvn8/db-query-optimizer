@@ -23,8 +23,10 @@ void printDebug(const PlanNode& planNode) {
     const Measures& mes = planNode.measures;
     std::cout << "Measures: " << mes.cardinality << " " << mes.executionTime << " " << mes.cacheHits << " " << mes.cacheMisses << std::endl;
 
-    if (planNode.next) {
-        printDebug(*(planNode.next));
+    if (!planNode.children.empty()) {
+        for (const std::unique_ptr<PlanNode>& child : planNode.children){
+            printDebug(*child);
+        }
     }
 }
 
@@ -72,8 +74,11 @@ void PlanNode::setMeasures(Measures& measures, const Json::Value& jsonData) {
 }
 
 PlanNode::PlanNode(const Json::Value& queryPlan) {
-    if (queryPlan["children"]) {
-        next = std::make_unique<PlanNode>(queryPlan["children"][0]);
+    const Json::Value& children = queryPlan["children"];
+    if (children) {
+        for (const Json::Value& child : children) {
+            this->children.push_back(std::make_unique<PlanNode>(child));
+        }
     }
 
     nodeType = queryPlan["node_type"].asString();
@@ -88,14 +93,36 @@ PlanNode::PlanNode(const Json::Value& queryPlan) {
     setMeasures(measures, queryPlan["measures"]);
 }
 
+void printPlanTree(const PlanNode& node, const std::string& prefix, bool isLast) {
+    // 1. Determine the drawing character for the current node
+    std::cout << prefix;
+    std::cout << (isLast ? "└── " : "├── ");
+
+    // 2. Print ONLY the node's logical type
+    std::cout << node.nodeType;
+
+    std::cout << std::endl;
+
+    // 3. Prepare the new prefix for the children
+    std::string newPrefix = prefix + (isLast ? "    " : "│   ");
+
+    // 4. Recursively call the function for all children
+    for (size_t i = 0; i < node.children.size(); ++i) {
+        const auto& child = node.children[i];
+        bool isChildLast = (i == node.children.size() - 1);
+        printPlanTree(*child, newPrefix, isChildLast);
+    }
+}
+
 int main(int argc, char* argv[]) {
-    std::ifstream queryJson("q1-1-plan.json", std::ifstream::binary);
+    std::ifstream queryJson("/home/martin/University/09_KDB/ws25-optimizer-rust/pb-plans/q1-1-plan.json");
     Json::Value queryPlan;
     queryJson >> queryPlan;
 
     PlanNode* planNode = new PlanNode(queryPlan);
 
-    printDebug(*planNode);
+    // printDebug(*planNode);
+    printPlanTree(*planNode, "", true);
     delete planNode;
 
     return 0;
