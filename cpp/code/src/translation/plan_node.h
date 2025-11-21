@@ -35,8 +35,9 @@ class PlanNode {
     public:
         std::string nodeType;
         std::unique_ptr<std::string> nodeOperator;
+        std::unique_ptr<std::string> physNodeOperator; // TODO: implement mapping
 
-        std::vector<PlanNode*> children;
+        std::vector<std::unique_ptr<PlanNode>> children;
 
         PlanParams planParams;
         Estimates estimates;
