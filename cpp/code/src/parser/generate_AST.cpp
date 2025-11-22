@@ -185,8 +185,6 @@ void parseWhere(hsql::Expr* expr, std::queue<hsql::Expr*> &q){
     }
 }
 
-
-
 ASTNode* exploreTable(hsql::TableRef* table){
     if(!table->join){
         return makeTableNode(table);
@@ -200,30 +198,34 @@ ASTNode* exploreTable(hsql::TableRef* table){
 }
 
 OrderByDescription makeOrderNode(hsql::OrderDescription* order){
+    std::string table = "";
+    if(order->expr->table){
+        table = order->expr->table;
+    }
     switch(order->type){
         case hsql::kOrderAsc:{
             switch (order->null_ordering){
                 case hsql::Undefined : {
-                    return OrderByDescription(order->expr->name,order->expr->table,"ASC","UNDEFINED");
+                    return OrderByDescription(order->expr->name,table,"ASC","UNDEFINED");
                 }
                 case hsql::First:{
-                    return OrderByDescription(order->expr->name,order->expr->table,"ASC","FIRST");
+                    return OrderByDescription(order->expr->name,table,"ASC","FIRST");
                 }
                 case hsql::Last:{
-                    return OrderByDescription(order->expr->name,order->expr->table,"ASC","LAST");
+                    return OrderByDescription(order->expr->name,table,"ASC","LAST");
                 }
             }
         }
         case hsql::kOrderDesc:{
             switch (order->null_ordering){
                 case hsql::Undefined : {
-                    return OrderByDescription(order->expr->name,order->expr->table,"DESC","UNDEFINED");
+                    return OrderByDescription(order->expr->name,table,"DESC","UNDEFINED");
                 }
                 case hsql::First:{
-                    return OrderByDescription(order->expr->name,order->expr->table,"DESC","FIRST");
+                    return OrderByDescription(order->expr->name,table,"DESC","FIRST");
                 }
                 case hsql::Last:{
-                    return OrderByDescription(order->expr->name,order->expr->table,"DESC","LAST");
+                    return OrderByDescription(order->expr->name,table,"DESC","LAST");
                 }
             }
         }
@@ -238,7 +240,11 @@ GroupByDescription makeGroupByNode(hsql::Expr* column){
 
 void printAST(ASTNode* root){
     if(root == nullptr){return;}
-    if (auto e = std::get_if<TableJoinNode>(&root->val)) {
+    
+    if (auto e = std::get_if<SetOperationNode>(&root->val)) {
+        std::cout<<"SetOperation: "<< (*e).setOperation<<std::endl;
+    }
+    else if (auto e = std::get_if<TableJoinNode>(&root->val)) {
         std::cout<<"Join Node: "<< (*e).joinType <<" "<< (*e).onLeftTable <<"."<< (*e).onLeftTableColumn <<" = "<< (*e).onRightTable <<"."<< (*e).onRightTableColumn <<std::endl;
     }
     else if (auto e = std::get_if<TableBaseNode>(&root->val)) {
@@ -280,6 +286,140 @@ void printAST(ASTNode* root){
     printAST(root->right);
 }
 
+ASTNode* parseQueryExpressionForSet(const hsql::SelectStatement* selectStmt){
+    
+    ASTNode* root = makeSelectNode(selectStmt->selectList->at(0));
+    ASTNode* current = root;  
+    
+    //logic to parse other select clauses
+    if (selectStmt->selectList) {
+        for (int i=1;i<selectStmt->selectList->size();i++) {
+            current->left = makeSelectNode(selectStmt->selectList->at(i));
+            current = current->left;
+        }
+    }
+
+    //add having
+    
+    //logic to parse "Group By clause"
+    if(selectStmt->groupBy){
+        std::vector<GroupByDescription> groupByList;
+        
+        for(int i=0;i<selectStmt->groupBy->columns->size();i++){
+            groupByList.push_back(makeGroupByNode(selectStmt->groupBy->columns->at(i)));
+        }
+        ASTNode* groupBynode = new ASTNode(GroupByClauseNode(groupByList));
+        current->left = groupBynode;
+        current = current->left;
+    }
+
+    //logic to parse "where clause"
+    if(selectStmt->whereClause){
+        std::queue<hsql::Expr*> q;
+        parseWhere(selectStmt->whereClause, q);
+        while (!q.empty()) {
+            hsql::Expr* expr = q.front();
+            current->left = makeWhereNode(expr);
+            current = current->left;
+            q.pop();
+        }
+    }
+
+    // // Join
+    current->left = exploreTable(selectStmt->fromTable);
+    
+    return root;
+}
+
+ASTNode* parseQueryExpression(const hsql::SelectStatement* selectStmt){
+    
+    ASTNode* root = new ASTNode();
+    ASTNode* current = root;    
+
+    // logic to parse "Limit clause"
+    if(selectStmt->limit){
+        if(selectStmt->limit->offset){
+            delete root;
+            ASTNode* limitnode = new ASTNode(LimitClauseNode(to_string(selectStmt->limit->limit->ival),to_string(selectStmt->limit->offset->ival)));
+            root = limitnode;
+            current = root;
+        }
+        else{
+            delete root;
+            ASTNode* limitnode = new ASTNode(LimitClauseNode(to_string(selectStmt->limit->limit->ival),""));
+            root = limitnode;
+            current = root;
+        }
+    }
+
+    // logic to parse order
+    if(selectStmt->order){
+        std::vector<OrderByDescription> orderByList;
+        for(int i=0;i<selectStmt->order->size();i++){
+            orderByList.push_back(makeOrderNode(selectStmt->order->at(i)));
+        }
+        ASTNode* orderbynode = new ASTNode(OrderByClauseNode(orderByList));
+        if(auto e = std::get_if<std::monostate>(&current->val)){
+            delete root;
+            root = orderbynode;
+            current = root;
+        }
+        else{
+            current->left = orderbynode;
+            current = current->left;
+        }
+    }
+
+    if(auto e = std::get_if<std::monostate>(&current->val)){
+            delete root;
+            root = makeSelectNode(selectStmt->selectList->at(0));
+            current = root; 
+    }
+    else{
+        current->left = makeSelectNode(selectStmt->selectList->at(0));
+        current = current->left; 
+    }
+
+    //logic to parse other select clauses
+    if (selectStmt->selectList) {
+        for (int i=1;i<selectStmt->selectList->size();i++) {
+            current->left = makeSelectNode(selectStmt->selectList->at(i));
+            current = current->left;
+        }
+    }
+
+    //add having
+
+    //logic to parse "Group By clause"
+    if(selectStmt->groupBy){
+        std::vector<GroupByDescription> groupByList;
+        
+        for(int i=0;i<selectStmt->groupBy->columns->size();i++){
+            groupByList.push_back(makeGroupByNode(selectStmt->groupBy->columns->at(i)));
+        }
+        ASTNode* groupBynode = new ASTNode(GroupByClauseNode(groupByList));
+        current->left = groupBynode;
+        current = current->left;
+    }
+
+    //logic to parse "where clause"
+    if(selectStmt->whereClause){
+        std::queue<hsql::Expr*> q;
+        parseWhere(selectStmt->whereClause, q);
+        while (!q.empty()) {
+            hsql::Expr* expr = q.front();
+            current->left = makeWhereNode(expr);
+            current = current->left;
+            q.pop();
+        }
+    }
+
+    // // Join
+    current->left = exploreTable(selectStmt->fromTable);
+    
+    return root;
+}
+
 ASTNode* generateASTNode(const std::string& query){
     // cout<<query;
     hsql::SQLParserResult result;
@@ -293,81 +433,75 @@ ASTNode* generateASTNode(const std::string& query){
     }
         
     ASTNode* root = new ASTNode();
-
+    
     for(int i=0;i<result.size();i++){
         const hsql::SQLStatement* stmt = result.getStatement(i);
-        
+
         if(stmt->type() == hsql::kStmtSelect){
             const hsql::SelectStatement* selectStmt = static_cast<const hsql::SelectStatement*>(stmt);
+        
+            if(selectStmt->setOperations){
+                delete root;
+                root = parseQueryExpressionForSet(selectStmt);
 
-            //logic to parse "select clause"
-            delete root;
-            root = makeSelectNode(selectStmt->selectList->at(0));
-            ASTNode* current = root;    
-
-            if (selectStmt->selectList) {
-                    for (int i=1;i<selectStmt->selectList->size();i++) {
-                        current->left = makeSelectNode(selectStmt->selectList->at(i));
-                        current = current->left;
+                for(int i=0;i<selectStmt->setOperations->size();i++){
+                    switch(selectStmt->setOperations->at(i)->setType){
+                        case hsql::kSetUnion : {
+                            ASTNode* newNode = new ASTNode(SetOperationNode("UNION"));
+                            newNode->left = root;
+                            newNode->right = parseQueryExpression(selectStmt->setOperations->at(i)->nestedSelectStatement);
+                            root = newNode;   
+                            break;
+                        }
+                        case hsql::kSetIntersect : {
+                            ASTNode* newNode = new ASTNode(SetOperationNode("INTERSECT"));
+                            newNode->left = root;
+                            newNode->right = parseQueryExpression(selectStmt->setOperations->at(i)->nestedSelectStatement);
+                            root = newNode; 
+                            break;
+                        }
+                        case hsql::kSetExcept : {
+                            ASTNode* newNode = new ASTNode(SetOperationNode("EXCEPT"));
+                            newNode->left = root;
+                            newNode->right = parseQueryExpression(selectStmt->setOperations->at(i)->nestedSelectStatement);
+                            root = newNode; 
+                            break;
+                        }
+                    }
+                    if(i == selectStmt->setOperations->size()-1){
+                        if(selectStmt->setOperations->at(i)->resultOrder){
+                            std::vector<OrderByDescription> orderByList;
+                            for(int j=0;j<selectStmt->setOperations->at(i)->resultOrder->size();j++){
+                                orderByList.push_back(makeOrderNode(selectStmt->setOperations->at(i)->resultOrder->at(j)));
+                            }
+                            ASTNode* orderbynode = new ASTNode(OrderByClauseNode(orderByList));
+                            orderbynode->left = root;
+                            root = orderbynode;
+                        }
+                        
+                        if(selectStmt->setOperations->at(i)->resultLimit){
+                            if(selectStmt->setOperations->at(i)->resultLimit->offset){
+                                ASTNode* limitnode = new ASTNode(LimitClauseNode(to_string(selectStmt->setOperations->at(i)->resultLimit->limit->ival),to_string(selectStmt->setOperations->at(i)->resultLimit->offset->ival)));
+                                limitnode->left = root;
+                                root = limitnode;
+                            }
+                            else{
+                                ASTNode* limitnode = new ASTNode(LimitClauseNode(to_string(selectStmt->setOperations->at(i)->resultLimit->limit->ival),""));
+                                limitnode->left = root;
+                                root = limitnode;  
+                            }
+                        }
                     }
                 }
-
-            //logic to parse "where clause"
-            if(selectStmt->whereClause){
-                std::queue<hsql::Expr*> q;
-                parseWhere(selectStmt->whereClause, q);
-                while (!q.empty()) {
-                    hsql::Expr* expr = q.front();
-                    current->left = makeWhereNode(expr);
-                    current = current->left;
-                    q.pop();
-                }
-            }
-            
-            //logic to parse "Group By clause"
-            if(selectStmt->groupBy){
-                std::vector<GroupByDescription> groupByList;
-                
-                for(int i=0;i<selectStmt->groupBy->columns->size();i++){
-                    groupByList.push_back(makeGroupByNode(selectStmt->groupBy->columns->at(i)));
-                }
-                ASTNode* groupBynode = new ASTNode(GroupByClauseNode(groupByList));
-                current->left = groupBynode;
-                current = current->left;
             }
 
-            //logic to parse "Order By clause"
-
-            if(selectStmt->order){
-                std::vector<OrderByDescription> orderByList;
-                for(int i=0;i<selectStmt->order->size();i++){
-                    orderByList.push_back(makeOrderNode(selectStmt->order->at(i)));
-                }
-                ASTNode* orderbynode = new ASTNode(OrderByClauseNode(orderByList));
-                current->left = orderbynode;
-                current = current->left;
+            else{
+                delete root;
+                root = parseQueryExpression(selectStmt);
             }
-
-            // logic to parse "Limit clause"
-            if(selectStmt->limit){
-                if(selectStmt->limit->offset){
-                    ASTNode* limitnode = new ASTNode(LimitClauseNode(to_string(selectStmt->limit->limit->ival),to_string(selectStmt->limit->offset->ival)));
-                    current->left = limitnode;
-                    current = current->left;
-                }
-                else{
-                    ASTNode* limitnode = new ASTNode(LimitClauseNode(to_string(selectStmt->limit->limit->ival),""));
-                    current->left = limitnode;
-                    current = current->left;   
-                }
-            }
-    
-            // // Join
-            current->left = exploreTable(selectStmt->fromTable);
         }   
     }
     cout<<"Parsed Successfully"<<endl<<endl;
     // printAST(root);
     return root;
 }
-
