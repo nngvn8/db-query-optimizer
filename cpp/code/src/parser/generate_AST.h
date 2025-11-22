@@ -150,10 +150,20 @@ class LimitClauseNode {
         {}
 };
 
+class SetOperationNode {
+    public:
+        std::string setOperation;
+
+        SetOperationNode(const std::string& setOperation) 
+        : setOperation(setOperation)
+        {}
+};
+
 class ASTNode {
 public:
     std::variant<
         std::monostate,
+        SetOperationNode,
         TableJoinNode,
         TableBaseNode,
         WhereClauseNode,
@@ -168,6 +178,9 @@ public:
 
     ASTNode()
         : val(std::monostate{}), left(nullptr), right(nullptr) {}
+
+    explicit ASTNode(SetOperationNode node)
+        : val(std::move(node)), left(nullptr), right(nullptr) {}
 
     explicit ASTNode(TableJoinNode node)
         : val(std::move(node)), left(nullptr), right(nullptr) {}
@@ -214,5 +227,9 @@ ASTNode* makeTableNode(hsql::TableRef* table);
 OrderByDescription makeOrderNode(hsql::OrderDescription* order);
 
 GroupByDescription makeGroupByNode(hsql::Expr* column);
+
+ASTNode* parseQueryExpression(const hsql::SelectStatement* selectStmt);
+
+ASTNode* parseQueryExpressionForSet(const hsql::SelectStatement* selectStmt);
 
 #endif
