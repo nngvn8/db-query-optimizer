@@ -4,80 +4,163 @@
 #include "hsql/SQLParser.h"
 #include <iostream>
 #include <variant>
+#include <vector>
 #include <string>
 #include <queue>
+#include <algorithm>
+#include <cctype>
 #include <memory>
 
-enum TableRefType { TableName, TableSelect, TableJoin, TableCrossProduct};
-enum JoinType { JoinInner, JoinFull, JoinLeft, JoinRight, JoinCross, JoinNatural, None };
-
-class TableNode {
+class TableJoinNode {
 public:
-    TableRefType tableRefType;
-    std::string tableName;
-    
-    JoinType joinType;
+    std::string joinType;
     std::string onLeftTable;
     std::string onLeftTableColumn;
     std::string onRightTable;
     std::string onRightTableColumn;
 
-    TableNode(TableRefType tableRefType,
-            const std::string& tableName="",
-
-            JoinType joinType= None,
+    TableJoinNode(
+            const std::string& joinType= "",
             const std::string& onLeftTable="",
             const std::string& onLeftTableColumn="",
             const std::string& onRightTable="",
             const std::string& onRightTableColumn="")
-                :tableRefType(tableRefType),
-                tableName(tableName),
-                joinType(joinType),
+                :joinType(joinType),
                 onLeftTable(onLeftTable),
                 onLeftTableColumn(onLeftTableColumn),
                 onRightTable(onRightTable),
                 onRightTableColumn(onRightTableColumn){}
 };
 
-enum ExprType { ExprSelect, ExprWhere};
-enum OperatorType {OpEquals, NoneOp};
+class TableBaseNode {
+public:
+    std::string tableName;
+    std::string tableAlias;
+    
+    TableBaseNode(const std::string& tableName="",
+            const std::string& tableAlias="")
+                :tableName(tableName),
+                tableAlias(tableAlias){}
+};
 
-class ExprNode {
+class WhereClauseNode {
     public:
-        ExprType exprType;
         std::string table;
         std::string column;
-
-        OperatorType operatorType;
+        std::string operatorType;
         std::string table2;
         std::string column2;
         std::string value;
         
-        ExprNode(ExprType exprType,
-                const std::string table,
-                const std::string column,
-                OperatorType operatorType = NoneOp,
-                const std::string table2 = "",
-                const std::string column2 = "",
-                const std::string value = "")
-                    :exprType(exprType),
-                    table(table),
+        WhereClauseNode(const std::string& table,
+                const std::string& column,
+                const std::string& operatorType = "",
+                const std::string& table2 = "",
+                const std::string& column2 = "",
+                const std::string& value = "")
+                    :table(table),
                     column(column),
                     operatorType(operatorType),
                     table2(table2),
                     column2(column2),
                     value(value)
                     {};
+};
+
+class SelectClauseNode {
+    public:
+        bool star;
+        std::string table;
+        std::string column;
+        std::string aggregateFunction;
+        bool distinct;
+        
+        SelectClauseNode(
+                const bool star = false,
+                const std::string& table = "",
+                const std::string& column = "",
+                const std::string& aggrFunc = "",
+                const bool distinct = false)
+                    :
+                    star(star),
+                    table(table),
+                    column(column),
+                    aggregateFunction(aggrFunc),
+                    distinct(distinct)
+                    {};
   
 };
 
+struct GroupByDescription {
+    GroupByDescription() = default;
+    GroupByDescription(const std::string col, const std::string tbl)
+        : column(col), table(tbl) {}
+
+    virtual ~GroupByDescription() = default;
+
+    std::string column;
+    std::string table;
+};
+
+class GroupByClauseNode {
+public:
+    std::vector<GroupByDescription> description; 
+
+    GroupByClauseNode(std::vector<GroupByDescription>& description)
+        : description(description) {}
+};
+
+struct OrderByDescription {
+    std::string column;
+    std::string table;
+    std::string ordertype;
+    std::string nullordering;
+
+    OrderByDescription(
+        const std::string& column = "",
+        const std::string& table = "",
+        const std::string& ordertype = "",
+        const std::string& nullordering = ""
+    ) : column(column),
+        table(table),
+        ordertype(ordertype),
+        nullordering(nullordering)
+    {}
+};
+
+class OrderByClauseNode {
+public:
+    std::vector<OrderByDescription> orderByList;
+    
+    OrderByClauseNode(const std::vector<OrderByDescription>& list)
+        : orderByList(list)
+    {}
+};
+
+class LimitClauseNode {
+    public:
+        std::string limit;
+        std::string offset;
+
+        LimitClauseNode(
+        const std::string& limit = "",
+        const std::string& offset = "") 
+        : limit(limit),
+        offset(offset)
+        {}
+};
 
 class ASTNode {
 public:
     std::variant<
         std::monostate,
-        TableNode,
-        ExprNode
+        TableJoinNode,
+        TableBaseNode,
+        WhereClauseNode,
+        SelectClauseNode,
+        GroupByClauseNode,
+        OrderByClauseNode,
+        LimitClauseNode
     > val;
 
     ASTNode* left;
@@ -86,22 +169,31 @@ public:
     ASTNode()
         : val(std::monostate{}), left(nullptr), right(nullptr) {}
 
-    explicit ASTNode(TableNode node)
+    explicit ASTNode(TableJoinNode node)
         : val(std::move(node)), left(nullptr), right(nullptr) {}
 
-    explicit ASTNode(ExprNode node)
+    explicit ASTNode(TableBaseNode node)
+        : val(std::move(node)), left(nullptr), right(nullptr) {}
+
+    explicit ASTNode(WhereClauseNode node)
+        : val(std::move(node)), left(nullptr), right(nullptr) {}
+
+    explicit ASTNode(SelectClauseNode node)
+        : val(std::move(node)), left(nullptr), right(nullptr) {}
+
+    explicit ASTNode(GroupByClauseNode node)
+        : val(std::move(node)), left(nullptr), right(nullptr) {}
+
+    explicit ASTNode(OrderByClauseNode node)
+        : val(std::move(node)), left(nullptr), right(nullptr) {}
+    
+    explicit ASTNode(LimitClauseNode node)
         : val(std::move(node)), left(nullptr), right(nullptr) {}
 };
 
 ASTNode* makeExprNode(hsql::Expr* expr = nullptr);
 
 ASTNode* makeTableNode(hsql::TableRef* table = nullptr);
-
-std::string toExprTypeString(ExprType type);
-
-std::string toOperatorTypeString(OperatorType type);
-
-std::string toJoinTypeString(JoinType type);
 
 void printAST(ASTNode* root);
 
@@ -112,5 +204,15 @@ void parseSelect(hsql::Expr* expr);
 ASTNode* exploreTable(hsql::TableRef* table);
 
 ASTNode* generateASTNode(const std::string& query);
+
+ASTNode* makeWhereNode(hsql::Expr* expr);
+
+ASTNode* makeSelectNode(hsql::Expr* expr);
+
+ASTNode* makeTableNode(hsql::TableRef* table);
+
+OrderByDescription makeOrderNode(hsql::OrderDescription* order);
+
+GroupByDescription makeGroupByNode(hsql::Expr* column);
 
 #endif
