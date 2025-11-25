@@ -163,7 +163,7 @@ void printResultItem() {
 }
 
 void printFetchItemWithoutNode() {
-    printName("Fetch with Params instead of Node");
+    printName("Fetch with Params and no Node");
     WorkItem workItem = itemBuilder->createFetchItem(tc1, true);
     printItem(workItem);
 }

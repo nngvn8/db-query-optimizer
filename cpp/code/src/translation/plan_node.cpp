@@ -73,7 +73,7 @@ void PlanNode::setMeasures(Measures& measures, const Json::Value& jsonData) {
 
 PlanNode::PlanNode(const Json::Value& queryPlan) {
     if (queryPlan["children"]) {
-        next = std::make_unique<PlanNode>(queryPlan["children"][0]);
+        next = std::make_unique<PlanNode>(queryPlan["children"][0]); // TODO change static to dynamic
     }
 
     nodeType = queryPlan["node_type"].asString();
