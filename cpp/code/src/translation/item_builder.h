@@ -1,7 +1,6 @@
 #include <vector>
 #include <WorkItem.pb.h>
-
-#include "generate_AST.h"
+#include <variant>
 
 class ItemBuilder {
     public:
@@ -13,6 +12,11 @@ class ItemBuilder {
             ColumnType columnType;
         };
 
+        struct FetchNode {
+            TableColumn* inputColumn;
+            bool printToFile;
+        };
+
         struct FilterNode {
             TableColumn* inputColumn;
             TableColumn* outputColumn;
@@ -20,35 +24,11 @@ class ItemBuilder {
             std::vector<std::variant<uint64_t, float, std::string>> filterArgVals;
         };
 
-        struct MultiGroupNode {
-            std::vector<TableColumn*> groupColumns;
-            TableColumn* outputIdx;
-            TableColumn* outputCluster;
-            TableColumn* aggColumn;
-            TableColumn* aggResultColumn;
-            bool storeExtends;
-            std::vector<bool> sortOrders;
-        };
-
         struct JoinNode {
             TableColumn* innerColumn;
             TableColumn* outerColumn;
             TableColumn* outputColumn;
             CompType* joinPredicate;
-        };
-
-        struct AggNode {
-            TableColumn* inputColumn;
-            TableColumn* outputColumn;
-            AggFunc aggFunc;
-            std::vector<std::string> groupColumns;
-        };
-
-        struct SortNode {
-            std::vector<TableColumn*> inputColumns;
-            TableColumn* idxOutput;
-            TableColumn* existingIdx;
-            std::vector<bool> sortOrders;
         };
 
         struct MapNode {
@@ -64,6 +44,16 @@ class ItemBuilder {
             TableColumn* outputColumn;
         };
 
+        struct MultiGroupNode {
+            std::vector<TableColumn*> groupColumns;
+            TableColumn* outputIdx;
+            TableColumn* outputCluster;
+            TableColumn* aggColumn;
+            TableColumn* aggResultColumn;
+            bool storeExtends;
+            std::vector<bool> sortOrders;
+        };
+
         struct SetOperationNode {
             RelOp operation;
             TableColumn* innerColumn;
@@ -71,9 +61,18 @@ class ItemBuilder {
             TableColumn* outputColumn;
         };
 
-        struct FetchNode {
+        struct SortNode {
+            std::vector<TableColumn*> inputColumns;
+            TableColumn* idxOutput;
+            TableColumn* existingIdx;
+            std::vector<bool> sortOrders;
+        };
+
+        struct AggNode {
             TableColumn* inputColumn;
-            bool printToFile;
+            TableColumn* outputColumn;
+            AggFunc aggFunc;
+            std::vector<std::string> groupColumns;
         };
 
         struct ResultNode {
@@ -95,16 +94,18 @@ class ItemBuilder {
         WorkItem createWorkItem(const OperatorType& operatorType);
         WorkItem createWorkItem(const uint32_t& planId, const uint32_t& itemId, const OperatorType& operatorType);
 
+        WorkItem createFetchItem(const FetchNode& node);
         WorkItem createFilterItem(const FilterNode& node);
-        WorkItem createMultiGroupItem(const MultiGroupNode& node);
         WorkItem createJoinItem(const JoinNode& node);
-        WorkItem createAggItem(const AggNode& node);
-        WorkItem createSortItem(const SortNode& node);
         WorkItem createMapItem(const MapNode& node);
         WorkItem createMaterializeItem(const MaterializeNode& node);
+        WorkItem createMultiGroupItem(const MultiGroupNode& node);
         WorkItem createSetOperationItem(const SetOperationNode& node);
-        WorkItem createFetchItem(const FetchNode& node);
+        WorkItem createSortItem(const SortNode& node);
+        WorkItem createAggItem(const AggNode& node);
         WorkItem createResultItem(const ResultNode& node);
+
+        WorkItem createFetchItem(const TableColumn* inputColumn, const bool printToFile);
 
         WorkItem createFilterItem(const TableColumn* inColumn, const TableColumn* outColumn, const CompType& filterType,
             const std::vector<std::variant<uint64_t, float, std::string>>& filterArgVals);
@@ -122,9 +123,6 @@ class ItemBuilder {
             const TableColumn* outCluster, const TableColumn* aggColumn, const TableColumn* aggResultColumn,
             const bool& storeExtends, const std::vector<bool>& sortOrders);
 
-        WorkItem createResultItem(const std::string& file, const std::vector<TableColumn*>& resultColumns,
-            const TableColumn* resultIdx, const std::vector<std::string>& headers);
-
         WorkItem createSetOperationItem(const RelOp& operation, const TableColumn* innerColumn,
             const TableColumn* outerColumn, const TableColumn* outputColumn);
 
@@ -134,5 +132,6 @@ class ItemBuilder {
         WorkItem createAggItem(const TableColumn* inputColumn, const TableColumn* outputColumn,
             const AggFunc& aggFunc, const std::vector<std::string>& groupColumns);
 
-        WorkItem createFetchItem(const TableColumn* inputColumn, const bool printToFile);
+        WorkItem createResultItem(const std::string& file, const std::vector<TableColumn*>& resultColumns,
+            const TableColumn* resultIdx, const std::vector<std::string>& headers);
 };

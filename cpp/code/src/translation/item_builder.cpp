@@ -227,34 +227,6 @@ WorkItem ItemBuilder::createMultiGroupItem(const std::vector<TableColumn*>& grou
     return workItem;
 }
 
-// RESULT ITEM
-
-WorkItem ItemBuilder::createResultItem(const ResultNode& node) {
-    return createResultItem(node.filename, node.resultColumns, node.resultIdx, node.resultHeaders);
-}
-
-WorkItem ItemBuilder::createResultItem(const std::string& file, const std::vector<TableColumn*>& resultColumns,
-    const TableColumn* resultIdx, const std::vector<std::string>& headers)
-{
-    WorkItem workItem = createWorkItem();
-    ResultItem* resultItem = workItem.mutable_resultdata();
-
-    uint idx = 0;
-    for (ItemBuilder::TableColumn* column : resultColumns) {
-        resultItem->add_resultcolumns();
-        ColumnMessage* colMessage = resultItem->mutable_resultcolumns(idx);
-        setTableColumnType(colMessage, column);
-        idx++;
-    }
-
-    resultItem->set_filename(file);
-
-    for (const std::string& header : headers) {
-        resultItem->add_resultheader(header);
-    }
-    return workItem;
-}
-
 // SET OPERATION ITEM
 
 WorkItem ItemBuilder::createSetOperationItem(const SetOperationNode& node) {
@@ -336,6 +308,34 @@ WorkItem ItemBuilder::createAggItem(const TableColumn* inputColumn, const TableC
 
     for (const std::string& name : groupColumns) {
         aggItem->add_groupcolumns(name);
+    }
+    return workItem;
+}
+
+// RESULT ITEM
+
+WorkItem ItemBuilder::createResultItem(const ResultNode& node) {
+    return createResultItem(node.filename, node.resultColumns, node.resultIdx, node.resultHeaders);
+}
+
+WorkItem ItemBuilder::createResultItem(const std::string& file, const std::vector<TableColumn*>& resultColumns,
+    const TableColumn* resultIdx, const std::vector<std::string>& headers)
+{
+    WorkItem workItem = createWorkItem();
+    ResultItem* resultItem = workItem.mutable_resultdata();
+
+    uint idx = 0;
+    for (ItemBuilder::TableColumn* column : resultColumns) {
+        resultItem->add_resultcolumns();
+        ColumnMessage* colMessage = resultItem->mutable_resultcolumns(idx);
+        setTableColumnType(colMessage, column);
+        idx++;
+    }
+
+    resultItem->set_filename(file);
+
+    for (const std::string& header : headers) {
+        resultItem->add_resultheader(header);
     }
     return workItem;
 }
