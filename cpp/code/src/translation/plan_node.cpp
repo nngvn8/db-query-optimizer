@@ -88,7 +88,7 @@ PlanNode::PlanNode(const Json::Value& queryPlan) {
     setMeasures(measures, queryPlan["measures"]);
 }
 
-int main(int argc, char* argv[]) {
+void test() {
     std::ifstream queryJson("q1-1-plan.json", std::ifstream::binary);
     Json::Value queryPlan;
     queryJson >> queryPlan;
@@ -97,6 +97,4 @@ int main(int argc, char* argv[]) {
 
     printDebug(*planNode);
     delete planNode;
-
-    return 0;
 }
