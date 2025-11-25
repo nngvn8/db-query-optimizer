@@ -2,6 +2,7 @@
 #include <jsoncpp/json/json.h>
 #include <jsoncpp/json/value.h>
 #include <fstream>
+#include <sequentializer/sequentializer.hpp>
 
 #include "plan_node.h"
 
@@ -97,15 +98,17 @@ PlanNode::PlanNode(const Json::Value& queryPlan) {
 void test() {
     std::ifstream queryJson("q1-1-plan.json", std::ifstream::binary);
 }
+void printNode(const PlanNode& node){
+    std::cout << node.nodeType;
+}
 
 void printPlanTree(const PlanNode& node, const std::string& prefix, bool isLast) {
     // 1. Determine the drawing character for the current node
     std::cout << prefix;
     std::cout << (isLast ? "└── " : "├── ");
 
-    // 2. Print ONLY the node's logical type
-    std::cout << node.nodeType;
-
+    // 2. Print node
+    printNode(node);
     std::cout << std::endl;
 
     // 3. Prepare the new prefix for the children
@@ -119,14 +122,25 @@ void printPlanTree(const PlanNode& node, const std::string& prefix, bool isLast)
     }
 }
 
+void printSequencedPlan(const std::vector<const PlanNode*> plan_seq){
+    for (const PlanNode* node : plan_seq) {
+        printNode(*node);
+        std::cout << "--";
+    }
+    std::cout << std::endl;
+}
+
 int main(int argc, char* argv[]) {
     std::ifstream queryJson("q1-1-plan.json");
     Json::Value queryPlan;
     queryJson >> queryPlan;
 
     PlanNode* planNode = new PlanNode(queryPlan);
-
     // printDebug(*planNode);
     printPlanTree(*planNode, "", true);
+
+    std::vector<const PlanNode*> sequenced_plan = to_sequence_children_list<PlanNode>(planNode);
+    printSequencedPlan(sequenced_plan);
+
     delete planNode;
 }
