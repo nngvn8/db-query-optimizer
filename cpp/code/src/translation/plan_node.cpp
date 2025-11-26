@@ -139,7 +139,7 @@ int main(int argc, char* argv[]) {
     // printDebug(*planNode);
     printPlanTree(*planNode, "", true);
 
-    std::vector<const PlanNode*> sequenced_plan = to_sequence_children_list<PlanNode>(planNode);
+    std::vector<const PlanNode*> sequenced_plan = to_sequence_two_children<PlanNode>(planNode);
     printSequencedPlan(sequenced_plan);
 
     delete planNode;
