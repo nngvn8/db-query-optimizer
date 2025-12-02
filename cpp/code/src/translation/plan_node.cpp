@@ -2,104 +2,157 @@
 #include <jsoncpp/json/json.h>
 #include <jsoncpp/json/value.h>
 #include <fstream>
+#include <bits/stdc++.h>
 #include <sequentializer/sequentializer.hpp>
 
 #include "plan_node.h"
 
 void printDebug(const PlanNode& planNode) {
-    std::cout << "Node: " << planNode.nodeType << " " << planNode.nodeOperator.get() << std::endl;
+    // Check if raw data exists (it might not if we created a synthetic abstract node later)
+    if (!planNode.raw.has_value()) {
+        std::cout << "Node: [Synthetic/Abstract Node]" << std::endl;
+        // You could print abstract data here if implemented
+    } else {
+        const JsonRawData& r = planNode.raw.value();
+        
+        // Print Header
+        std::cout << "Node: " << r.nodeType;
+        if (r.nodeOperator) std::cout << " | Op: " << *r.nodeOperator;
+        std::cout << std::endl;
 
-    const PlanParams& params = planNode.planParams;
-    std::cout << "Plan Params: ";
-    if (params.baseTable) {
-        const BaseTable* bt = params.baseTable.get();
-        std::cout << "BaseTable: " << bt->fullName << " " << bt->alias << " " << bt->isVirtual << " " << bt->schema << " ";
+        // Print Params
+        std::cout << "  Params: ";
+        if (r.planParams.baseTable) {
+            const auto& bt = *r.planParams.baseTable;
+            std::cout << "[Table: " << bt.fullName << " (" << bt.alias << ")] ";
+        }
+        
+        if (r.planParams.filterPredicate) 
+            std::cout << "[Filter: " << *r.planParams.filterPredicate << "] ";
+            
+        if (!r.planParams.sortKeys.empty()) {
+            std::cout << "[Sort: ";
+            for(const auto& k : r.planParams.sortKeys) std::cout << k << " ";
+            std::cout << "] ";
+        }
+
+        std::cout << "Workers: " << r.planParams.parallelWorkers;
+        if (!r.planParams.index.empty()) std::cout << " Index: " << r.planParams.index;
+        std::cout << std::endl;
+
+        // Print Stats
+        std::cout << "  Est: Card=" << r.estimates.cardinality << " Cost=" << r.estimates.cost << std::endl;
+        
+        std::cout << "  Mes: Card=" << r.measures.cardinality << " Time=" << r.measures.executionTime;
+        if (r.measures.cacheHits) std::cout << " Hits=" << *r.measures.cacheHits;
+        std::cout << std::endl;
     }
-    std::cout << params.filterPredicate << " " << params.sortKeys.get() << " " << params.parallelWorkers
-        << " " << params.index << " " << params.lookupKey << " " << params.suplanName << std::endl;
 
-    const Estimates& est = planNode.estimates;
-    std::cout << "Estimates: " << est.cardinality << " " << est.cost << std::endl;
+    std::cout << "--------------------------------------" << std::endl;
 
-    const Measures& mes = planNode.measures;
-    std::cout << "Measures: " << mes.cardinality << " " << mes.executionTime << " " << mes.cacheHits << " " << mes.cacheMisses << std::endl;
+    // Recurse
+    for (const auto& child : planNode.children) {
+        if (child) printDebug(*child);
+    }
+}
 
-    if (!planNode.children.empty()) {
-        for (const std::unique_ptr<PlanNode>& child : planNode.children){
-            printDebug(*child);
+// --- Parsing Helpers ---
+
+PlanParams PlanNode::parsePlanParams(const Json::Value& json) {
+    PlanParams params;
+
+    // 1. Base Table (Handle Object or Null)
+    const Json::Value& btJson = json["base_table"];
+    if (!btJson.isNull() && btJson.isObject()) {
+        BaseTable bt;
+        bt.fullName = btJson.get("full_name", "").asString();
+        bt.alias = btJson.get("alias", "").asString();
+        bt.isVirtual = btJson.get("virtual", false).asBool();
+        bt.schema = btJson.get("schema", "").asString();
+        params.baseTable = bt;
+    }
+
+    // 2. Simple Fields
+    if (!json["filter_predicate"].isNull()) 
+        params.filterPredicate = json["filter_predicate"].asString();
+    
+    params.parallelWorkers = json.get("parallel_workers", 0).asInt();
+    params.index = json.get("index", "").asString();
+    
+    if (!json["lookup_key"].isNull()) 
+        params.lookupKey = json["lookup_key"].asString();
+
+    if (!json["subplan_name"].isNull())
+        params.subplanName = json["subplan_name"].asString();
+
+    // 3. Sort Keys (Handle Array)
+    const Json::Value& sortJson = json["sort_keys"];
+    if (!sortJson.isNull() && sortJson.isArray()) {
+        for (const auto& key : sortJson) {
+            params.sortKeys.push_back(key.asString());
         }
     }
+
+    return params;
 }
 
-void PlanNode::setBaseTable(std::unique_ptr<BaseTable>& baseTable, const Json::Value& jsonData) {
-    if (!jsonData) {
-        baseTable = nullptr;
-        return;
-    }
-
-    if (!baseTable) {
-        baseTable = std::make_unique<BaseTable>();
-    }
-
-    baseTable->fullName = jsonData["full_name"].asString();
-    baseTable->alias = jsonData["alias"].asString();
-    baseTable->isVirtual = jsonData["virtual"].asBool();
-    baseTable->schema = jsonData["schema"].asString();
+Estimates PlanNode::parseEstimates(const Json::Value& json) {
+    Estimates est;
+    est.cardinality = json.get("cardinality", 0.0f).asFloat();
+    est.cost = json.get("cost", 0.0f).asFloat();
+    return est;
 }
 
-void PlanNode::setPlanParams(PlanParams& planParams, const Json::Value& jsonData) {
-    setBaseTable(planParams.baseTable, jsonData["base_table"]);
+Measures PlanNode::parseMeasures(const Json::Value& json) {
+    Measures mes;
+    mes.cardinality = json.get("cardinality", 0.0f).asFloat();
+    mes.executionTime = json.get("execution_time", 0.0f).asFloat();
 
-    planParams.filterPredicate = jsonData["filter_predicate"].asString();
-    planParams.parallelWorkers = jsonData["parallel_workers"].asInt();
-    planParams.index = jsonData["index"].asString();
+    if (!json["cache_hits"].isNull())
+        mes.cacheHits = json["cache_hits"].asInt();
+    
+    if (!json["cache_misses"].isNull())
+        mes.cacheMisses = json["cache_misses"].asInt();
 
-    if (!planParams.sortKeys && jsonData["sort_keys"]) {
-        planParams.sortKeys = std::make_unique<std::vector<std::string>>();
-        planParams.sortKeys = nullptr; // TODO jsonData["sort_keys"];
-    } else {
-        planParams.sortKeys = nullptr;
-    }
+    return mes;
 }
 
-void PlanNode::setEstimates(Estimates& estimates, const Json::Value& jsonData) {
-    estimates.cardinality = jsonData["cardinality"].asFloat();
-    estimates.cost = jsonData["cost"].asFloat();
-}
-
-void PlanNode::setMeasures(Measures& measures, const Json::Value& jsonData) {
-    measures.cardinality = jsonData["cardinality"].asFloat();
-    measures.executionTime = jsonData["execution_time"].asFloat();
-    measures.cacheHits = jsonData["cache_hits"].asInt();
-    measures.cacheMisses = jsonData["cache_misses"].asInt();
-}
+// --- Constructor ---
 
 PlanNode::PlanNode(const Json::Value& queryPlan) {
+    // 1. Parse Raw Data
+    JsonRawData data;
+    data.nodeType = queryPlan.get("node_type", "Unknown").asString();
+    
+    if (!queryPlan["operator"].isNull()) {
+        data.nodeOperator = queryPlan["operator"].asString();
+    }
+    
+    if (!queryPlan["subplan"].isNull()) {
+        data.subPlan = queryPlan["subplan"].asString();
+    }
 
-    const Json::Value& children = queryPlan["children"];
-    if (children) {
-        for (const Json::Value& child : children) {
+    data.planParams = parsePlanParams(queryPlan["plan_params"]);
+    data.estimates = parseEstimates(queryPlan["estimates"]);
+    data.measures = parseMeasures(queryPlan["measures"]);
+
+    // Move data into the optional slot
+    this->raw = std::move(data);
+
+    // 2. Recursively Parse Children
+    const Json::Value& childrenJson = queryPlan["children"];
+    if (!childrenJson.isNull() && childrenJson.isArray()) {
+        for (const Json::Value& child : childrenJson) {
             this->children.push_back(std::make_unique<PlanNode>(child));
         }
     }
-
-    nodeType = queryPlan["node_type"].asString();
-    if (queryPlan["operator"]) {
-        nodeOperator = std::make_unique<std::string>(queryPlan["operator"].asString());
-    } else {
-        nodeOperator = nullptr;
-    }
-
-    setPlanParams(planParams, queryPlan["plan_params"]);
-    setEstimates(estimates, queryPlan["estimates"]);
-    setMeasures(measures, queryPlan["measures"]);
 }
 
 void test() {
     std::ifstream queryJson("q1-1-plan.json", std::ifstream::binary);
 }
 void printNode(const PlanNode& node){
-    std::cout << node.nodeType;
+    std::cout << node.raw->nodeType;
 }
 
 void printPlanTree(const PlanNode& node, const std::string& prefix, bool isLast) {
@@ -131,16 +184,21 @@ void printSequencedPlan(const std::vector<const PlanNode*> plan_seq){
 }
 
 int main(int argc, char* argv[]) {
-    std::ifstream queryJson("q1-1-plan.json");
-    Json::Value queryPlan;
-    queryJson >> queryPlan;
+    std::vector<std::string> file_names = {"q1-1-plan.json", "q1-2-plan.json", "q1-3-plan.json", "q2-1-plan.json", "q2-2-plan.json", "q2-3-plan.json", "q3-1-plan.json", "q3-2-plan.json", "q3-3-plan.json", "q3-4-plan.json", "q4-1-plan.json", "q4-2-plan.json", "q4-3-plan.json"};
+    std::string base_dir = "/home/martin/University/09_KDB/ws25-optimizer-rust/pb-plans/";
+    
+    for (const std::string& file_name : file_names) {
+    
+        std::ifstream queryJson(base_dir + file_name);
+        Json::Value queryPlan;
+        queryJson >> queryPlan;
 
-    PlanNode* planNode = new PlanNode(queryPlan);
-    // printDebug(*planNode);
-    printPlanTree(*planNode, "", true);
+        std::unique_ptr planNodeRoot = std::make_unique<PlanNode>(queryPlan);
+        printDebug(*planNodeRoot);
+        printPlanTree(*planNodeRoot, "", true);
 
-    std::vector<const PlanNode*> sequenced_plan = to_sequence_two_children<PlanNode>(planNode);
-    printSequencedPlan(sequenced_plan);
-
-    delete planNode;
+        std::vector<const PlanNode*> sequenced_plan = to_sequence_children_list<PlanNode>(planNodeRoot.get());
+        printSequencedPlan(sequenced_plan);
+        break;
+    }
 }

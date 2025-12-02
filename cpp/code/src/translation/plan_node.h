@@ -1,6 +1,13 @@
 #include <iostream>
 #include <vector>
-#include <jsoncpp/json/value.h>
+#include <string>
+#include <memory>
+#include <optional>
+#include <variant>
+#include <jsoncpp/json/value.h> // Ensure you have this linked
+#include <translation/item_builder.h>
+
+// --- 1. Data Structures (Matching our agreed design) ---
 
 struct BaseTable {
     std::string fullName;
@@ -10,13 +17,13 @@ struct BaseTable {
 };
 
 struct PlanParams {
-    std::unique_ptr<BaseTable> baseTable;
-    std::string filterPredicate;
-    std::unique_ptr<std::vector<std::string>> sortKeys;
-    int parallelWorkers;
+    std::optional<BaseTable> baseTable;
+    std::optional<std::string> filterPredicate;
+    std::vector<std::string> sortKeys; // Empty vector if null/empty
+    int parallelWorkers = 0;
     std::string index;
-    std::string lookupKey;
-    std::string suplanName;
+    std::optional<std::string> lookupKey;
+    std::optional<std::string> subplanName;
 };
 
 struct Estimates {
@@ -27,33 +34,59 @@ struct Estimates {
 struct Measures {
     float cardinality;
     float executionTime;
-    int cacheHits;
-    int cacheMisses;
+    std::optional<int> cacheHits;
+    std::optional<int> cacheMisses;
 };
 
+struct JsonRawData {
+    std::string nodeType;
+    std::optional<std::string> nodeOperator;
+    std::optional<std::string> subPlan;
+
+    PlanParams planParams;
+    Estimates estimates;
+    Measures measures;
+};
+
+// Forward decls for variants (placeholders for now)
+struct AbstractSource {}; struct AbstractJoin {}; struct AbstractAgg {}; 
+struct AbstractSort {}; struct AbstractResult {};
+struct ApiPlaceholder {}; // Placeholder for API item
+
 class PlanNode {
-    public:
-        std::string nodeType;
-        std::unique_ptr<std::string> nodeOperator;
-        std::unique_ptr<std::string> physNodeOperator; // TODO: implement mapping
+public:
+    // 1. State: Raw JSON Data
+    std::optional<JsonRawData> raw;
 
-        std::vector<std::unique_ptr<PlanNode>> children;
+    // 2. State: Abstract Tree (Variant)
+    using AbstractData = std::variant<std::monostate, AbstractSource, AbstractJoin, AbstractAgg, AbstractSort, AbstractResult>;
+    AbstractData abstractData;
 
-        PlanParams planParams;
-        Estimates estimates;
-        Measures measures;
+    // 3. State: API Items (Variant inside Vector)
+    using ApiData = std::variant<std::variant<std::monostate, 
+        ItemBuilder::FetchNode, 
+        ItemBuilder::FilterNode, 
+        ItemBuilder::JoinNode, 
+        ItemBuilder::MapNode, 
+        ItemBuilder::MaterializeNode, 
+        ItemBuilder::MultiGroupNode, 
+        ItemBuilder::SetOperationNode, 
+        ItemBuilder::SortNode, 
+        ItemBuilder::AggNode, 
+        ItemBuilder::ResultNode
+    >>;
+    ApiData apiData;
 
-        std::unique_ptr<std::string> subPlan;
+    // 4. Tree Structure
+    std::vector<std::unique_ptr<PlanNode>> children;
 
-        std::unique_ptr<PlanNode> next;
+    // Constructors
+    PlanNode() = default;
+    explicit PlanNode(const Json::Value& queryPlan);
 
-        PlanNode() {};
-        PlanNode(const Json::Value& queryPlan);
-
-        ~PlanNode() {};
-
-        void setBaseTable(std::unique_ptr<BaseTable>& node, const Json::Value& jsonData);
-        void setEstimates(Estimates& planNode, const Json::Value& jsonData);
-        void setMeasures(Measures& measures, const Json::Value& jsonData);
-        void setPlanParams(PlanParams& node, const Json::Value& jsonData);
+private:
+    // Parsing Helpers
+    static PlanParams parsePlanParams(const Json::Value& json);
+    static Estimates parseEstimates(const Json::Value& json);
+    static Measures parseMeasures(const Json::Value& json);
 };
