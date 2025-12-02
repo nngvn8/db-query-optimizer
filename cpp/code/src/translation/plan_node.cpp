@@ -4,16 +4,17 @@
 #include <fstream>
 #include <bits/stdc++.h>
 #include <sequentializer/sequentializer.hpp>
+#include <translation/builder.hpp>
 
 #include "plan_node.h"
 
 void printDebug(const PlanNode& planNode) {
     // Check if raw data exists (it might not if we created a synthetic abstract node later)
-    if (!planNode.raw.has_value()) {
+    if (!planNode.rawJson.has_value()) {
         std::cout << "Node: [Synthetic/Abstract Node]" << std::endl;
         // You could print abstract data here if implemented
     } else {
-        const JsonRawData& r = planNode.raw.value();
+        const JsonRawData& r = planNode.rawJson.value();
         
         // Print Header
         std::cout << "Node: " << r.nodeType;
@@ -137,7 +138,7 @@ PlanNode::PlanNode(const Json::Value& queryPlan) {
     data.measures = parseMeasures(queryPlan["measures"]);
 
     // Move data into the optional slot
-    this->raw = std::move(data);
+    this->rawJson = std::move(data);
 
     // 2. Recursively Parse Children
     const Json::Value& childrenJson = queryPlan["children"];
@@ -152,7 +153,7 @@ void test() {
     std::ifstream queryJson("q1-1-plan.json", std::ifstream::binary);
 }
 void printNode(const PlanNode& node){
-    std::cout << node.raw->nodeType;
+    std::cout << node.rawJson->nodeType;
 }
 
 void printPlanTree(const PlanNode& node, const std::string& prefix, bool isLast) {
@@ -190,15 +191,31 @@ int main(int argc, char* argv[]) {
     for (const std::string& file_name : file_names) {
     
         std::ifstream queryJson(base_dir + file_name);
+        std::stringstream buffer;
+        buffer << queryJson.rdbuf();
+        std::string content = buffer.str();
+        queryJson.close();
+
+        std::string search = "NaN";
+        std::string replace = "null";
+
+        size_t pos = 0;
+        while ((pos = content.find(search, pos)) != std::string::npos) {
+            content.replace(pos, search.length(), replace);
+            pos += replace.length();
+        }
+        std::stringstream modifiedStream(content);
         Json::Value queryPlan;
-        queryJson >> queryPlan;
+        modifiedStream >> queryPlan;
 
         std::unique_ptr planNodeRoot = std::make_unique<PlanNode>(queryPlan);
-        printDebug(*planNodeRoot);
+        // printDebug(*planNodeRoot);
         printPlanTree(*planNodeRoot, "", true);
-
-        std::vector<const PlanNode*> sequenced_plan = to_sequence_children_list<PlanNode>(planNodeRoot.get());
-        printSequencedPlan(sequenced_plan);
-        break;
+        planNodeRoot = pruneTree(std::move(planNodeRoot));
+        // printDebug(*planNodeRoot);
+        printPlanTree(*planNodeRoot, "", true);
+        // std::vector<const PlanNode*> sequenced_plan = to_sequence_children_list<PlanNode>(planNodeRoot.get());
+        // printSequencedPlan(sequenced_plan);
+        // break;
     }
 }

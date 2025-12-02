@@ -1,3 +1,5 @@
+#pragma once
+
 #include <iostream>
 #include <vector>
 #include <string>
@@ -56,7 +58,7 @@ struct ApiPlaceholder {}; // Placeholder for API item
 class PlanNode {
 public:
     // 1. State: Raw JSON Data
-    std::optional<JsonRawData> raw;
+    std::optional<JsonRawData> rawJson;
 
     // 2. State: Abstract Tree (Variant)
     using AbstractData = std::variant<std::monostate, AbstractSource, AbstractJoin, AbstractAgg, AbstractSort, AbstractResult>;
@@ -78,7 +80,7 @@ public:
     ApiData apiData;
 
     // 4. Tree Structure
-    std::vector<std::unique_ptr<PlanNode>> children;
+    std::vector<std::unique_ptr<PlanNode>> children {};
 
     // Constructors
     PlanNode() = default;
