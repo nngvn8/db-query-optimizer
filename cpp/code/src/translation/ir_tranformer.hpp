@@ -2,7 +2,7 @@
 #include <memory>
 #include <unordered_set>
 
-#include <translation/plan_node.h>
+#include <translation/plan_node.hpp>
 
 namespace {
     const std::unordered_set<std::string> HASH = {"Hash"};

@@ -8,6 +8,7 @@
 #include <variant>
 #include <jsoncpp/json/value.h> // Ensure you have this linked
 #include <translation/item_builder.h>
+#include <translation/ir_tree.hpp>
 
 // --- 1. Data Structures (Matching our agreed design) ---
 
@@ -60,22 +61,25 @@ public:
     // 1. State: Raw JSON Data
     std::optional<JsonRawData> rawJson;
 
-    // 2. State: Abstract Tree (Variant)
+    // 2. State: Abstract Tree information
     using AbstractData = std::variant<std::monostate, AbstractSource, AbstractJoin, AbstractAgg, AbstractSort, AbstractResult>;
     AbstractData abstractData;
 
-    // 3. State: API Items (Variant inside Vector)
+    // 3. State: IR Tree information
+    using IrData = std::variant<std::monostate, IrNode::SelectNode /*insert from ir_tree.hpp here*/>;
+
+    // 3. State: API Item Tree information
     using ApiData = std::variant<std::variant<std::monostate, 
-        ItemBuilder::FetchNode, 
-        ItemBuilder::FilterNode, 
-        ItemBuilder::JoinNode, 
-        ItemBuilder::MapNode, 
-        ItemBuilder::MaterializeNode, 
-        ItemBuilder::MultiGroupNode, 
-        ItemBuilder::SetOperationNode, 
-        ItemBuilder::SortNode, 
-        ItemBuilder::AggNode, 
-        ItemBuilder::ResultNode
+        ItemBuilder::FetchNode, // relates to Table
+        ItemBuilder::FilterNode, // relates to Filter
+        ItemBuilder::JoinNode, // relates to Join
+        ItemBuilder::MapNode, // currently missing in IrData
+        ItemBuilder::MaterializeNode, // currently missing in IrData
+        ItemBuilder::MultiGroupNode, // relates to Group
+        ItemBuilder::SetOperationNode, // relates to Set Operation
+        ItemBuilder::SortNode, // relates to SortNode
+        ItemBuilder::AggNode, // aggregate node currently missing in IR! (included in select)
+        ItemBuilder::ResultNode // relates to select node
     >>;
     ApiData apiData;
 
