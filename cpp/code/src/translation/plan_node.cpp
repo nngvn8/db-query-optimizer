@@ -5,6 +5,7 @@
 #include <bits/stdc++.h>
 #include <sequentializer/sequentializer.hpp>
 #include <translation/ir_transformer.hpp>
+#include <translation/file_reader.cpp>
 
 #include "plan_node.hpp"
 
@@ -190,23 +191,7 @@ int main(int argc, char* argv[]) {
     
     for (const std::string& file_name : file_names) {
     
-        std::ifstream queryJson(base_dir + file_name);
-        std::stringstream buffer;
-        buffer << queryJson.rdbuf();
-        std::string content = buffer.str();
-        queryJson.close();
-
-        std::string search = "NaN";
-        std::string replace = "null";
-
-        size_t pos = 0;
-        while ((pos = content.find(search, pos)) != std::string::npos) {
-            content.replace(pos, search.length(), replace);
-            pos += replace.length();
-        }
-        std::stringstream modifiedStream(content);
-        Json::Value queryPlan;
-        modifiedStream >> queryPlan;
+        Json::Value queryPlan = read_plan_to_json(base_dir, file_name);
 
         std::unique_ptr planNodeRoot = std::make_unique<PlanNode>(queryPlan);
         // printDebug(*planNodeRoot);

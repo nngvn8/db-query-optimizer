@@ -7,7 +7,6 @@
 #include <optional>
 #include <variant>
 #include <jsoncpp/json/value.h> // Ensure you have this linked
-#include <translation/ir_transformer.hpp>
 #include <translation/ir_tree.hpp>
 #include <translation/item_builder.h>
 
@@ -53,8 +52,26 @@ struct JsonRawData {
 };
 
 // Forward decls for variants (placeholders for now)
-struct AbstractSource {}; struct AbstractJoin {}; struct AbstractAgg {}; 
-struct AbstractSort {}; struct AbstractResult {};
+struct AbstractSource {
+    std::string basetable;
+    std::vector<std::string> filters;
+}; 
+struct AbstractJoin {
+    std::string left_table;
+    std::string right_table;
+    std::string condition;
+
+}; 
+struct AbstractAgg {
+    std::string agg_type;
+}; 
+struct AbstractSort {
+    std::string attribute;
+    std::string table;
+    bool asc;
+
+}; 
+struct AbstractResult {};
 struct ApiPlaceholder {}; // Placeholder for API item
 
 class PlanNode {

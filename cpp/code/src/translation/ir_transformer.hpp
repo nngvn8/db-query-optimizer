@@ -95,3 +95,4 @@ std::unique_ptr<PlanNode> pruneTree(std::unique_ptr<PlanNode> node) {
 
     return node; // Return the modified (but same pointer) node
 }
+
