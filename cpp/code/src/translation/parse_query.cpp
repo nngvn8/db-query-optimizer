@@ -4,7 +4,7 @@
 #include <regex>
 #include <set>
 #include <sstream>
-#include <translation/file_reader.cpp>
+#include <translation/file_reader.hpp>
 
 // g++ -I.. -ljsoncpp parse_query.cpp && ./a.out
 

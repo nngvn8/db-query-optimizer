@@ -9,6 +9,7 @@
 #include <jsoncpp/json/value.h> // Ensure you have this linked
 #include <translation/ir_tree.hpp>
 #include <translation/item_builder.h>
+#include <translation/abstract_ir.hpp>
 
 // --- 1. Data Structures (Matching our agreed design) ---
 
@@ -52,26 +53,6 @@ struct JsonRawData {
 };
 
 // Forward decls for variants (placeholders for now)
-struct AbstractSource {
-    std::string basetable;
-    std::vector<std::string> filters;
-}; 
-struct AbstractJoin {
-    std::string left_table;
-    std::string right_table;
-    std::string condition;
-
-}; 
-struct AbstractAgg {
-    std::string agg_type;
-}; 
-struct AbstractSort {
-    std::string attribute;
-    std::string table;
-    bool asc;
-
-}; 
-struct AbstractResult {};
 struct ApiPlaceholder {}; // Placeholder for API item
 
 class PlanNode {
@@ -114,3 +95,5 @@ private:
     static Estimates parseEstimates(const Json::Value& json);
     static Measures parseMeasures(const Json::Value& json);
 };
+
+void printPlanTree(const PlanNode& node, const std::string& prefix, bool isLast);

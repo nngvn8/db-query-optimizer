@@ -1,10 +1,8 @@
+#include "file_reader.hpp"
+
 #include <iostream>
 #include <jsoncpp/json/json.h>
-#include <jsoncpp/json/value.h>
 #include <fstream>
-#include <bits/stdc++.h>
-
-// requires -ljsoncpp:
 
 Json::Value read_plan_to_json(const std::string& base_dir, const std::string& file_name){
     std::ifstream queryJson(base_dir + file_name);
@@ -34,4 +32,3 @@ std::string read_ssb_query(const std::string& base_dir, const std::string& file_
     std::string content = buffer.str();
     return content;
 }
-
