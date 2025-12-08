@@ -4,9 +4,9 @@
 #include <fstream>
 #include <bits/stdc++.h>
 #include <sequentializer/sequentializer.hpp>
-#include <translation/builder.hpp>
+#include <translation/ir_transformer.hpp>
 
-#include "plan_node.h"
+#include "plan_node.hpp"
 
 void printDebug(const PlanNode& planNode) {
     // Check if raw data exists (it might not if we created a synthetic abstract node later)
