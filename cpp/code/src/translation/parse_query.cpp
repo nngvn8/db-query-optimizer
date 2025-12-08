@@ -1,8 +1,7 @@
+#include "parse_query.hpp"
+
 #include <iostream>
-#include <string>
-#include <vector>
 #include <regex>
-#include <set>
 #include <sstream>
 #include <translation/file_reader.hpp>
 
@@ -16,22 +15,15 @@ std::string test_query = R"(SELECT SUM(lo_extendedprice * lo_discount) AS REVENU
                            AND lo_discount BETWEEN 1 AND 3
                            AND lo_quantity < 25;)";
 
-struct QueryMetadata {
-    std::set<std::string> tables;
-    std::set<std::string> attributes;
-    std::vector<std::string> conditions;
-    std::string aggType;
-    std::string mappingFunction;
-};
-
-// Helper to trim whitespace
-std::string trim(const std::string& str) {
-    size_t first = str.find_first_not_of(" \t\n\r");
-    if (std::string::npos == first) return str;
-    size_t last = str.find_last_not_of(" \t\n\r");
-    return str.substr(first, (last - first + 1));
+namespace {
+    // Helper to trim whitespace
+    std::string trim(const std::string& str) {
+        size_t first = str.find_first_not_of(" \t\n\r");
+        if (std::string::npos == first) return str;
+        size_t last = str.find_last_not_of(" \t\n\r");
+        return str.substr(first, (last - first + 1));
+    }
 }
-
 QueryMetadata parseQuery(std::string sql) {
     QueryMetadata meta;
     
@@ -101,6 +93,26 @@ QueryMetadata parseQuery(std::string sql) {
         }
     }
 
+    // 5. Extract Sorting (ORDER BY)
+    std::regex orderRegex(R"(ORDER\s+BY\s+([\s\S]+?)(?:;|$))", std::regex::icase);
+    std::smatch orderMatch;
+
+    if (std::regex_search(sql, orderMatch, orderRegex)) {
+        std::string orderClause = orderMatch[1];
+        
+        // Clean up newlines similar to WHERE clause if necessary
+        std::replace(orderClause.begin(), orderClause.end(), '\n', ' ');
+
+        std::stringstream ss(orderClause);
+        std::string segment;
+        while (std::getline(ss, segment, ',')) {
+            std::string cleanSegment = trim(segment);
+            if (!cleanSegment.empty()) {
+                meta.sorting.push_back(cleanSegment);
+            }
+        }
+    }
+
     return meta;
 }
 
@@ -116,21 +128,26 @@ void print_query_data(QueryMetadata data) {
 
     std::cout << "\nConditions:\n";
     for (const auto& c : data.conditions) std::cout << " - " << c << "\n";
+
+    std::cout << "\nSorting:\n";
+    for (const auto& c : data.sorting) std::cout << " - " << c << "\n";
 }
 
-int main() {
-    std::string base_dir = "/home/martin/University/09_KDB/ws25-optimizer-rust/pb-plans/";
-    std::vector<std::string> file_names = {"q1-1.sql", "q1-2.sql", "q1-3.sql", "q2-1.sql", "q2-2.sql", "q2-3.sql", "q3-1.sql", "q3-2.sql", "q3-3.sql", "q3-4.sql", "q4-1.sql", "q4-2.sql", "q4-3.sql"};
+// int main() {
+//     std::string base_dir = "/home/martin/University/09_KDB/ws25-optimizer-rust/pb-plans/";
+//     std::vector<std::string> file_names = {"q1-1.sql", "q1-2.sql", "q1-3.sql", "q2-1.sql", "q2-2.sql", "q2-3.sql", "q3-1.sql", "q3-2.sql", "q3-3.sql", "q3-4.sql", "q4-1.sql", "q4-2.sql", "q4-3.sql"};
     
 
-    for (const std::string& file_name : file_names) {
+//     for (const std::string& file_name : file_names) {
 
-        std::string raw_query = read_ssb_query(base_dir, file_name);
+//         std::string raw_query = read_ssb_query(base_dir, file_name);
 
-        QueryMetadata data = parseQuery(raw_query);
+//         QueryMetadata data = parseQuery(raw_query);
+        
+//         std::cout << "File: " << file_name << std::endl;
+//         print_query_data(data);
+//         std::cout << std::endl;
+//     }
 
-        print_query_data(data);
-    }
-
-    return 0;
-}
+//     return 0;
+// }

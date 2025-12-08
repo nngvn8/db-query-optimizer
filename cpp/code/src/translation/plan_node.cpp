@@ -6,6 +6,9 @@
 #include <jsoncpp/json/json.h>
 #include <fstream>
 
+#include <translation/parse_query.hpp>
+#include <translation/abstract_ir.hpp>
+
 
 void printDebug(const PlanNode& planNode) {
     // Check if raw data exists (it might not if we created a synthetic abstract node later)
@@ -69,6 +72,10 @@ PlanParams PlanNode::parsePlanParams(const Json::Value& json) {
         bt.alias = btJson.get("alias", "").asString();
         bt.isVirtual = btJson.get("virtual", false).asBool();
         bt.schema = btJson.get("schema", "").asString();
+        
+        // Mismatch between table name in plan and in queries
+        bt.fullName = bt.fullName == "dim_date" ? "dates" : bt.fullName;
+        
         params.baseTable = bt;
     }
 
@@ -152,6 +159,22 @@ void printNode(const PlanNode& node){
     // std::cout << node.rawJson->nodeType;
     GetNodeName getNodeName;
     std::cout << std::visit(getNodeName, node.abstractData); // visit to remove the variant wrapper
+    const AbstractSource* source = std::get_if<AbstractSource>(&node.abstractData);
+    if (source) {
+        std::cout << " " << source->basetable;
+        if (!source->filters.empty()) {
+            std::cout << " [";
+            for (size_t i = 0; i < source->filters.size(); ++i) {
+                std::cout << (i > 0 ? ", " : "") << source->filters[i];
+            }
+            std::cout << "]";
+        }
+    }
+    const AbstractJoin* join = std::get_if<AbstractJoin>(&node.abstractData);
+    if (join) {
+        std::cout << " " << join->condition 
+                  << " [" << join->left_table << ", " << join->right_table << "]";
+    }
 }
 
 void printPlanTree(const PlanNode& node, const std::string& prefix, bool isLast) {

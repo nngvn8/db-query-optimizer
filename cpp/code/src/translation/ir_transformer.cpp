@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <unordered_set>
+#include <regex>
 
 
 namespace {
@@ -14,15 +15,15 @@ namespace {
     const std::unordered_set<std::string> SORT = {"Incremental Sort", "Sort"};
 
     const std::unordered_set<std::string> PRUNE_TARGETS = {"Hash", "Gather", "Gather Merge"};
-}
 
+    bool isNodeType(const PlanNode* node, const std::string& type) {
+        return node && node->rawJson.has_value() && node->rawJson->nodeType == type;
+    }
 
-bool isNodeType(const PlanNode* node, const std::string& type) {
-    return node && node->rawJson.has_value() && node->rawJson->nodeType == type;
-}
+    bool isNodeType(const PlanNode* node, const std::unordered_set<std::string>& types) {
+        return node && node->rawJson.has_value() && types.count(node->rawJson->nodeType);
+    }
 
-bool isNodeType(const PlanNode* node, const std::unordered_set<std::string>& types) {
-    return node && node->rawJson.has_value() && types.count(node->rawJson->nodeType);
 }
 
 PlanNode::AbstractData convertToAbstract(const JsonRawData& rawJson) {
@@ -43,9 +44,9 @@ PlanNode::AbstractData convertToAbstract(const JsonRawData& rawJson) {
     else if (SCAN.count(rawJson.nodeType) || BITMAP.count(rawJson.nodeType)) {
         AbstractSource source;
 
-        // source.basetable = rawJson.planParams.baseTable.has_value() 
-        //          ? rawJson.planParams.baseTable->fullName 
-        //          : "";
+        source.basetable = rawJson.planParams.baseTable.has_value() 
+                 ? rawJson.planParams.baseTable->fullName 
+                 : "";
         abstract_data = source;
     }
     else if (rawJson.nodeType == "Limit") {
@@ -122,3 +123,99 @@ std::unique_ptr<PlanNode> pruneTree(std::unique_ptr<PlanNode> node) {
     return node; // Return the modified (but same pointer) node
 }
 
+namespace {
+
+    // Helper to map column prefixes to table names (SSB Schema)
+    std::string getTableFromColumn(const std::string& col) {
+        if (col.find("lo_") == 0) return "lineorder";
+        if (col.find("c_") == 0)  return "customer";
+        if (col.find("s_") == 0)  return "supplier";
+        if (col.find("p_") == 0)  return "part";
+        if (col.find("d_") == 0)  return "dates"; // dim_date is currently used in plan, but remapped to dates in parsing
+        return "";
+    }
+
+    // Helper to extract the two tables involved in a condition string
+    // e.g., "lo_custkey = c_custkey" -> {"lineorder", "customer"}
+    std::pair<std::string, std::string> parseConditionTables(const std::string& condition) {
+        auto eqPos = condition.find('=');
+        if (eqPos == std::string::npos) return {"", ""};
+
+        std::string left = condition.substr(0, eqPos);
+        std::string right = condition.substr(eqPos + 1);
+        
+        // minimal trim (you might already have a trim function)
+        left.erase(0, left.find_first_not_of(" \t"));
+        left.erase(left.find_last_not_of(" \t") + 1);
+        right.erase(0, right.find_first_not_of(" \t"));
+        right.erase(right.find_last_not_of(" \t") + 1);
+
+        return {getTableFromColumn(left), getTableFromColumn(right)};
+    }
+}
+
+std::set<std::string> enrichTree(PlanNode* node, QueryMetadata& queryData){
+    
+    // Sets of tables of each the children (should be no more than 2)
+    std::vector<std::set<std::string>> childTableSets;
+    
+    // Union of the tables of all children, therefore the tables that can be found in the whole subtree
+    std::set<std::string> currentTables;
+
+    // Collect base tables from children
+    for (const std::unique_ptr<PlanNode>& child : node->children) {
+        std::set<std::string> childTables = enrichTree(child.get(), queryData);
+        childTableSets.push_back(childTables);
+        currentTables.insert(childTables.begin(), childTables.end());
+    }
+
+    // CASE source node
+    if (AbstractSource* source = std::get_if<AbstractSource>(&node->abstractData)) {
+        std::string basetable = source->basetable;
+        
+        for (const std::string& cond : queryData.conditions) {
+            
+            // Add all filters to the source node
+            std::regex attrRegex(R"(\b[a-z]+_[a-z0-9]+\b)");
+            auto begin = std::sregex_iterator(cond.begin(), cond.end(), attrRegex);
+            auto end = std::sregex_iterator();
+            std::set<std::string> tablesInCond;
+
+            for (std::sregex_iterator i = begin; i!= end; ++i) {
+                std::string attr = i->str();
+                std::string table = getTableFromColumn(attr);
+                tablesInCond.insert(table);                
+            }
+            if (tablesInCond.size() == 1 && tablesInCond.count(basetable)) source->filters.push_back(cond);
+        }
+
+        // Return the a set containing the basetable
+        return {basetable};
+    }
+
+    // CASE join node
+    if (AbstractJoin* join = std::get_if<AbstractJoin>(&node->abstractData)) {
+        
+        // We only support joins of two tables. There should only be two tables in childTableSets
+        if (childTableSets.size() == 2) {
+            const std::set<std::string>& leftSet = childTableSets[0];
+            const std::set<std::string>& rightSet =  childTableSets[1];
+        
+            // Find the right condition
+            for (const std::string& cond : queryData.conditions) {
+                auto [t1, t2] = parseConditionTables(cond);                
+
+                bool match = (leftSet.count(t1) && rightSet.count(t2)) ||
+                             (leftSet.count(t2) && rightSet.count(t1));
+                             
+                if (match) {
+                    join->condition = cond;
+                    join->left_table = t1;
+                    join->right_table = t2;
+                    break; // don't process any other conditions, as we found the one for the join
+                } // additionally pop the condition?            
+            }
+        }
+    }
+    return currentTables;
+}

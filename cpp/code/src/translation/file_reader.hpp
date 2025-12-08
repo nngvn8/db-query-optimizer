@@ -1,3 +1,5 @@
+#pragma once
+
 #include <jsoncpp/json/value.h>
 
 // requires -ljsoncpp:
