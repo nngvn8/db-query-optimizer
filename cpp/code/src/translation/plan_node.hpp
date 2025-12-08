@@ -7,8 +7,9 @@
 #include <optional>
 #include <variant>
 #include <jsoncpp/json/value.h> // Ensure you have this linked
-#include <translation/item_builder.h>
+#include <translation/ir_transformer.hpp>
 #include <translation/ir_tree.hpp>
+#include <translation/item_builder.h>
 
 // --- 1. Data Structures (Matching our agreed design) ---
 
