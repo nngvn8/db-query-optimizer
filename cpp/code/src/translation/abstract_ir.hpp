@@ -15,13 +15,17 @@ struct AbstractJoin {
 }; 
 struct AbstractAgg {
     std::string agg_type;
+    std::string agg_mapping;
+    std::string agg_alias;
 }; 
 struct AbstractSort {
-    std::string column_names;
-    bool asc;
+    std::vector<std::string> column_names;
+    std::vector<bool> asc;
 
 }; 
-struct AbstractResult {};
+struct AbstractResult {
+    std::vector<std::string> output_cols;
+};
 
 
 struct GetNodeName {
@@ -32,42 +36,3 @@ struct GetNodeName {
     std::string operator()(const AbstractSort&)   { return "AbstractSort"; }
     std::string operator()(const AbstractResult&) { return "AbstractResult"; }
 };
-// #include <variant>
-// #include <vector>
-// #include <string>
-// #include <memory>
-// #include <optional>
-
-// // --- Abstract Node Definitions ---
-
-// struct AbstractSource {
-//     std::string tableName;
-//     std::string alias;
-//     std::optional<std::string> filterPredicate; // Captured from Seq Scan or Index Cond
-// };
-
-// struct AbstractJoin {
-//     std::string joinType; // "Inner", "Left", etc.
-//     // We don't need 'Hash' logic here, just the join keys
-//     std::string leftKey; 
-//     std::string rightKey;
-//     std::string op; // "="
-// };
-
-// struct AbstractAgg {
-//     std::vector<std::string> groupKeys;
-//     std::vector<std::string> aggFunctions; // e.g., "SUM(lo_revenue)"
-// };
-
-// struct AbstractSort {
-//     std::vector<std::string> sortKeys;
-//     std::vector<bool> sortOrders; 
-// };
-
-// struct AbstractResult {
-//     std::vector<std::string> outputColumns;
-// };
-
-
-
-

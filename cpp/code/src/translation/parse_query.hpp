@@ -5,7 +5,7 @@
 #include <vector>
 #include <set>
 
-struct SelectField {
+struct Selection {
     std::string content; // The full expression (e.g., "d_year" or "SUM(x)")
     std::string alias;   // Optional AS alias
 };
@@ -16,19 +16,19 @@ struct Aggregation {
     std::string alias;   // Optional AS alias
 };
 
-struct SortField {
+struct Sort {
     std::string field;
     bool asc; // true for ASC, false for DESC
 };
 
 struct SqlQueryData {
-    std::vector<SelectField> selections;
+    std::vector<Selection> selections;
     std::vector<Aggregation> aggregations;
     std::vector<std::string> groupBys;
     std::set<std::string> tables;
     std::set<std::string> attributes;
     std::vector<std::string> conditions;
-    std::vector<SortField> sorting;
+    std::vector<Sort> sorting;
 };
 
 SqlQueryData parseQuery(std::string sql);

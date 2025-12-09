@@ -134,7 +134,7 @@ SqlQueryData parseQuery(std::string sql) {
             std::string s = trim(segment);
             if (s.empty()) continue;
 
-            SortField sf;
+            Sort sf;
             sf.asc = true; // Default ASC
 
             // Check for DESC

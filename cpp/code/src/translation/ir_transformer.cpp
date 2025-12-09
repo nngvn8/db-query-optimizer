@@ -170,7 +170,7 @@ namespace {
     }
 }
 
-std::set<std::string> enrichTree(PlanNode* node, SqlQueryData& queryData){
+std::set<std::string> enrichTreeSub(PlanNode* node, SqlQueryData& queryData){
     
     // Sets of tables of each the children (should be no more than 2)
     std::vector<std::set<std::string>> childTableSets;
@@ -180,7 +180,7 @@ std::set<std::string> enrichTree(PlanNode* node, SqlQueryData& queryData){
 
     // Collect base tables from children
     for (const std::unique_ptr<PlanNode>& child : node->children) {
-        std::set<std::string> childTables = enrichTree(child.get(), queryData);
+        std::set<std::string> childTables = enrichTreeSub(child.get(), queryData);
         childTableSets.push_back(childTables);
         currentTables.insert(childTables.begin(), childTables.end());
     }
@@ -211,7 +211,22 @@ std::set<std::string> enrichTree(PlanNode* node, SqlQueryData& queryData){
 
     // Case sort node
     if (AbstractSort* sort = std::get_if<AbstractSort>(&node->abstractData)) {
-        
+        std::vector<std::string> col_names;
+        std::vector<bool> sort_orders;
+        for (int i=0; i < queryData.sorting.size(); ++i){
+            col_names.push_back(queryData.sorting[i].field);
+            sort_orders.push_back(queryData.sorting[i].asc);
+        }
+        sort->column_names = col_names;
+        sort->asc = sort_orders;
+    }
+
+    // Case aggregation node
+    if (AbstractAgg* agg = std::get_if<AbstractAgg>(&node->abstractData)) {
+        Aggregation agg_from_query = queryData.aggregations[0]; // although parsing supports several, in ssb there's only one
+        agg->agg_type = agg_from_query.func;
+        agg->agg_mapping = agg_from_query.mapping;
+        agg->agg_alias = agg_from_query.alias;
     }
 
     // CASE join node
@@ -239,4 +254,28 @@ std::set<std::string> enrichTree(PlanNode* node, SqlQueryData& queryData){
         }
     }
     return currentTables;
+}
+
+std::unique_ptr<PlanNode> enrichTree(std::unique_ptr<PlanNode> root, SqlQueryData& queryData) {
+
+    // Enrich all nodes of the tree with data from query 
+    enrichTreeSub(root.get(), queryData);
+
+    // Build result node as new root
+    std::unique_ptr<PlanNode> resultNode = std::make_unique<PlanNode>();
+    
+    AbstractResult result;
+    
+    // Add data from query into the result
+    std::vector<std::string> select_cols;
+    for (const Selection& col : queryData.selections) {
+        select_cols.push_back(col.content);
+    }
+    
+    // Fill result node and set it as new root of the tree
+    result.output_cols = select_cols;
+    resultNode->abstractData = result;
+    resultNode->children.push_back(std::move(root));
+
+    return resultNode;
 }
