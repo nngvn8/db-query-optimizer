@@ -8,4 +8,4 @@ PlanNode::AbstractData convertToAbstract(const JsonRawData& rawJson);
 
 std::unique_ptr<PlanNode> pruneTree(std::unique_ptr<PlanNode> node);
 
-std::set<std::string> enrichTreeSub(PlanNode* node, SqlQueryData& meta);
+std::unique_ptr<PlanNode> enrichTree(std::unique_ptr<PlanNode> root, SqlQueryData& queryData);

@@ -175,6 +175,30 @@ void printNode(const PlanNode& node){
         std::cout << " " << join->condition 
                   << " [" << join->left_table << ", " << join->right_table << "]";
     }
+
+    const AbstractAgg* agg = std::get_if<AbstractAgg>(&node.abstractData);
+    if (agg) {
+        std::cout << " " << agg->agg_type << "(" << agg->agg_mapping << ") AS " << agg->agg_alias;
+    }
+
+    const AbstractSort* sort = std::get_if<AbstractSort>(&node.abstractData);
+    if (sort) {
+        std::cout << " [";
+        for (size_t i = 0; i < sort->column_names.size(); ++i) {
+             std::cout << (i > 0 ? ", " : "") << sort->column_names[i] 
+                       << (sort->asc[i] ? " ASC" : " DESC");
+        }
+        std::cout << "]";
+    }
+    
+    const AbstractResult* result = std::get_if<AbstractResult>(&node.abstractData);
+    if (result) {
+        std::cout << " [";
+        for (size_t i = 0; i < result->output_cols.size(); ++i) {
+             std::cout << (i > 0 ? ", " : "") << result->output_cols[i];
+        }
+        std::cout << "]";
+    }
 }
 
 void printPlanTree(const PlanNode& node, const std::string& prefix, bool isLast) {
