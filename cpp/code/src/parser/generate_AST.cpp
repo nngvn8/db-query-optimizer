@@ -1,5 +1,5 @@
 #include "hsql/SQLParser.h"
-#include "generate_ast_alternate.h"
+#include "generate_AST.h"
 #include <iostream>
 #include <variant>
 #include <string>
