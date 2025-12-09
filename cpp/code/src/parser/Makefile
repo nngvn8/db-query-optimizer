@@ -1,5 +1,15 @@
-HSQL = /path/to/hyrise/sql-parser/
-CFLAGS = -std=c++1z -lstdc++ -Wall -Werror -I$(HSQL)src/ -L$(HSQL) -Wl,-R$(HSQL)
+CXX = g++
+CXXFLAGS = -Wall -Werror -std=c++17 -I/usr/local/include/hsql
+LDFLAGS = -L/usr/local/lib
+LDLIBS = -lsqlparser
 
-all:
-	g++ $(CFLAGS) HyriseExample.cpp -o hyrise_example -lsqlparser
+SOURCES = test.cpp generate_AST.cpp predicate_pushdown.cpp generate_dot.cpp
+TARGET = test
+
+all: $(TARGET)
+
+$(TARGET): $(SOURCES)
+	$(CXX) $(CXXFLAGS) $(SOURCES) -o $(TARGET) $(LDFLAGS) $(LDLIBS)
+
+clean:
+	rm -f $(TARGET)
