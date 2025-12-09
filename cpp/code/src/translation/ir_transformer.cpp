@@ -170,7 +170,7 @@ namespace {
     }
 }
 
-std::set<std::string> enrichTree(PlanNode* node, QueryMetadata& queryData){
+std::set<std::string> enrichTree(PlanNode* node, SqlQueryData& queryData){
     
     // Sets of tables of each the children (should be no more than 2)
     std::vector<std::set<std::string>> childTableSets;

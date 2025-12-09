@@ -21,7 +21,7 @@ int main(int argc, char* argv[]) {
         // printDebug(*planNodeRoot);
         // printPlanTree(*planNodeRoot, "", true);
         planNodeRoot = pruneTree(std::move(planNodeRoot));
-        QueryMetadata sqlQueryData = parseQuery(query);
+        SqlQueryData sqlQueryData = parseQuery(query);
         print_query_data(sqlQueryData);
         enrichTree(planNodeRoot.get(), sqlQueryData);
         // printDebug(*planNodeRoot);
