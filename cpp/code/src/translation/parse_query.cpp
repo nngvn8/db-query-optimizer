@@ -42,10 +42,10 @@ SqlQueryData parseQuery(std::string sql) {
                 alias = trim(aliasMatch[2]);
             }
 
-            // B. Add to Selections (ALL items go here)
+            // B. Add to Selections
             meta.selections.push_back({content, alias});
 
-            // C. Check if it's an Aggregation (Redundant storage)
+            // C. Check if it's an Aggregation
             std::regex aggRegex(R"((SUM|COUNT|AVG|MIN|MAX)\s*\((.*?)\))", std::regex::icase);
             std::smatch aggMatch;
             if (std::regex_search(content, aggMatch, aggRegex)) {
@@ -99,7 +99,6 @@ SqlQueryData parseQuery(std::string sql) {
             size_t placeholder = cond.find(" _AND_ ");
             if (placeholder != std::string::npos) cond.replace(placeholder, 7, " AND ");
             
-            // Remove surrounding parentheses if present (e.g. for OR groups)
             if (cond.size() > 1 && cond.front() == '(' && cond.back() == ')') {
                 cond = trim(cond.substr(1, cond.size() - 2));
             }
@@ -122,7 +121,7 @@ SqlQueryData parseQuery(std::string sql) {
         }
     }
 
-    // --- 6. Extract ORDER BY ---
+    // --- 6. Extract ORDER BY (Updated) ---
     std::regex orderRegex(R"(ORDER\s+BY\s+([\s\S]+?)(?:;|$))", std::regex::icase);
     std::smatch orderMatch;
     if (std::regex_search(sql, orderMatch, orderRegex)) {
@@ -130,9 +129,27 @@ SqlQueryData parseQuery(std::string sql) {
         std::replace(orderClause.begin(), orderClause.end(), '\n', ' ');
         std::stringstream ss(orderClause);
         std::string segment;
+
         while (std::getline(ss, segment, ',')) {
-            std::string clean = trim(segment);
-            if (!clean.empty()) meta.sorting.push_back(clean);
+            std::string s = trim(segment);
+            if (s.empty()) continue;
+
+            SortField sf;
+            sf.asc = true; // Default ASC
+
+            // Check for DESC
+            if (s.size() >= 5 && s.substr(s.size() - 5) == " DESC") {
+                sf.asc = false;
+                s = s.substr(0, s.size() - 5);
+            } 
+            // Check for ASC (explicit)
+            else if (s.size() >= 4 && s.substr(s.size() - 4) == " ASC") {
+                sf.asc = true;
+                s = s.substr(0, s.size() - 4);
+            }
+
+            sf.field = trim(s);
+            meta.sorting.push_back(sf);
         }
     }
 
@@ -170,24 +187,8 @@ void print_query_data(const SqlQueryData& data) {
     for (const auto& g : data.groupBys) std::cout << " - " << g << "\n";
 
     std::cout << "\n--- ORDER BY ---\n";
-    for (const auto& s : data.sorting) std::cout << " - " << s << "\n";
+    for (const auto& s : data.sorting) {
+        std::cout << " - " << s.field 
+                  << " [" << (s.asc ? "ASC" : "DESC") << "]\n";
+    }
 }
-
-// int main() {
-//     std::string base_dir = "/home/martin/University/09_KDB/ws25-optimizer-rust/pb-plans/";
-//     std::vector<std::string> file_names = {"q1-1.sql", "q1-2.sql", "q1-3.sql", "q2-1.sql", "q2-2.sql", "q2-3.sql", "q3-1.sql", "q3-2.sql", "q3-3.sql", "q3-4.sql", "q4-1.sql", "q4-2.sql", "q4-3.sql"};
-    
-
-//     for (const std::string& file_name : file_names) {
-
-//         std::string raw_query = read_ssb_query(base_dir, file_name);
-
-//         SqlQueryData data = parseQuery(raw_query);
-        
-//         std::cout << "File: " << file_name << std::endl;
-//         print_query_data(data);
-//         std::cout << std::endl;
-//     }
-
-//     return 0;
-// }

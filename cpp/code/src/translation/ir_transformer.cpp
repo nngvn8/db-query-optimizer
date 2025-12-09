@@ -211,7 +211,7 @@ std::set<std::string> enrichTree(PlanNode* node, SqlQueryData& queryData){
 
     // Case sort node
     if (AbstractSort* sort = std::get_if<AbstractSort>(&node->abstractData)) {
-
+        
     }
 
     // CASE join node

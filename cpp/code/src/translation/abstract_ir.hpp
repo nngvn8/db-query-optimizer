@@ -17,8 +17,7 @@ struct AbstractAgg {
     std::string agg_type;
 }; 
 struct AbstractSort {
-    std::string attribute;
-    std::string table;
+    std::string column_names;
     bool asc;
 
 }; 
