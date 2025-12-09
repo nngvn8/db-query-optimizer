@@ -56,6 +56,24 @@ PlanNode::AbstractData convertToAbstract(const JsonRawData& rawJson) {
     return abstract_data;
 }
 
+void removeDeepAggregate(std::unique_ptr<PlanNode>& node) {
+    // Pointer to the unique_ptr we are currently inspecting
+    std::unique_ptr<PlanNode>* currentPtr = &node;
+
+    // Find aggregate
+    while (*currentPtr && !isNodeType(currentPtr->get(), AGG)) {
+        if ((*currentPtr)->children.empty()) return; 
+        currentPtr = &((*currentPtr)->children[0]);
+    }
+
+    // Replace the aggregate with its own child
+    if (*currentPtr && isNodeType(currentPtr->get(), AGG)) {
+        if ((*currentPtr)->children.size() == 1) {
+            *currentPtr = std::move((*currentPtr)->children[0]);
+        }
+    }
+}
+
 std::unique_ptr<PlanNode> pruneTree(std::unique_ptr<PlanNode> node) {
     if (!node) return nullptr;
 
@@ -70,12 +88,10 @@ std::unique_ptr<PlanNode> pruneTree(std::unique_ptr<PlanNode> node) {
 
     const std::string& currentType = node->rawJson->nodeType;
 
+    // PRUNE TREE
 
-    // 2. CHECK PRUNING LOGIC
-    // Access the raw data to check the type
-
-    // Remove if Prune Target
-    if (HASH.count(currentType) || GATHER.count(currentType)) {
+    // Remove hash table nodes
+    if (HASH.count(currentType)) {
         // THE REWIRE TRICK:
         // 1. We detach the first child from the current 'node'.
         // 2. We return that child to the *caller* (the parent of 'node').
@@ -85,18 +101,18 @@ std::unique_ptr<PlanNode> pruneTree(std::unique_ptr<PlanNode> node) {
         }
     }
 
-
-    // Handling the aggregate Sandwich
-    if (currentType == "Aggregate" && node->children.size() == 1) {
-        PlanNode* childPtr = node->children[0].get();
-        
-        if (isNodeType(childPtr, "Aggregate")) {
-                // move handles empty lists
-                // std::unique_ptr<PlanNode> childNode = std::move(node->children[0]);
-                node->children = std::move(childPtr->children);
+    // Remove gather and corresponding aggregate
+    if (GATHER.count(currentType)) {
+        if (node->children.size() == 1) {
+            // Remove corresponding aggregate
+            removeDeepAggregate(node->children[0]);
+            
+            // Delete the Gather itself by returning the fixed child
+            return std::move(node->children[0]);
         }
     }
-
+    
+    // Collapse bitmap
     if (BITMAP.count(currentType) && node->children.size() == 1) {
         PlanNode* childPtr = node->children[0].get();
 
@@ -116,8 +132,8 @@ std::unique_ptr<PlanNode> pruneTree(std::unique_ptr<PlanNode> node) {
         }
 
     }
-    // 3. TRANSFORM RAW TO ABSTRACT (In-place) // TODO: this line is not working yet
-    // If we didn't prune it, we convert Raw Data -> Abstract Data here
+    
+    // Generate abstract representation and fill with needed raw data 
     node->abstractData = convertToAbstract(node->rawJson.value());
 
     return node; // Return the modified (but same pointer) node
@@ -191,6 +207,11 @@ std::set<std::string> enrichTree(PlanNode* node, QueryMetadata& queryData){
 
         // Return the a set containing the basetable
         return {basetable};
+    }
+
+    // Case sort node
+    if (AbstractSort* sort = std::get_if<AbstractSort>(&node->abstractData)) {
+
     }
 
     // CASE join node
