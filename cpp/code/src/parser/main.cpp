@@ -1,18 +1,29 @@
 #include <iostream>
 #include <string>
 #include "generate_AST.h"
-#include "generate_dot.h"
-
+#include "predicate_pushdown.h"
 using namespace std;
 
 int main() {
-    const std::string query = "SELECT SUM(*) FROM ordered o JOIN company c ON o.name = c.name WHERE c.id = '12' AND o.id = 12 AND o.id = c.id Group by o.name Order by o.name DESC LIMIT 100";
-    // const std::string query = "SELECT j.id, j.name, t.id FROM testtable t JOIN jointable j ON t.id = j.id WHERE testtable.name = 12";
+    const std::string query = R"SQL(
+        SELECT d_year, s_city, p_brand, SUM(lo_revenue - lo_supplycost) AS PROFIT
+            FROM dates, customer, supplier, part, lineorder
+            WHERE
+                lo_custkey = c_custkey
+            AND lo_suppkey = s_suppkey
+            AND lo_partkey = p_partkey
+            AND lo_orderdate = d_datekey
+            AND s_nation = 'UNITED STATES'
+            AND (
+                        d_year = 1997
+                    OR d_year = 1998
+                )
+            AND p_category = 'MFGR#14'
+            GROUP BY d_year, s_city, p_brand
+            ORDER BY d_year, s_city, p_brand;
+        )SQL";
+
     auto root = generateASTNode(query);
-    std::cout<<endl<<"parsed tree Pre-order traversal : "<<endl;
     printAST(root);
-    //a basic predicate pushdown
-    // root = predicatePushDown(root);
-    // generateDotFile(root,"testpic6.dot");
     std::cout<<"\n\n";
 }
