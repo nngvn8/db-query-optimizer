@@ -51,19 +51,24 @@ class WhereClauseNode {
         std::string table2;
         std::string column2;
         std::string value;
+        std::string value2;
         
-        WhereClauseNode(const std::string& table,
-                const std::string& column,
+        
+        WhereClauseNode(const std::string& table="",
+                const std::string& column="",
                 const std::string& operatorType = "",
                 const std::string& table2 = "",
                 const std::string& column2 = "",
-                const std::string& value = "")
+                const std::string& value = "",
+                const std::string& value2 = ""
+            )
                     :table(table),
                     column(column),
                     operatorType(operatorType),
                     table2(table2),
                     column2(column2),
-                    value(value)
+                    value(value),
+                    value2(value2)
                     {};
 };
 
@@ -73,6 +78,7 @@ class SelectClauseNode {
         std::string table;
         std::string column;
         std::string aggregateFunction;
+        std::string alias;
         bool distinct;
         
         SelectClauseNode(
@@ -80,12 +86,14 @@ class SelectClauseNode {
                 const std::string& table = "",
                 const std::string& column = "",
                 const std::string& aggrFunc = "",
+                const std::string& alias = "",
                 const bool distinct = false)
                     :
                     star(star),
                     table(table),
                     column(column),
                     aggregateFunction(aggrFunc),
+                    alias(alias),
                     distinct(distinct)
                     {};
   
