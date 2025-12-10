@@ -8,68 +8,49 @@
 #include <variant>
 #include <jsoncpp/json/value.h> // Ensure you have this linked
 #include <translation/item_builder.h>
-#include <translation/ir_tree.hpp>
-
-// --- 1. Data Structures (Matching our agreed design) ---
-
-struct BaseTable {
-    std::string fullName;
-    std::string alias;
-    bool isVirtual;
-    std::string schema;
-};
-
-struct PlanParams {
-    std::optional<BaseTable> baseTable;
-    std::optional<std::string> filterPredicate;
-    std::vector<std::string> sortKeys; // Empty vector if null/empty
-    int parallelWorkers = 0;
-    std::string index;
-    std::optional<std::string> lookupKey;
-    std::optional<std::string> subplanName;
-};
-
-struct Estimates {
-    float cardinality;
-    float cost;
-};
-
-struct Measures {
-    float cardinality;
-    float executionTime;
-    std::optional<int> cacheHits;
-    std::optional<int> cacheMisses;
-};
-
-struct JsonRawData {
-    std::string nodeType;
-    std::optional<std::string> nodeOperator;
-    std::optional<std::string> subPlan;
-
-    PlanParams planParams;
-    Estimates estimates;
-    Measures measures;
-};
+#include <ir_base.hpp>
 
 // Forward decls for variants (placeholders for now)
-struct AbstractSource {}; struct AbstractJoin {}; struct AbstractAgg {}; 
-struct AbstractSort {}; struct AbstractResult {};
+struct AbstractSource {};
+struct AbstractJoin {};
+struct AbstractAgg {};
+struct AbstractSort {};
+struct AbstractResult {};
 struct ApiPlaceholder {}; // Placeholder for API item
 
 class PlanNode {
 public:
     // 1. State: Raw JSON Data
-    std::optional<JsonRawData> rawJson;
+    std::optional<BaseType::JsonRawData> rawJson;
 
     // 2. State: Abstract Tree information
     using AbstractData = std::variant<std::monostate, AbstractSource, AbstractJoin, AbstractAgg, AbstractSort, AbstractResult>;
     AbstractData abstractData;
 
     // 3. State: IR Tree information
-    using IrData = std::variant<std::monostate, IrNode::SelectNode /*insert from ir_tree.hpp here*/>;
+    using IRData = std::variant<std::monostate,
+        IR::TableBaseNode,
+        IR::FetchNode,
+        IR::SelectNode,
+        IR::UpdateNode, // NYI
+        IR::InsertNode, // NYI
+        IR::DeleteNode, // NYI
+        IR::AggNode,
+        IR::JoinNode,
+        IR::FilterNode,
+        IR::GroupByNode,
+        IR::SortOrderNode,
+        IR::LimitNode,
+        IR::MapNode,
+        IR::SetOperationNode,
+        IR::ResultNode,
+        IR::MaterializeNode,
+        IR::PositionList,
+        IR::Bitmap
+    >;
 
     // 3. State: API Item Tree information
-    using ApiData = std::variant<std::variant<std::monostate, 
+    using ApiData = std::variant<std::variant<std::monostate,
         ItemBuilder::FetchNode, // relates to Table
         ItemBuilder::FilterNode, // relates to Filter
         ItemBuilder::JoinNode, // relates to Join
@@ -92,7 +73,7 @@ public:
 
 private:
     // Parsing Helpers
-    static PlanParams parsePlanParams(const Json::Value& json);
-    static Estimates parseEstimates(const Json::Value& json);
-    static Measures parseMeasures(const Json::Value& json);
+    static BaseType::PlanParams parsePlanParams(const Json::Value& json);
+    static BaseType::Estimates parseEstimates(const Json::Value& json);
+    static BaseType::Measures parseMeasures(const Json::Value& json);
 };

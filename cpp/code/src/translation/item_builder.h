@@ -2,92 +2,88 @@
 #include <WorkItem.pb.h>
 #include <variant>
 
+#include "base_types.hpp"
+
 class ItemBuilder {
     public:
         std::vector<WorkItem*> workList;
 
-        struct TableColumn {
-            std::string tableName;
-            std::string columnName;
-            ColumnType columnType;
-        };
-
         struct FetchNode {
-            TableColumn* inputColumn;
+            BaseType::TableColumn* inputColumn;
             bool printToFile;
         };
 
         struct FilterNode {
-            TableColumn* inputColumn;
-            TableColumn* outputColumn;
+            BaseType::TableColumn* inputColumn;
+            BaseType::TableColumn* outputColumn;
             CompType filterType;
             std::vector<std::variant<uint64_t, float, std::string>> filterArgVals;
         };
 
         struct JoinNode {
-            TableColumn* innerColumn;
-            TableColumn* outerColumn;
-            TableColumn* outputColumn;
+            BaseType::TableColumn* innerColumn;
+            BaseType::TableColumn* outerColumn;
+            BaseType::TableColumn* outputColumn;
             CompType* joinPredicate;
         };
 
         struct MapNode {
-            TableColumn* inputColumn;
-            TableColumn* outputColumn;
+            BaseType::TableColumn* inputColumn;
+            BaseType::TableColumn* outputColumn;
             ArithOp* operatorType;
-            std::variant<TableColumn, uint64_t, float, std::string> partnerVal;
+            std::variant<BaseType::TableColumn, uint64_t, float, std::string> partnerVal;
         };
 
         struct MaterializeNode {
-            TableColumn* idxColumn;
-            TableColumn* filterColumn;
-            TableColumn* outputColumn;
+            BaseType::TableColumn* idxColumn;
+            BaseType::TableColumn* filterColumn;
+            BaseType::TableColumn* outputColumn;
         };
 
         struct MultiGroupNode {
-            std::vector<TableColumn*> groupColumns;
-            TableColumn* outputIdx;
-            TableColumn* outputCluster;
-            TableColumn* aggColumn;
-            TableColumn* aggResultColumn;
+            std::vector<BaseType::TableColumn*> groupColumns;
+            BaseType::TableColumn* outputIdx;
+            BaseType::TableColumn* outputCluster;
+            BaseType::TableColumn* aggColumn;
+            BaseType::TableColumn* aggResultColumn;
             bool storeExtends;
             std::vector<bool> sortOrders;
         };
 
         struct SetOperationNode {
             RelOp operation;
-            TableColumn* innerColumn;
-            TableColumn* outerColumn;
-            TableColumn* outputColumn;
+            BaseType::TableColumn* innerColumn;
+            BaseType::TableColumn* outerColumn;
+            BaseType::TableColumn* outputColumn;
         };
 
         struct SortNode {
-            std::vector<TableColumn*> inputColumns;
-            TableColumn* idxOutput;
-            TableColumn* existingIdx;
+            std::vector<BaseType::TableColumn*> inputColumns;
+            BaseType::TableColumn* idxOutput;
+            BaseType::TableColumn* existingIdx;
             std::vector<bool> sortOrders;
         };
 
         struct AggNode {
-            TableColumn* inputColumn;
-            TableColumn* outputColumn;
+            BaseType::TableColumn* inputColumn;
+            BaseType::TableColumn* outputColumn;
             AggFunc aggFunc;
             std::vector<std::string> groupColumns;
         };
 
         struct ResultNode {
             std::string filename;
-            std::vector<TableColumn*> resultColumns;
-            TableColumn* resultIdx;
+            std::vector<BaseType::TableColumn*> resultColumns;
+            BaseType::TableColumn* resultIdx;
             std::vector<std::string> resultHeaders;
         };
 
-        TableColumn createTableColumn(const std::string& tableName, const std::string& columnName, const ColumnType& columnType) {
-            TableColumn tableCol;
-            tableCol.tableName = tableName;
-            tableCol.columnName = columnName;
-            tableCol.columnType = columnType;
-            return tableCol;
+        BaseType::TableColumn createTableColumn(const std::string& tableName, const std::string& columnName, const ColumnType& columnType) {
+            BaseType::TableColumn* tableCol;
+            tableCol->tableName = tableName;
+            tableCol->columnName = columnName;
+            tableCol->columnType = columnType;
+            return *tableCol;
         }
 
         WorkItem createWorkItem();
@@ -105,33 +101,33 @@ class ItemBuilder {
         WorkItem createAggItem(const AggNode& node);
         WorkItem createResultItem(const ResultNode& node);
 
-        WorkItem createFetchItem(const TableColumn* inputColumn, const bool printToFile);
+        WorkItem createFetchItem(const BaseType::TableColumn* inputColumn, const bool printToFile);
 
-        WorkItem createFilterItem(const TableColumn* inColumn, const TableColumn* outColumn, const CompType& filterType,
+        WorkItem createFilterItem(const BaseType::TableColumn* inColumn, const BaseType::TableColumn* outColumn, const CompType& filterType,
             const std::vector<std::variant<uint64_t, float, std::string>>& filterArgVals);
 
-        WorkItem createJoinItem(const TableColumn* innerColumn, const TableColumn* outerColumn,
-            const TableColumn* outColumn, const CompType* predicate);
+        WorkItem createJoinItem(const BaseType::TableColumn* innerColumn, const BaseType::TableColumn* outerColumn,
+            const BaseType::TableColumn* outColumn, const CompType* predicate);
 
-        WorkItem createMapItem(const TableColumn* inColumn, const TableColumn* outColumn, const ArithOp* operatorType,
-            const std::variant<TableColumn, uint64_t, float, std::string>& partnerVal);
+        WorkItem createMapItem(const BaseType::TableColumn* inColumn, const BaseType::TableColumn* outColumn, const ArithOp* operatorType,
+            const std::variant<BaseType::TableColumn, uint64_t, float, std::string>& partnerVal);
 
-        WorkItem createMaterializeItem(const TableColumn* idxColumn, const TableColumn* filterColumn,
-            const TableColumn* outColumn);
+        WorkItem createMaterializeItem(const BaseType::TableColumn* idxColumn, const BaseType::TableColumn* filterColumn,
+            const BaseType::TableColumn* outColumn);
 
-        WorkItem createMultiGroupItem(const std::vector<TableColumn*>& groupColumns, const TableColumn* outIdx,
-            const TableColumn* outCluster, const TableColumn* aggColumn, const TableColumn* aggResultColumn,
+        WorkItem createMultiGroupItem(const std::vector<BaseType::TableColumn*>& groupColumns, const BaseType::TableColumn* outIdx,
+            const BaseType::TableColumn* outCluster, const BaseType::TableColumn* aggColumn, const BaseType::TableColumn* aggResultColumn,
             const bool& storeExtends, const std::vector<bool>& sortOrders);
 
-        WorkItem createSetOperationItem(const RelOp& operation, const TableColumn* innerColumn,
-            const TableColumn* outerColumn, const TableColumn* outputColumn);
+        WorkItem createSetOperationItem(const RelOp& operation, const BaseType::TableColumn* innerColumn,
+            const BaseType::TableColumn* outerColumn, const BaseType::TableColumn* outputColumn);
 
-        WorkItem createSortItem(const std::vector<TableColumn*>& inputColumns, const TableColumn* idxOutput,
-            const TableColumn* existingIdx, const std::vector<bool>& sortOrders);
+        WorkItem createSortItem(const std::vector<BaseType::TableColumn*>& inputColumns, const BaseType::TableColumn* idxOutput,
+            const BaseType::TableColumn* existingIdx, const std::vector<bool>& sortOrders);
 
-        WorkItem createAggItem(const TableColumn* inputColumn, const TableColumn* outputColumn,
+        WorkItem createAggItem(const BaseType::TableColumn* inputColumn, const BaseType::TableColumn* outputColumn,
             const AggFunc& aggFunc, const std::vector<std::string>& groupColumns);
 
-        WorkItem createResultItem(const std::string& file, const std::vector<TableColumn*>& resultColumns,
-            const TableColumn* resultIdx, const std::vector<std::string>& headers);
+        WorkItem createResultItem(const std::string& file, const std::vector<BaseType::TableColumn*>& resultColumns,
+            const BaseType::TableColumn* resultIdx, const std::vector<std::string>& headers);
 };
