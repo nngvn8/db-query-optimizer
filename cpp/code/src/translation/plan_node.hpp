@@ -7,16 +7,9 @@
 #include <optional>
 #include <variant>
 #include <jsoncpp/json/value.h> // Ensure you have this linked
+#include <translation/abstract_ir.hpp>
+#include <translation/ir_base.hpp>
 #include <translation/item_builder.h>
-#include <ir_base.hpp>
-
-// Forward decls for variants (placeholders for now)
-struct AbstractSource {};
-struct AbstractJoin {};
-struct AbstractAgg {};
-struct AbstractSort {};
-struct AbstractResult {};
-struct ApiPlaceholder {}; // Placeholder for API item
 
 class PlanNode {
 public:
@@ -77,3 +70,5 @@ private:
     static BaseType::Estimates parseEstimates(const Json::Value& json);
     static BaseType::Measures parseMeasures(const Json::Value& json);
 };
+
+void printPlanTree(const PlanNode& node, const std::string& prefix, bool isLast);

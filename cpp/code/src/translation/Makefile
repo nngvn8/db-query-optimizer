@@ -10,7 +10,7 @@ INCLUDES = -I.. -I../../../generated/include
 LIBS = -ljsoncpp 
 
 # Source files
-SRC = plan_node.cpp
+SRC = query_parse_test.cpp plan_node.cpp file_reader.cpp ir_transformer.cpp parse_query.cpp
 
 # Output executable name
 TARGET = runner

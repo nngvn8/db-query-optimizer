@@ -1,12 +1,14 @@
-#include <iostream>
-#include <jsoncpp/json/json.h>
-#include <jsoncpp/json/value.h>
-#include <fstream>
-#include <bits/stdc++.h>
-#include <sequentializer/sequentializer.hpp>
-#include <translation/ir_transformer.hpp>
+#pragma once
 
 #include "plan_node.hpp"
+
+#include <iostream>
+#include <jsoncpp/json/json.h>
+#include <fstream>
+
+#include <translation/parse_query.hpp>
+#include <translation/abstract_ir.hpp>
+
 
 void printDebug(const PlanNode& planNode) {
     // Check if raw data exists (it might not if we created a synthetic abstract node later)
@@ -14,7 +16,7 @@ void printDebug(const PlanNode& planNode) {
         std::cout << "Node: [Synthetic/Abstract Node]" << std::endl;
         // You could print abstract data here if implemented
     } else {
-        const JsonRawData& r = planNode.rawJson.value();
+        const BaseType::JsonRawData& r = planNode.rawJson.value();
         
         // Print Header
         std::cout << "Node: " << r.nodeType;
@@ -25,7 +27,7 @@ void printDebug(const PlanNode& planNode) {
         std::cout << "  Params: ";
         if (r.planParams.baseTable) {
             const auto& bt = *r.planParams.baseTable;
-            std::cout << "[Table: " << bt.fullName << " (" << bt.alias << ")] ";
+            std::cout << "[Table: " << bt.name << " (" << bt.alias.value_or("") << ")] ";
         }
         
         if (r.planParams.filterPredicate) 
@@ -59,17 +61,21 @@ void printDebug(const PlanNode& planNode) {
 
 // --- Parsing Helpers ---
 
-PlanParams PlanNode::parsePlanParams(const Json::Value& json) {
-    PlanParams params;
+BaseType::PlanParams PlanNode::parsePlanParams(const Json::Value& json) {
+    BaseType::PlanParams params;
 
     // 1. Base Table (Handle Object or Null)
     const Json::Value& btJson = json["base_table"];
     if (!btJson.isNull() && btJson.isObject()) {
-        BaseTable bt;
-        bt.fullName = btJson.get("full_name", "").asString();
+        BaseType::Table bt;
+        bt.name = btJson.get("full_name", "").asString();
         bt.alias = btJson.get("alias", "").asString();
         bt.isVirtual = btJson.get("virtual", false).asBool();
         bt.schema = btJson.get("schema", "").asString();
+        
+        // Mismatch between table name in plan and in queries
+        bt.name = bt.name == "dim_date" ? "dates" : bt.name;
+        
         params.baseTable = bt;
     }
 
@@ -97,15 +103,15 @@ PlanParams PlanNode::parsePlanParams(const Json::Value& json) {
     return params;
 }
 
-Estimates PlanNode::parseEstimates(const Json::Value& json) {
-    Estimates est;
+BaseType::Estimates PlanNode::parseEstimates(const Json::Value& json) {
+    BaseType::Estimates est;
     est.cardinality = json.get("cardinality", 0.0f).asFloat();
     est.cost = json.get("cost", 0.0f).asFloat();
     return est;
 }
 
-Measures PlanNode::parseMeasures(const Json::Value& json) {
-    Measures mes;
+BaseType::Measures PlanNode::parseMeasures(const Json::Value& json) {
+    BaseType::Measures mes;
     mes.cardinality = json.get("cardinality", 0.0f).asFloat();
     mes.executionTime = json.get("execution_time", 0.0f).asFloat();
 
@@ -122,7 +128,7 @@ Measures PlanNode::parseMeasures(const Json::Value& json) {
 
 PlanNode::PlanNode(const Json::Value& queryPlan) {
     // 1. Parse Raw Data
-    JsonRawData data;
+    BaseType::JsonRawData data;
     data.nodeType = queryPlan.get("node_type", "Unknown").asString();
     
     if (!queryPlan["operator"].isNull()) {
@@ -149,11 +155,50 @@ PlanNode::PlanNode(const Json::Value& queryPlan) {
     }
 }
 
-void test() {
-    std::ifstream queryJson("q1-1-plan.json", std::ifstream::binary);
-}
 void printNode(const PlanNode& node){
-    std::cout << node.rawJson->nodeType;
+    // std::cout << node.rawJson->nodeType;
+    GetNodeName getNodeName;
+    std::cout << std::visit(getNodeName, node.abstractData); // visit to remove the variant wrapper
+    const AbstractSource* source = std::get_if<AbstractSource>(&node.abstractData);
+    if (source) {
+        std::cout << " " << source->basetable;
+        if (!source->filters.empty()) {
+            std::cout << " [";
+            for (size_t i = 0; i < source->filters.size(); ++i) {
+                std::cout << (i > 0 ? ", " : "") << source->filters[i];
+            }
+            std::cout << "]";
+        }
+    }
+    const AbstractJoin* join = std::get_if<AbstractJoin>(&node.abstractData);
+    if (join) {
+        std::cout << " " << join->condition 
+                  << " [" << join->left_table << ", " << join->right_table << "]";
+    }
+
+    const AbstractAgg* agg = std::get_if<AbstractAgg>(&node.abstractData);
+    if (agg) {
+        std::cout << " " << agg->agg_type << "(" << agg->agg_mapping << ") AS " << agg->agg_alias;
+    }
+
+    const AbstractSort* sort = std::get_if<AbstractSort>(&node.abstractData);
+    if (sort) {
+        std::cout << " [";
+        for (size_t i = 0; i < sort->column_names.size(); ++i) {
+             std::cout << (i > 0 ? ", " : "") << sort->column_names[i] 
+                       << (sort->asc[i] ? " ASC" : " DESC");
+        }
+        std::cout << "]";
+    }
+    
+    const AbstractResult* result = std::get_if<AbstractResult>(&node.abstractData);
+    if (result) {
+        std::cout << " [";
+        for (size_t i = 0; i < result->output_cols.size(); ++i) {
+             std::cout << (i > 0 ? ", " : "") << result->output_cols[i];
+        }
+        std::cout << "]";
+    }
 }
 
 void printPlanTree(const PlanNode& node, const std::string& prefix, bool isLast) {
@@ -182,40 +227,4 @@ void printSequencedPlan(const std::vector<const PlanNode*> plan_seq){
         std::cout << "--";
     }
     std::cout << std::endl;
-}
-
-int main(int argc, char* argv[]) {
-    std::vector<std::string> file_names = {"q1-1-plan.json", "q1-2-plan.json", "q1-3-plan.json", "q2-1-plan.json", "q2-2-plan.json", "q2-3-plan.json", "q3-1-plan.json", "q3-2-plan.json", "q3-3-plan.json", "q3-4-plan.json", "q4-1-plan.json", "q4-2-plan.json", "q4-3-plan.json"};
-    std::string base_dir = "/home/martin/University/09_KDB/ws25-optimizer-rust/pb-plans/";
-    
-    for (const std::string& file_name : file_names) {
-    
-        std::ifstream queryJson(base_dir + file_name);
-        std::stringstream buffer;
-        buffer << queryJson.rdbuf();
-        std::string content = buffer.str();
-        queryJson.close();
-
-        std::string search = "NaN";
-        std::string replace = "null";
-
-        size_t pos = 0;
-        while ((pos = content.find(search, pos)) != std::string::npos) {
-            content.replace(pos, search.length(), replace);
-            pos += replace.length();
-        }
-        std::stringstream modifiedStream(content);
-        Json::Value queryPlan;
-        modifiedStream >> queryPlan;
-
-        std::unique_ptr planNodeRoot = std::make_unique<PlanNode>(queryPlan);
-        // printDebug(*planNodeRoot);
-        printPlanTree(*planNodeRoot, "", true);
-        planNodeRoot = pruneTree(std::move(planNodeRoot));
-        // printDebug(*planNodeRoot);
-        printPlanTree(*planNodeRoot, "", true);
-        // std::vector<const PlanNode*> sequenced_plan = to_sequence_children_list<PlanNode>(planNodeRoot.get());
-        // printSequencedPlan(sequenced_plan);
-        // break;
-    }
 }

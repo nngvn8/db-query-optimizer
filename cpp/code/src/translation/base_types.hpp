@@ -15,7 +15,7 @@ namespace BaseType {
         std::optional<std::string> alias;
         bool isVirtual = false;
         std::string schema;
-
+        Table(){};
         Table(
             const std::string& name,
             const std::string& alias = "",
