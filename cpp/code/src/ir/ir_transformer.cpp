@@ -279,3 +279,43 @@ std::unique_ptr<PlanNode> enrichTree(std::unique_ptr<PlanNode> root, SqlQueryDat
 
     return resultNode;
 }
+
+std::unique_ptr<PlanNode> astToIr(ASTNode* ast) {
+    if (root == nullptr) { return; }
+    
+    std::unique_ptr<PlanNode> node = std::make_unique<PlanNode>();
+    
+    if (auto e = std::get_if<SetOperationNode>(&root->val)) {
+        // Handle SetOperationNode
+    }
+    else if (auto e = std::get_if<TableJoinNode>(&root->val)) {
+        // Handle TableJoinNode
+    }
+    else if (auto e = std::get_if<TableBaseNode>(&root->val)) {
+        // Handle TableBaseNode
+    }
+    else if (auto e = std::get_if<WhereClauseNode>(&root->val)) {
+        // Handle WhereClauseNode
+    }
+    else if (auto e = std::get_if<SelectClauseNode>(&root->val)) {
+        // Handle SelectClauseNode
+    }
+    else if (auto e = std::get_if<GroupByClauseNode>(&root->val)) {
+        // Handle GroupByClauseNode
+    }
+    else if (auto e = std::get_if<OrderByClauseNode>(&root->val)) {
+        // Handle OrderByClauseNode
+    }
+    else if (auto e = std::get_if<LimitClauseNode>(&root->val)) {
+        // Handle LimitClauseNode
+    }
+
+    if (root->left) {
+        node->children.push_back(astToIr(root->left));
+    }
+    if (root->right) {
+        node->children.push_back(astToIr(root->right));
+    }
+
+    return node;
+}

@@ -23,7 +23,7 @@ EXCLUDES := %/item_builder_example.cpp \
             %/item_builder.cpp \
 			%/generate_dot.cpp \
 			%/predicate_pushdown.cpp \
-			%/main.cpp
+			%/query_parse_test.cpp
 
 # Find sources and filter
 SOURCES := $(shell find $(SRC_DIRS) -name '*.cpp')
