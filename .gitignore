@@ -6,4 +6,4 @@ python/generated
 **/a.out
 **/*.o
 **/*.d
-
+cpp/code/src/build/
