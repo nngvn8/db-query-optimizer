@@ -46,17 +46,16 @@ run: all
 clean:
 	rm -f $(TARGET) $(OBJECTS) $(DEPS)
 
-# Only removes the executable, keeps .o files
+# Only removes the executable, keeps .o and .d files
 clean_exe:
 	rm -f $(TARGET)
 
-run_clean:
+# Completely fresh run (all files newly generated)
+clean_run:
 	$(MAKE) clean
 	$(MAKE) run
-	$(MAKE) clean
 
-# Rebuilds the binary (fast), runs it, then deletes the binary
-# But leaves .o files alone for the next time
+# Clean run, with binary deleted afterwards, keeps .o and .d files
 run_fresh:
 	$(MAKE) clean_exe
 	$(MAKE) run
