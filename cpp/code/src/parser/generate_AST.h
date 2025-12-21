@@ -1,7 +1,7 @@
 #ifndef GENERATE_AST_H
 #define GENERATE_AST_H
 
-#include "hsql/SQLParser.h"
+#include <SQLParser.h>
 #include <iostream>
 #include <variant>
 #include <vector>
