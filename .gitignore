@@ -5,4 +5,5 @@ python/generated
 
 **/a.out
 **/*.o
+**/*.d
 

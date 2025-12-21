@@ -1,46 +1,65 @@
-.PHONY: all run clean runclean
+# Names of commands used in this file
+.PHONY: all run clean clean_exe run_clean run_fresh
 
 # Compiler settings
-CXX = g++
-CXXFLAGS = -std=c++17 -Wall -Wextra
+CXX      := g++										# Compiler
+CXXFLAGS := -std=c++17 -Wall -Wextra -MMD -MP		# Flags
+INCLUDES := -I. -I../../generated/include			# Header search paths
+LIBS     := -ljsoncpp								# Libraries to link
 
-# Include directories (-I)
-INCLUDES = -I. -I../../generated/include
-
-# Libraries to link (-l)
-# Note: You might need -lprotobuf later if you use the generated code logic
-LIBS = -ljsoncpp 
-
-# Define directories to search
+# Source directories (.cpp files)
 SRC_DIRS := ./ir ./translation ./util
 
 # Files to exclude as sources
 EXCLUDES := %/item_builder_example.cpp \
             %/item_builder.cpp
 
-# 1. Run find once on all directories (faster)
+# Find sources and filter
 SOURCES := $(shell find $(SRC_DIRS) -name '*.cpp')
-
-# 2. Filter out excludes
 SOURCES := $(filter-out $(EXCLUDES), $(SOURCES))
 
-# Output executable name
-TARGET = runner
+# Object and dependency files
+OBJECTS := $(SOURCES:.cpp=.o)
+DEPS    := $(OBJECTS:.o=.d)
 
-# Default target: compile the code
+# Output executable name
+TARGET := runner
+
+# --- RULES/COMMANDS ---
+
+# Default target: compile the code (requires TARGET)
 all: $(TARGET)
 
-$(TARGET): $(SOURCES)
-	$(CXX) $(CXXFLAGS) $(INCLUDES) $(SOURCES) $(LIBS) -o $(TARGET)
+# Build Target (requires object)
+$(TARGET): $(OBJECTS)
+	$(CXX) $(OBJECTS) $(LIBS) -o $(TARGET)
 
-# 'make run' will compile AND execute (like your && ./a.out command)
+# Build Object (requires source files)
+%.o: %.cpp
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@ 
+
+# Compile AND execute (requires all)
 run: all
 	./$(TARGET)
 
-# 'make clean' removes the executable
+# Remove all generated files
 clean:
+	rm -f $(TARGET) $(OBJECTS) $(DEPS)
+
+# Only removes the executable, keeps .o files
+clean_exe:
 	rm -f $(TARGET)
 
-runclean:
+run_clean:
+	$(MAKE) clean
 	$(MAKE) run
 	$(MAKE) clean
+
+# Rebuilds the binary (fast), runs it, then deletes the binary
+# But leaves .o files alone for the next time
+run_fresh:
+	$(MAKE) clean_exe
+	$(MAKE) run
+	$(MAKE) clean_exe
+
+-include $(DEPS)
