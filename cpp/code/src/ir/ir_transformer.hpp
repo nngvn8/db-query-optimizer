@@ -1,9 +1,9 @@
 #pragma once
 
-#include <translation/plan_node.hpp>
-#include <translation/abstract_ir.hpp>
-#include <translation/parse_query.hpp>
-#include <translation/base_types.hpp>
+#include <ir/plan_node.hpp>
+#include <ir/abstract_ir.hpp>
+#include <ir/parse_query.hpp>
+#include <ir/base_types.hpp>
 
 PlanNode::AbstractData convertToAbstract(const BaseType::JsonRawData& rawJson);
 

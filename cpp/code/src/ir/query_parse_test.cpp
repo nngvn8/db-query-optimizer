@@ -1,8 +1,8 @@
-#include <translation/plan_node.hpp>
-#include <translation/abstract_ir.hpp>
-#include <translation/ir_transformer.hpp>
-#include <translation/file_reader.hpp>
-#include <translation/parse_query.hpp>
+#include <ir/plan_node.hpp>
+#include <ir/abstract_ir.hpp>
+#include <ir/ir_transformer.hpp>
+#include <util/file_reader.hpp>
+#include <ir/parse_query.hpp>
 
 int main(int argc, char* argv[]) {
     std::string base_dir = "/home/martin/University/09_KDB/ws25-optimizer-rust/pb-plans/";

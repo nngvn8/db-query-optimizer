@@ -6,8 +6,8 @@
 #include <jsoncpp/json/json.h>
 #include <fstream>
 
-#include <translation/parse_query.hpp>
-#include <translation/abstract_ir.hpp>
+#include <ir/parse_query.hpp>
+#include <ir/abstract_ir.hpp>
 
 
 void printDebug(const PlanNode& planNode) {

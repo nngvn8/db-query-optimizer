@@ -1,6 +1,6 @@
 #include <string>
 #include <vector>
-#include "base_types.hpp"
+#include <ir/base_types.hpp>
 
 namespace IR {
 

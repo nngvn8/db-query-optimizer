@@ -2,7 +2,7 @@
 #include <WorkItem.pb.h>
 #include <variant>
 
-#include "base_types.hpp"
+#include <ir/base_types.hpp>
 
 class ItemBuilder {
     public:

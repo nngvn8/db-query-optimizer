@@ -4,4 +4,5 @@ cpp/build/
 python/generated
 
 **/a.out
+**/*.o
 

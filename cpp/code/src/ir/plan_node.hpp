@@ -7,8 +7,8 @@
 #include <optional>
 #include <variant>
 #include <jsoncpp/json/value.h> // Ensure you have this linked
-#include <translation/abstract_ir.hpp>
-#include <translation/ir_base.hpp>
+#include <ir/abstract_ir.hpp>
+#include <ir/ir_base.hpp>
 #include <translation/item_builder.h>
 
 class PlanNode {
