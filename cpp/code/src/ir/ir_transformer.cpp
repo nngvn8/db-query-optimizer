@@ -4,6 +4,10 @@
 #include <unordered_set>
 #include <regex>
 
+#include <ir/catalog.hpp>
+#include <ir/ir_base.hpp>
+
+// #include <WorkItem.pb.h>
 
 namespace {
     const std::unordered_set<std::string> HASH = {"Hash"};
@@ -280,41 +284,181 @@ std::unique_ptr<PlanNode> enrichTree(std::unique_ptr<PlanNode> root, SqlQueryDat
     return resultNode;
 }
 
-std::unique_ptr<PlanNode> astToIr(ASTNode* ast) {
-    if (root == nullptr) { return; }
-    
-    std::unique_ptr<PlanNode> node = std::make_unique<PlanNode>();
-    
-    if (auto e = std::get_if<SetOperationNode>(&root->val)) {
-        // Handle SetOperationNode
-    }
-    else if (auto e = std::get_if<TableJoinNode>(&root->val)) {
-        // Handle TableJoinNode
-    }
-    else if (auto e = std::get_if<TableBaseNode>(&root->val)) {
-        // Handle TableBaseNode
-    }
-    else if (auto e = std::get_if<WhereClauseNode>(&root->val)) {
-        // Handle WhereClauseNode
-    }
-    else if (auto e = std::get_if<SelectClauseNode>(&root->val)) {
-        // Handle SelectClauseNode
-    }
-    else if (auto e = std::get_if<GroupByClauseNode>(&root->val)) {
-        // Handle GroupByClauseNode
-    }
-    else if (auto e = std::get_if<OrderByClauseNode>(&root->val)) {
-        // Handle OrderByClauseNode
-    }
-    else if (auto e = std::get_if<LimitClauseNode>(&root->val)) {
-        // Handle LimitClauseNode
+namespace {
+
+    // --- Helper Functions for Enum Mapping ---
+
+    CompType mapStringToCompType(const std::string& op) {
+        if (op == "=") return COMP_EQ;
+        if (op == "<") return COMP_LT;
+        if (op == "<=") return COMP_LE;
+        if (op == ">") return COMP_GT;
+        if (op == ">=") return COMP_GE;
+        if (op == "!=" || op == "<>") return COMP_NE;
+        if (op == "BETWEEN") return COMP_BETWEEN; // Simplification
+        if (op == "IN") return COMP_IN;
+        return COMP_EQ; // Default fallback
     }
 
-    if (root->left) {
-        node->children.push_back(astToIr(root->left));
+    BaseType::Join mapStringToJoinType(std::string type) {
+        std::transform(type.begin(), type.end(), type.begin(), ::toupper);
+        if (type.find("LEFT") != std::string::npos) return BaseType::LEFT_OUTER_JOIN;
+        if (type.find("RIGHT") != std::string::npos) return BaseType::RIGHT_OUTER_JOIN;
+        if (type.find("FULL") != std::string::npos) return BaseType::FULL_OUTER_JOIN;
+        return BaseType::INNER_JOIN;
     }
-    if (root->right) {
-        node->children.push_back(astToIr(root->right));
+
+    RelOp mapStringToRelOp(std::string op) {
+        std::transform(op.begin(), op.end(), op.begin(), ::toupper);
+        if (op == "INTERSECT") return REL_INTERSECTION;
+        if (op == "EXCEPT") return REL_NEGATION;
+        return REL_UNION;
+    
+    }
+    std::optional<AggFunc> mapStringToAggFunc(std::string func) {
+        if (func.empty()) return std::nullopt;
+        std::transform(func.begin(), func.end(), func.begin(), ::toupper);
+        if (func == "SUM") return AGG_SUM;
+        if (func == "COUNT") return AGG_COUNT;
+        if (func == "MIN") return AGG_MIN;
+        if (func == "MAX") return AGG_MAX;
+        if (func == "AVG") return AGG_AVG;
+        return std::nullopt;
+    }
+
+    // --- Value Parsing based on Known Type ---
+    std::variant<uint64_t, float, std::string> parseValueByType(const std::string& val, ColumnType type) {
+        if (type == ColumnType::TYPE_INTEGER) {
+            try { return static_cast<uint64_t>(std::stoull(val)); } 
+            catch (...) { return static_cast<uint64_t>(0); }
+        }
+        if (type == ColumnType::TYPE_FLOAT) {
+            try { return std::stof(val); } 
+            catch (...) { return 0.0f; }
+        }
+        // Fallback / String
+        return val;
+    }
+}
+
+std::unique_ptr<PlanNode> astToIr(ASTNode* ast) {
+    if (!ast) return nullptr;
+
+    auto node = std::make_unique<PlanNode>();
+    PlanNode* childrenTarget = node.get();
+
+    // 1. SELECT Node
+    if (auto e = std::get_if<SelectClauseNode>(&ast->val)) {
+        // LOOKUP: Get real type from Catalog
+        ColumnType type = Catalog::getSSBColumnType(e->table, e->column);
+        BaseType::TableColumn col(e->table, e->column, type, e->alias);
+        
+        auto aggType = mapStringToAggFunc(e->aggregateFunction);
+
+        if (aggType.has_value()) {
+            // Dismantle: Select -> Agg
+            auto aggNode = std::make_unique<PlanNode>();
+            
+            BaseType::TableColumn aggInputCol(e->table, e->column, type);
+            
+            aggNode->irData = IR::AggNode(aggInputCol, aggType.value());
+
+            // Outer Select selects the Agg result
+            node->irData = IR::SelectNode(e->star, col, e->distinct);
+
+            childrenTarget = aggNode.get(); 
+            node->children.push_back(std::move(aggNode));
+        } else {
+            node->irData = IR::SelectNode(e->star, col, e->distinct);
+        }
+    }
+    // 2. WHERE / Filter Node
+    else if (auto e = std::get_if<WhereClauseNode>(&ast->val)) {
+        // LOOKUP: Get type for the Input Column
+        ColumnType colType = Catalog::getSSBColumnType(e->table, e->column);
+        BaseType::TableColumn inputCol(e->table, e->column, colType);
+
+        std::optional<BaseType::TableColumn> col2 = std::nullopt;
+        std::optional<std::variant<uint64_t, float, std::string>> val = std::nullopt;
+
+        if (!e->table2.empty() || !e->column2.empty()) {
+            // Column vs Column
+            ColumnType col2Type = Catalog::getSSBColumnType(e->table2, e->column2);
+            col2 = BaseType::TableColumn(e->table2, e->column2, col2Type);
+        } else {
+            // Column vs Literal
+            // USE CATALOG TYPE TO CAST LITERAL
+            val = parseValueByType(e->value, colType);
+        }
+
+        node->irData = IR::FilterNode(
+            inputCol,
+            mapStringToCompType(e->operatorType),
+            col2,
+            val,
+            inputCol 
+        );
+    }
+    // 3. JOIN Node
+    else if (auto e = std::get_if<TableJoinNode>(&ast->val)) {
+        ColumnType leftType = Catalog::getSSBColumnType(e->onLeftTable, e->onLeftTableColumn);
+        ColumnType rightType = Catalog::getSSBColumnType(e->onRightTable, e->onRightTableColumn);
+
+        BaseType::TableColumn leftCol(e->onLeftTable, e->onLeftTableColumn, leftType);
+        BaseType::TableColumn rightCol(e->onRightTable, e->onRightTableColumn, rightType);
+        
+        node->irData = IR::JoinNode(
+            mapStringToJoinType(e->joinType),
+            CompType::COMP_EQ, 
+            leftCol, 
+            rightCol
+        );
+    }
+    // 4. Base Table
+    else if (auto e = std::get_if<TableBaseNode>(&ast->val)) {
+        node->irData = IR::TableBaseNode(BaseType::Table(e->tableName, e->tableAlias));
+    }
+    // 5. Group By
+    else if (auto e = std::get_if<GroupByClauseNode>(&ast->val)) {
+        std::vector<BaseType::TableColumn> groups;
+        for (const auto& desc : e->description) {
+            ColumnType type = Catalog::getSSBColumnType(desc.table, desc.column);
+            groups.emplace_back(desc.table, desc.column, type);
+        }
+        node->irData = IR::GroupByNode(groups);
+    }
+    // 6. Order By
+    else if (auto e = std::get_if<OrderByClauseNode>(&ast->val)) {
+        std::vector<BaseType::OrderDescription> orders;
+        for (const auto& desc : e->orderByList) {
+            ColumnType type = Catalog::getSSBColumnType(desc.table, desc.column);
+            bool isAsc = (desc.ordertype != "DESC"); 
+            bool isNullsFirst = (desc.nullordering == "FIRST");
+            
+            orders.emplace_back(
+                BaseType::TableColumn(desc.table, desc.column, type), 
+                isAsc, 
+                isNullsFirst
+            );
+        }
+        node->irData = IR::SortOrderNode(orders);
+    }
+    // 7. Limit
+    else if (auto e = std::get_if<LimitClauseNode>(&ast->val)) {
+        node->irData = IR::LimitNode(e->limit, e->offset);
+    }
+    // 8. Set Ops
+    else if (auto e = std::get_if<SetOperationNode>(&ast->val)) {
+        BaseType::TableColumn dummy; // Still dummy as AST has no columns here
+        node->irData = IR::SetOperationNode(mapStringToRelOp(e->setOperation), dummy, dummy);
+    }
+
+    // Recursion
+    if (ast->left) {
+        childrenTarget->children.push_back(astToIr(ast->left));
+    }
+    if (ast->right) {
+        childrenTarget->children.push_back(astToIr(ast->right));
     }
 
     return node;

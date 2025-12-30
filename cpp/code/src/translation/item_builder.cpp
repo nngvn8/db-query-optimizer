@@ -12,7 +12,7 @@ void setTableColumnType(ColumnMessage* columnMessage, const std::string& tabName
     columnMessage->set_coltype(static_cast<ColumnType>(colType));
 }
 
-void setTableColumnType(ColumnMessage* columnMessage, const ItemBuilder::TableColumn* tableColumn) {
+void setTableColumnType(ColumnMessage* columnMessage, const BaseType::TableColumn* tableColumn) {
     columnMessage->set_tabname(tableColumn->tableName);
     columnMessage->set_colname(tableColumn->columnName);
     columnMessage->set_coltype(tableColumn->columnType);
@@ -43,7 +43,7 @@ WorkItem ItemBuilder::createFetchItem(const FetchNode& node) {
     return createFetchItem(node.inputColumn, node.printToFile);
 }
 
-WorkItem ItemBuilder::createFetchItem(const TableColumn* inputColumn, const bool printToFile) {
+WorkItem ItemBuilder::createFetchItem(const BaseType::TableColumn* inputColumn, const bool printToFile) {
     WorkItem workItem = createWorkItem();
     FetchItem* fetchItem = workItem.mutable_fetchdata();
 
@@ -60,7 +60,7 @@ WorkItem ItemBuilder::createFilterItem(const FilterNode& node) {
     return createFilterItem(node.inputColumn, node.outputColumn, node.filterType, node.filterArgVals);
 }
 
-WorkItem ItemBuilder::createFilterItem(const TableColumn* inColumn, const TableColumn* outColumn,
+WorkItem ItemBuilder::createFilterItem(const BaseType::TableColumn* inColumn, const BaseType::TableColumn* outColumn,
     const CompType& filterType, const std::vector<std::variant<uint64_t, float, std::string>>& filterArgVals)
 {
     WorkItem workItem = createWorkItem(OperatorType::OP_FILTER);
@@ -99,8 +99,8 @@ WorkItem ItemBuilder::createJoinItem(const JoinNode& node) {
     return createJoinItem(node.innerColumn, node.outerColumn, node.outputColumn, node.joinPredicate);
 }
 
-WorkItem ItemBuilder::createJoinItem(const TableColumn* innerColumn, const TableColumn* outerColumn,
-    const TableColumn* outColumn, const CompType* predicate)
+WorkItem ItemBuilder::createJoinItem(const BaseType::TableColumn* innerColumn, const BaseType::TableColumn* outerColumn,
+    const BaseType::TableColumn* outColumn, const CompType* predicate)
 {
     WorkItem workItem = createWorkItem(OperatorType::OP_HASHJOIN); // TODO or MERGEJOIN
     JoinItem* joinItem = workItem.mutable_joindata();
@@ -127,8 +127,8 @@ WorkItem ItemBuilder::createMapItem(const MapNode& node) {
     return createMapItem(node.inputColumn, node.outputColumn, node.operatorType, node.partnerVal);
 }
 
-WorkItem ItemBuilder::createMapItem(const TableColumn* inColumn, const TableColumn* outColumn, const ArithOp* operatorType,
-    const std::variant<TableColumn, uint64_t, float, std::string>& partnerVal)
+WorkItem ItemBuilder::createMapItem(const BaseType::TableColumn* inColumn, const BaseType::TableColumn* outColumn, const ArithOp* operatorType,
+    const std::variant<BaseType::TableColumn, uint64_t, float, std::string>& partnerVal)
 {
     WorkItem workItem = createWorkItem(OperatorType::OP_MAP);
     MapItem* mapItem = workItem.mutable_mapdata();
@@ -145,9 +145,9 @@ WorkItem ItemBuilder::createMapItem(const TableColumn* inColumn, const TableColu
 
     ScalarValue* scalarVal = mapItem->mutable_staticval();
 
-    if (std::holds_alternative<TableColumn>(partnerVal)) {
+    if (std::holds_alternative<BaseType::TableColumn>(partnerVal)) {
         ColumnMessage* column = mapItem->mutable_partnercolumn();
-        setTableColumnType(column, &std::get<TableColumn>(partnerVal));
+        setTableColumnType(column, &std::get<BaseType::TableColumn>(partnerVal));
 
     } else if (std::holds_alternative<uint64_t>(partnerVal)) {
         IntValue* intVal = scalarVal->mutable_intval();
@@ -170,8 +170,8 @@ WorkItem ItemBuilder::createMaterializeItem(const MaterializeNode& node) {
     return createMaterializeItem(node.idxColumn, node.filterColumn, node.outputColumn);
 }
 
-WorkItem ItemBuilder::createMaterializeItem(const TableColumn* idxColumn, const TableColumn* filterColumn,
-    const TableColumn* outColumn)
+WorkItem ItemBuilder::createMaterializeItem(const BaseType::TableColumn* idxColumn, const BaseType::TableColumn* filterColumn,
+    const BaseType::TableColumn* outColumn)
 {
     WorkItem workItem = createWorkItem(OperatorType::OP_MATERIALIZE);
     MaterializeItem* matItem = workItem.mutable_materializedata();
@@ -194,15 +194,15 @@ WorkItem ItemBuilder::createMultiGroupItem(const MultiGroupNode& node) {
         node.aggResultColumn, node.storeExtends, node.sortOrders);
 }
 
-WorkItem ItemBuilder::createMultiGroupItem(const std::vector<TableColumn*>& groupColumns, const TableColumn* outIdx,
-    const TableColumn* outCluster, const TableColumn* aggColumn, const TableColumn* aggResultColumn,
+WorkItem ItemBuilder::createMultiGroupItem(const std::vector<BaseType::TableColumn*>& groupColumns, const BaseType::TableColumn* outIdx,
+    const BaseType::TableColumn* outCluster, const BaseType::TableColumn* aggColumn, const BaseType::TableColumn* aggResultColumn,
     const bool& storeExtends, const std::vector<bool>& sortOrders)
 {
     WorkItem workItem = createWorkItem(OperatorType::OP_GROUPBY); // TODO correct?
     MultiGroupItem* multiGrpItem = workItem.mutable_multigroupdata();
 
     uint idx = 0;
-    for (ItemBuilder::TableColumn* column : groupColumns) {
+    for (BaseType::TableColumn* column : groupColumns) {
         multiGrpItem->add_groupcolumns();
         ColumnMessage* colMessage = multiGrpItem->mutable_groupcolumns(idx);
         setTableColumnType(colMessage, column);
@@ -233,8 +233,8 @@ WorkItem ItemBuilder::createSetOperationItem(const SetOperationNode& node) {
     return createSetOperationItem(node.operation, node.innerColumn, node.outerColumn, node.outputColumn);
 }
 
-WorkItem ItemBuilder::createSetOperationItem(const RelOp& operation, const TableColumn* innerColumn,
-    const TableColumn* outerColumn, const TableColumn* outputColumn)
+WorkItem ItemBuilder::createSetOperationItem(const RelOp& operation, const BaseType::TableColumn* innerColumn,
+    const BaseType::TableColumn* outerColumn, const BaseType::TableColumn* outputColumn)
 {
     WorkItem workItem = createWorkItem(OperatorType::OP_SETOPERATION);
     SetOperationItem* setOpItem = workItem.mutable_setdata();
@@ -258,14 +258,14 @@ WorkItem ItemBuilder::createSortItem(const SortNode& node) {
     return createSortItem(node.inputColumns, node.idxOutput, node.existingIdx, node.sortOrders);
 }
 
-WorkItem ItemBuilder::createSortItem(const std::vector<TableColumn*>& inputColumns, const TableColumn* idxOutput,
-    const TableColumn* existingIdx, const std::vector<bool>& sortOrders)
+WorkItem ItemBuilder::createSortItem(const std::vector<BaseType::TableColumn*>& inputColumns, const BaseType::TableColumn* idxOutput,
+    const BaseType::TableColumn* existingIdx, const std::vector<bool>& sortOrders)
 {
     WorkItem workItem = createWorkItem(OperatorType::OP_SORT);
     SortItem* sortItem = workItem.mutable_sortdata();
 
     uint idx = 0;
-    for (ItemBuilder::TableColumn* column : inputColumns) {
+    for (BaseType::TableColumn* column : inputColumns) {
         sortItem->add_inputcolumns();
         ColumnMessage* colMessage = sortItem->mutable_inputcolumns(idx);
         setTableColumnType(colMessage, column);
@@ -292,7 +292,7 @@ WorkItem ItemBuilder::createAggItem(const AggNode& node) {
     return createAggItem(node.inputColumn, node.outputColumn, node.aggFunc, node.groupColumns);
 }
 
-WorkItem ItemBuilder::createAggItem(const TableColumn* inputColumn, const TableColumn* outputColumn,
+WorkItem ItemBuilder::createAggItem(const BaseType::TableColumn* inputColumn, const BaseType::TableColumn* outputColumn,
     const AggFunc& aggFunc, const std::vector<std::string>& groupColumns)
 {
     WorkItem workItem = createWorkItem(OperatorType::OP_AGGREGATE);
@@ -318,14 +318,14 @@ WorkItem ItemBuilder::createResultItem(const ResultNode& node) {
     return createResultItem(node.filename, node.resultColumns, node.resultIdx, node.resultHeaders);
 }
 
-WorkItem ItemBuilder::createResultItem(const std::string& file, const std::vector<TableColumn*>& resultColumns,
-    const TableColumn* resultIdx, const std::vector<std::string>& headers)
+WorkItem ItemBuilder::createResultItem(const std::string& file, const std::vector<BaseType::TableColumn*>& resultColumns,
+    const BaseType::TableColumn* resultIdx, const std::vector<std::string>& headers)
 {
     WorkItem workItem = createWorkItem();
     ResultItem* resultItem = workItem.mutable_resultdata();
 
     uint idx = 0;
-    for (ItemBuilder::TableColumn* column : resultColumns) {
+    for (BaseType::TableColumn* column : resultColumns) {
         resultItem->add_resultcolumns();
         ColumnMessage* colMessage = resultItem->mutable_resultcolumns(idx);
         setTableColumnType(colMessage, column);

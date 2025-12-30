@@ -33,11 +33,11 @@ namespace BaseType {
         std::string columnName;
         ColumnType columnType;
         std::optional<std::string> alias;
-
+        TableColumn(){}; // TODO remove later
         TableColumn(
             const std::string& tableName,
             const std::string& columnName,
-            const ColumnType& columnType,
+            const ColumnType& columnType, // from workitem
             const std::string& alias = ""):
                 tableName(tableName),
                 columnName(columnName),

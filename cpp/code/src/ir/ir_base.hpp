@@ -1,10 +1,62 @@
+#pragma once
+
 #include <string>
 #include <vector>
 #include <ir/base_types.hpp>
 
 namespace IR {
 
-    // Table base Nodes
+    // Statement Nodes
+
+    class StatementNode {
+        public:
+            BaseType::TableColumn column;
+            // TODO extend this if update, delete, insert is added
+    };
+    
+    class UpdateNode : public StatementNode {
+        // TODO add update statements
+    };
+    
+    class InsertNode : public StatementNode {
+        // TODO add insert statements
+    };
+    
+    class DeleteNode : public StatementNode {
+        // TODO add delete statements
+    };
+    
+    // Database Function Nodes
+    
+    class SelectNode /*: public StatementNode*/ {
+    public:
+        BaseType::TableColumn column;
+        bool star;
+        bool distinct;
+
+        SelectNode(
+            const bool star,
+            const BaseType::TableColumn& column,
+            const bool distinct):
+                column(column),
+                star(star),
+                distinct(distinct) {};
+
+        // TODO: AST Translation
+        /*SelectNode(
+                const bool star = false,
+                const std::string& table = "",
+                const std::string& column = "",
+                const std::string& aggrFunc = "",
+                const bool distinct = false)
+                    :
+                    star(star),
+                    table(table),
+                    column(column),
+                    aggregateFunction(aggrFunc),
+                    distinct(distinct)
+                    {};*/
+    };
 
     class TableBaseNode {
     public:
@@ -25,61 +77,6 @@ namespace IR {
 
         // TODO: AST Translation
     };
-
-    // Statement Nodes
-
-    class StatementNode {
-        public:
-            BaseType::TableColumn column;
-            // TODO extend this if update, delete, insert is added
-    };
-
-    class SelectNode /*: public StatementNode*/ {
-    public:
-        BaseType::TableColumn column;
-        bool star;
-        std::optional<AggFunc> aggFunction;
-        bool distinct;
-
-        SelectNode(
-            const bool star,
-            const BaseType::TableColumn& column,
-            const AggFunc& aggFunc,
-            const bool distinct):
-                column(column),
-                star(star),
-                aggFunction(aggFunc),
-                distinct(distinct) {};
-
-        // TODO: AST Translation
-        /*SelectNode(
-                const bool star = false,
-                const std::string& table = "",
-                const std::string& column = "",
-                const std::string& aggrFunc = "",
-                const bool distinct = false)
-                    :
-                    star(star),
-                    table(table),
-                    column(column),
-                    aggregateFunction(aggrFunc),
-                    distinct(distinct)
-                    {};*/
-    };
-
-    class UpdateNode : public StatementNode {
-        // TODO add update statements
-    };
-
-    class InsertNode : public StatementNode {
-        // TODO add insert statements
-    };
-
-    class DeleteNode : public StatementNode {
-        // TODO add delete statements
-    };
-
-    // Database Function Nodes
 
     class AggNode {
     public:

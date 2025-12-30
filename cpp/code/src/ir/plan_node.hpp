@@ -21,7 +21,7 @@ public:
     AbstractData abstractData;
 
     // 3. State: IR Tree information
-    using IRData = std::variant<std::monostate,
+    using IrData = std::variant<std::monostate,
         IR::TableBaseNode,
         IR::FetchNode,
         IR::SelectNode,
@@ -41,6 +41,8 @@ public:
         IR::PositionList,
         IR::Bitmap
     >;
+    IrData irData;
+
 
     // 3. State: API Item Tree information
     using ApiData = std::variant<std::variant<std::monostate,
