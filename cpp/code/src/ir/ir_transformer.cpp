@@ -377,26 +377,42 @@ std::unique_ptr<PlanNode> astToIr(ASTNode* ast) {
         // LOOKUP: Get type for the Input Column
         ColumnType colType = Catalog::getSSBColumnType(e->table, e->column);
         BaseType::TableColumn inputCol(e->table, e->column, colType);
-
         std::optional<BaseType::TableColumn> col2 = std::nullopt;
-        std::optional<std::variant<uint64_t, float, std::string>> val = std::nullopt;
 
-        if (!e->table2.empty() || !e->column2.empty()) {
-            // Column vs Column
-            ColumnType col2Type = Catalog::getSSBColumnType(e->table2, e->column2);
-            col2 = BaseType::TableColumn(e->table2, e->column2, col2Type);
-        } else {
-            // Column vs Literal
-            // USE CATALOG TYPE TO CAST LITERAL
-            val = parseValueByType(e->value, colType);
+        std::vector<std::variant<uint64_t, float, std::string>> filterArgs;
+        CompType opType = mapStringToCompType(e->operatorType);
+
+        if (e->operatorType == "OR") {
+            opType = CompType::COMP_IN;
+
+            filterArgs.push_back(parseValueByType(e->value, colType));
+            if (!e->value2.empty()) {
+                filterArgs.push_back(parseValueByType(e->value2, colType));
+            }
+        }
+        else if (e->operatorType == "BETWEEN") {
+            opType = CompType::COMP_BETWEEN;
+
+            filterArgs.push_back(parseValueByType(e->value, colType));
+            filterArgs.push_back(parseValueByType(e->value2, colType));
+        }
+        // Column based filter (or join)
+        else if (!e->column.empty() && !e->column2.empty()) {
+            std::string table2 = !e->table2.empty() ? e->table2 : e->table;
+            ColumnType col2Type = Catalog::getSSBColumnType(table2, e->column2);
+            col2 = BaseType::TableColumn(table2, e->column2, col2Type);
+        }
+        // Single value filter
+        else {
+            filterArgs.push_back(parseValueByType(e->value, colType));
         }
 
         node->irData = IR::FilterNode(
             inputCol,
-            mapStringToCompType(e->operatorType),
+            opType,
             col2,
-            val,
-            inputCol 
+            filterArgs,
+            inputCol
         );
     }
     // 3. JOIN Node

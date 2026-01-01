@@ -127,21 +127,23 @@ namespace IR {
     public:
         BaseType::TableColumn column1;
         CompType filterType;
-        std::optional<BaseType::TableColumn> column2;
-        std::optional<std::variant<uint64_t, float, std::string>> filterValue;
+        std::optional<BaseType::TableColumn> column2 = std::nullopt;
+        std::vector<std::variant<uint64_t, float, std::string>> filterArgs;
         BaseType::TableColumn outputColumn;
 
         FilterNode(
             const BaseType::TableColumn& column1,
             const CompType& filterType,
             const std::optional<BaseType::TableColumn>& column2,
-            const std::optional<std::variant<uint64_t, float, std::string>>& filterValue,
-            const BaseType::TableColumn& outputColumn):
-                column1(column1),
-                filterType(filterType),
-                column2(column2),
-                filterValue(filterValue),
-                outputColumn(outputColumn) {};
+            const std::vector<std::variant<uint64_t, float, std::string>>& filterArgs,
+            const BaseType::TableColumn& outputColumn)
+        :
+            column1(column1),
+            filterType(filterType),
+            column2(column2),
+            filterArgs(filterArgs),
+            outputColumn(outputColumn)
+        {};
 
         // TODO: AST Translation
         /*FilterNode(const std::string& table,

@@ -2,6 +2,7 @@
 #include <string>
 #include "generate_AST.h"
 #include "predicate_pushdown.h"
+#include <ir/ir_transformer.hpp>
 using namespace std;
 
 int main() {
@@ -24,6 +25,9 @@ int main() {
         )SQL";
 
     auto root = generateASTNode(query);
-    printAST(root);
+    // printAST(root);
+    unique_ptr<PlanNode> ir_root = astToIr(root);
+    printPlanTree(*ir_root, "", true);
+
     std::cout<<"\n\n";
 }

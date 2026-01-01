@@ -5,10 +5,10 @@
 int SINGLE_TEST;
 ItemBuilder* itemBuilder;
 
-ItemBuilder::TableColumn* tc1;
-ItemBuilder::TableColumn* tc2;
-ItemBuilder::TableColumn* tc3;
-ItemBuilder::TableColumn* tc4;
+BaseType::TableColumn* tc1;
+BaseType::TableColumn* tc2;
+BaseType::TableColumn* tc3;
+BaseType::TableColumn* tc4;
 
 void printName(const std::string& name) {
     std::cout << "[" << name << "]:" << std::endl;
@@ -185,10 +185,10 @@ void printAllItems() {
 int main() {
     itemBuilder = new ItemBuilder();
 
-    tc1 = new ItemBuilder::TableColumn { "employees", "id", ColumnType::TYPE_INTEGER };
-    tc2 = new ItemBuilder::TableColumn { "employees", "names", ColumnType::TYPE_STRING };
-    tc3 = new ItemBuilder::TableColumn { "employees", "float", ColumnType::TYPE_FLOAT };
-    tc4 = new ItemBuilder::TableColumn { "cities", "names", ColumnType::TYPE_STRING };
+    tc1 = new BaseType::TableColumn { "employees", "id", ColumnType::TYPE_INTEGER };
+    tc2 = new BaseType::TableColumn { "employees", "names", ColumnType::TYPE_STRING };
+    tc3 = new BaseType::TableColumn { "employees", "float", ColumnType::TYPE_FLOAT };
+    tc4 = new BaseType::TableColumn { "cities", "names", ColumnType::TYPE_STRING };
 
     if (SINGLE_TEST && SINGLE_TEST >= 0 && SINGLE_TEST <= 11) {
         switch (SINGLE_TEST) {

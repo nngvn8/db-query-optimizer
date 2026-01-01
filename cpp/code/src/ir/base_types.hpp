@@ -13,18 +13,22 @@ namespace BaseType {
     struct Table {
         std::string name;
         std::optional<std::string> alias;
-        bool isVirtual = false;
+        bool isVirtual;
         std::string schema;
-        Table(){};
+
+        Table() {};
+
         Table(
             const std::string& name,
-            const std::string& alias = "",
+            std::optional<std::string> alias = std::nullopt, 
             const bool isVirtual = false,
-            const std::string& schema = ""):
-                name(name),
-                alias(alias),
-                isVirtual(isVirtual),
-                schema(schema) {};
+            const std::string& schema = "")
+        : 
+            name(name),
+            alias((alias.has_value() && alias->empty()) ? std::nullopt : alias),
+            isVirtual(isVirtual),
+            schema(schema) 
+        {};
     };
 
     // table column with table name, column name and datatype
@@ -38,11 +42,13 @@ namespace BaseType {
             const std::string& tableName,
             const std::string& columnName,
             const ColumnType& columnType, // from workitem
-            const std::string& alias = ""):
-                tableName(tableName),
-                columnName(columnName),
-                columnType(columnType),
-                alias(alias) {};
+            const std::optional<std::string>& alias = std::nullopt)
+        :
+            tableName(tableName),
+            columnName(columnName),
+            columnType(columnType),
+            alias((alias.has_value() && alias->empty()) ? std::nullopt : alias)
+        {};
     };
 
     struct PlanParams {

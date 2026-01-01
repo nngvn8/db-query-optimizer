@@ -10,6 +10,16 @@ namespace Catalog {
         std::transform(tableName.begin(), tableName.end(), tableName.begin(), ::tolower);
         std::transform(columnName.begin(), columnName.end(), columnName.begin(), ::tolower);
 
+        if (tableName.empty()) {
+            if (columnName.find("lo_") == 0) tableName = "lineorder";
+            else if (columnName.find("c_") == 0) tableName = "customer";
+            else if (columnName.find("s_") == 0) tableName = "supplier";
+            else if (columnName.find("p_") == 0) tableName = "part";
+            else if (columnName.find("d_") == 0) tableName = "date";
+        }
+        // Handle "dates" alias often used in SQL queries for the date table
+        if (tableName == "dates") tableName = "date";
+
         // 1. LINEORDER
         if (tableName == "lineorder" || tableName == "lo") {
             if (columnName.find("key") != std::string::npos) return ColumnType::TYPE_INTEGER;

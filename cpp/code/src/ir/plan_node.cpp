@@ -155,8 +155,7 @@ PlanNode::PlanNode(const Json::Value& queryPlan) {
     }
 }
 
-void printNode(const PlanNode& node){
-    // std::cout << node.rawJson->nodeType;
+void printNodeAbstract(const PlanNode& node){
     GetNodeName getNodeName;
     std::cout << std::visit(getNodeName, node.abstractData); // visit to remove the variant wrapper
     const AbstractSource* source = std::get_if<AbstractSource>(&node.abstractData);
@@ -200,6 +199,141 @@ void printNode(const PlanNode& node){
         std::cout << "]";
     }
 }
+void printNodeJson(const PlanNode& node){
+    std::cout << node.rawJson->nodeType;
+}
+
+// --- 1. Define operator<< for TableColumn ---
+// This teaches std::cout how to print a TableColumn
+std::ostream& operator<<(std::ostream& os, const BaseType::TableColumn& col) {
+    if (!col.tableName.empty()) {
+        os << col.tableName << ".";
+    }
+    os << col.columnName;
+    if (col.alias.has_value()) {
+        os << " AS " << col.alias.value();
+    }
+    return os;
+}
+
+// --- 2. Helper for Join Enum (Standard C++ Enum) ---
+std::string joinTypeToString(const BaseType::Join& join) {
+    switch(join) {
+        case BaseType::INNER_JOIN: return "INNER";
+        case BaseType::LEFT_OUTER_JOIN: return "LEFT";
+        case BaseType::RIGHT_OUTER_JOIN: return "RIGHT";
+        case BaseType::FULL_OUTER_JOIN: return "FULL";
+        default: return "UNKNOWN_JOIN";
+    }
+}
+
+// --- 3. The Printing Function ---
+void printNodeIr(const PlanNode& node) {
+    // Helper lambda to print inner variants (used in Filter/Map)
+    auto printVal = [](const auto& val) { std::cout << val; };
+
+    if (const auto* n = std::get_if<IR::TableBaseNode>(&node.irData)) {
+        std::cout << "Table " << n->table.name 
+                  << (n->table.alias.has_value() ? " (" + n->table.alias.value() + ")" : "");
+    }
+    else if (const auto* n = std::get_if<IR::FetchNode>(&node.irData)) {
+        std::cout << "Fetch " << n->table.name << (n->printToFile ? " [file]" : "");
+    }
+    else if (const auto* n = std::get_if<IR::SelectNode>(&node.irData)) {
+        std::cout << "Select " << (n->distinct ? "DISTINCT " : "") 
+                  << (n->star ? "*" : "") << n->column;
+    }
+    else if (const auto* n = std::get_if<IR::AggNode>(&node.irData)) {
+        // Use AggFunc_Name to print "AGG_SUM" instead of integer "1"
+        std::cout << "Agg " << AggFunc_Name(n->aggFunc) << "(" << n->column << ")";
+    }
+    else if (const auto* n = std::get_if<IR::JoinNode>(&node.irData)) {
+        std::cout << "Join " << joinTypeToString(n->joinType) << " ON " 
+                  << n->leftTableColumn << " " << CompType_Name(n->joinPredicate) 
+                  << " " << n->rightTableColumn;
+    }
+    else if (const auto* n = std::get_if<IR::FilterNode>(&node.irData)) {
+        std::cout << "Filter " << n->column1 << " " << CompType_Name(n->filterType) << " ";
+
+        if (n->column2.has_value()) {
+            // Case 1: Column vs Column (e.g. colA = colB)
+            std::cout << n->column2.value();
+        } 
+        else if (!n->filterArgs.empty()) {
+            // Case 2: BETWEEN (val1 AND val2)
+            if (n->filterType == CompType::COMP_BETWEEN && n->filterArgs.size() >= 2) {
+                std::visit(printVal, n->filterArgs[0]);
+                std::cout << " AND ";
+                std::visit(printVal, n->filterArgs[1]);
+            }
+            // Case 3: IN (val1, val2, ...)
+            else if (n->filterType == CompType::COMP_IN) {
+                std::cout << "(";
+                for (size_t i = 0; i < n->filterArgs.size(); ++i) {
+                    std::visit(printVal, n->filterArgs[i]);
+                    if (i < n->filterArgs.size() - 1) std::cout << ", ";
+                }
+                std::cout << ")";
+            }
+            // Case 4: Standard Binary Op (val1)
+            else {
+                std::visit(printVal, n->filterArgs[0]);
+            }
+        }
+    }
+    else if (const auto* n = std::get_if<IR::GroupByNode>(&node.irData)) {
+        std::cout << "GroupBy (";
+        for (const auto& col : n->description) std::cout << col << " ";
+        std::cout << ")";
+    }
+    else if (const auto* n = std::get_if<IR::SortOrderNode>(&node.irData)) {
+        std::cout << "Sort (";
+        for (const auto& item : n->columnList) std::cout << item.column << " ";
+        std::cout << ")";
+    }
+    else if (const auto* n = std::get_if<IR::MapNode>(&node.irData)) {
+        std::cout << "Map " << n->column << " " << ArithOp_Name(n->operatorType) << " ";
+        std::visit(printVal, n->partnerVal);
+    }
+    else if (const auto* n = std::get_if<IR::LimitNode>(&node.irData)) {
+        std::cout << "Limit " << n->limit << " Offset " << n->offset;
+    }
+    else if (const auto* n = std::get_if<IR::ResultNode>(&node.irData)) {
+        std::cout << "Result -> " << n->fileName;
+    }
+    // Handle specific statements (Removed unused 'n' variable to fix warnings)
+    else if (std::get_if<IR::UpdateNode>(&node.irData)) std::cout << "Update";
+    else if (std::get_if<IR::InsertNode>(&node.irData)) std::cout << "Insert";
+    else if (std::get_if<IR::DeleteNode>(&node.irData)) std::cout << "Delete";
+    
+    // Handle Column Store nodes
+    else if (const auto* n = std::get_if<IR::MaterializeNode>(&node.irData)) {
+        // Now works because we defined operator<< for TableColumn
+        std::cout << "Mat (" << n->idxColumn << ")"; 
+    }
+    else if (std::get_if<IR::PositionList>(&node.irData)) std::cout << "PosList";
+    else if (std::get_if<IR::Bitmap>(&node.irData)) std::cout << "Bitmap";
+    else {
+        std::cout << "[Empty/Unknown IR]";
+    }
+}
+
+void printNode(const PlanNode& node, int mode){
+    switch (mode)
+    {
+    case 0:
+        printNodeJson(node);
+        break;
+    case 1:
+        printNodeAbstract(node);
+        break;
+    case 2:
+        printNodeIr(node);
+        break;
+    default:
+        break;
+    }
+}
 
 void printPlanTree(const PlanNode& node, const std::string& prefix, bool isLast) {
     // 1. Determine the drawing character for the current node
@@ -207,7 +341,7 @@ void printPlanTree(const PlanNode& node, const std::string& prefix, bool isLast)
     std::cout << (isLast ? "└── " : "├── ");
 
     // 2. Print node
-    printNode(node);
+    printNode(node, 2);
     std::cout << std::endl;
 
     // 3. Prepare the new prefix for the children
@@ -223,7 +357,7 @@ void printPlanTree(const PlanNode& node, const std::string& prefix, bool isLast)
 
 void printSequencedPlan(const std::vector<const PlanNode*> plan_seq){
     for (const PlanNode* node : plan_seq) {
-        printNode(*node);
+        printNode(*node, -1);
         std::cout << "--";
     }
     std::cout << std::endl;
