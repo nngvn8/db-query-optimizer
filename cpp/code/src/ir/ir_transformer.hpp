@@ -13,3 +13,5 @@ std::unique_ptr<PlanNode> pruneTree(std::unique_ptr<PlanNode> node);
 std::unique_ptr<PlanNode> enrichTree(std::unique_ptr<PlanNode> root, SqlQueryData& queryData);
 
 std::unique_ptr<PlanNode> astToIr(ASTNode* ast);
+
+void fillMaterializes(PlanNode* node, std::set<BaseType::TableColumn> materializedColumns = {});

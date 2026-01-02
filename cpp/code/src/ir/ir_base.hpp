@@ -2,15 +2,29 @@
 
 #include <string>
 #include <vector>
+#include <variant>
+#include <optional>
 #include <ir/base_types.hpp>
 
 namespace IR {
 
+    class IrBaseNode {
+        public:
+            // Columns that store input that will be processed within the node
+            std::vector<BaseType::TableColumn> inputColumns = {};
+            
+            // Generic helpers
+            const BaseType::TableColumn& column() const { return inputColumns[0]; };
+            const BaseType::TableColumn& column2() const { return inputColumns[1]; };
+            
+            virtual ~IrBaseNode() = default;
+    };
+
     // Statement Nodes
 
-    class StatementNode {
+    class StatementNode : public IrBaseNode {
         public:
-            BaseType::TableColumn column;
+            BaseType::TableColumn& column() { return inputColumns[0]; }
             // TODO extend this if update, delete, insert is added
     };
     
@@ -28,9 +42,8 @@ namespace IR {
     
     // Database Function Nodes
     
-    class SelectNode /*: public StatementNode*/ {
+    class SelectNode : public IrBaseNode {
     public:
-        BaseType::TableColumn column;
         bool star;
         bool distinct;
 
@@ -38,66 +51,51 @@ namespace IR {
             const bool star,
             const BaseType::TableColumn& column,
             const bool distinct):
-                column(column),
                 star(star),
-                distinct(distinct) {};
+                distinct(distinct)
+            {
+                inputColumns.push_back(column);
+            };
 
-        // TODO: AST Translation
-        /*SelectNode(
-                const bool star = false,
-                const std::string& table = "",
-                const std::string& column = "",
-                const std::string& aggrFunc = "",
-                const bool distinct = false)
-                    :
-                    star(star),
-                    table(table),
-                    column(column),
-                    aggregateFunction(aggrFunc),
-                    distinct(distinct)
-                    {};*/
+        const BaseType::TableColumn& column() const { return inputColumns[0]; }
     };
 
-    class TableBaseNode {
+    class TableBaseNode : public IrBaseNode {
     public:
         BaseType::Table table;
 
         TableBaseNode(const BaseType::Table& table): table(table) {};
-
-        // TODO: AST Translation
     };
 
-    class FetchNode {
+    class FetchNode : public IrBaseNode {
     public:
         BaseType::Table table;
         bool printToFile;
 
         FetchNode(const BaseType::Table& table, const bool printToFile):
             table(table), printToFile(printToFile) {};
-
-        // TODO: AST Translation
     };
 
-    class AggNode {
+    class AggNode : public IrBaseNode {
     public:
-        BaseType::TableColumn column;
         AggFunc aggFunc;
 
         AggNode(
             const BaseType::TableColumn& column,
-            const AggFunc& aggFunc):
-                column(column),
-                aggFunc(aggFunc) {};
+            const AggFunc& aggFunc)
+            :
+                aggFunc(aggFunc) 
+            {
+                inputColumns.push_back(column);
+            };
 
-        // TODO: AST Translation
+        const BaseType::TableColumn& column() const { return inputColumns[0]; }
     };
 
-    class JoinNode {
+    class JoinNode : public IrBaseNode {
     public:
         BaseType::Join joinType;
         CompType joinPredicate;
-        BaseType::TableColumn leftTableColumn;
-        BaseType::TableColumn rightTableColumn;
 
         JoinNode(
             const BaseType::Join& joinType,
@@ -105,29 +103,19 @@ namespace IR {
             const BaseType::TableColumn& leftTableColumn,
             const BaseType::TableColumn& rightTableColumn):
                 joinType(joinType),
-                joinPredicate(joinPredicate),
-                leftTableColumn(leftTableColumn),
-                rightTableColumn(rightTableColumn) {};
+                joinPredicate(joinPredicate)
+            {
+                inputColumns.push_back(leftTableColumn);
+                inputColumns.push_back(rightTableColumn);
+            };
 
-        // TODO: AST Translation
-        /*JoinNode(
-            const std::string& joinType= "",
-            const std::string& onLeftTable="",
-            const std::string& onLeftTableColumn="",
-            const std::string& onRightTable="",
-            const std::string& onRightTableColumn="")
-                :getJoinType(joinType),
-                onLeftTable(onLeftTable),
-                onLeftTableColumn(onLeftTableColumn),
-                onRightTable(onRightTable),
-                onRightTableColumn(onRightTableColumn){}*/
+        const BaseType::TableColumn& leftTableColumn() const { return inputColumns[0]; }
+        const BaseType::TableColumn& rightTableColumn() const { return inputColumns[1]; }
     };
 
-    class FilterNode {
+    class FilterNode : public IrBaseNode {
     public:
-        BaseType::TableColumn column1;
         CompType filterType;
-        std::optional<BaseType::TableColumn> column2 = std::nullopt;
         std::vector<std::variant<uint64_t, float, std::string>> filterArgs;
         BaseType::TableColumn outputColumn;
 
@@ -138,50 +126,52 @@ namespace IR {
             const std::vector<std::variant<uint64_t, float, std::string>>& filterArgs,
             const BaseType::TableColumn& outputColumn)
         :
-            column1(column1),
             filterType(filterType),
-            column2(column2),
             filterArgs(filterArgs),
             outputColumn(outputColumn)
-        {};
+        {
+            inputColumns.push_back(column1);
+            if(column2.has_value()){
+                inputColumns.push_back(column2.value());
+            }
+        };
 
-        // TODO: AST Translation
-        /*FilterNode(const std::string& table,
-                const std::string& column,
-                const std::string& operatorType = "",
-                const std::string& table2 = "",
-                const std::string& column2 = "",
-                const std::string& value = "")
-                    :table(table),
-                    column(column),
-                    operatorType(operatorType),
-                    table2(table2),
-                    column2(column2),
-                    value(value)
-                    {};*/
+        const BaseType::TableColumn& column1() const { return inputColumns[0]; }
+        
+        const std::optional<BaseType::TableColumn> column2() const { 
+            if (inputColumns.size() > 1) return inputColumns[1];
+            return std::nullopt;
+        }
     };
 
-    class GroupByNode {
+    class GroupByNode : public IrBaseNode {
     public:
-        std::vector<BaseType::TableColumn> description;
+        GroupByNode(const std::vector<BaseType::TableColumn>& description) 
+        {
+            inputColumns = description;
+        };
 
-        GroupByNode(const std::vector<BaseType::TableColumn>& description) : description(description) {};
-
-        // TODO: AST Translation
+        const std::vector<BaseType::TableColumn>& description() const { return inputColumns; }
+        
         // GroupByNode(std::vector<GroupByDescription>& description) : description(description) {}
     };
 
-    class SortOrderNode {
+    class SortOrderNode : public IrBaseNode {
     public:
+        // Cannot remove this because OrderDescription contains extra data (ASC/DESC)
         std::vector<BaseType::OrderDescription> columnList;
 
-        SortOrderNode(const std::vector<BaseType::OrderDescription>& columnList) : columnList(columnList) {};
-
-        // TODO: AST Translation
+        SortOrderNode(const std::vector<BaseType::OrderDescription>& columnList) : columnList(columnList) 
+        {
+            for(const auto& item : columnList){
+                inputColumns.push_back(item.column);
+            }
+        };
+        
         // OrderByNode(const std::vector<OrderByDescription>& list): {};
     };
 
-    class LimitNode {
+    class LimitNode : public IrBaseNode {
     public:
         std::string limit;
         std::string offset;
@@ -191,13 +181,10 @@ namespace IR {
             const std::string& offset = ""):
                 limit(limit),
                 offset(offset) {};
-
-        // TODO: AST Translation
     };
 
-    class MapNode {
+    class MapNode : public IrBaseNode {
     public:
-        BaseType::TableColumn column;
         ArithOp operatorType;
         std::variant<BaseType::TableColumn, uint64_t, float, std::string> partnerVal;
 
@@ -205,35 +192,40 @@ namespace IR {
             const BaseType::TableColumn& column,
             const ArithOp& operatorType,
             const std::variant<BaseType::TableColumn, uint64_t, float, std::string>& partnerVal):
-                column(column),
                 operatorType(operatorType),
-                partnerVal(partnerVal) {};
+                partnerVal(partnerVal) 
+            {
+                inputColumns.push_back(column);
+                if (std::holds_alternative<BaseType::TableColumn>(partnerVal)) {
+                    inputColumns.push_back(std::get<BaseType::TableColumn>(partnerVal));
+                }
+            };
 
-        // TODO: AST Translation
+        const BaseType::TableColumn& column() const { return inputColumns[0]; }
     };
 
-    class SetOperationNode {
+    class SetOperationNode : public IrBaseNode {
     public:
         RelOp operation;
-        BaseType::TableColumn innerColumn;
-        BaseType::TableColumn outerColumn;
 
         SetOperationNode(
             const RelOp& operation,
             const BaseType::TableColumn& innerColumn,
             const BaseType::TableColumn& outerColumn):
-                operation(operation),
-                innerColumn(innerColumn),
-                outerColumn(outerColumn) {};
+                operation(operation)
+            {
+                inputColumns.push_back(innerColumn);
+                inputColumns.push_back(outerColumn);
+            };
 
-        // TODO: AST Translation
+        const BaseType::TableColumn& innerColumn() const { return inputColumns[0]; }
+        const BaseType::TableColumn& outerColumn() const { return inputColumns[1]; }
     };
 
-    class ResultNode {
+    class ResultNode : public IrBaseNode {
     public:
         std::string fileName;
-        std::vector<BaseType::TableColumn> resultColumns;
-        BaseType::TableColumn resultIdx;
+        std::vector<BaseType::TableColumn> resultColumns; // Kept for metadata access
         std::vector<std::string> resultHeaders;
 
         ResultNode(
@@ -243,39 +235,53 @@ namespace IR {
             const std::vector<std::string>& resultHeaders):
                 fileName(fileName),
                 resultColumns(resultColumns),
-                resultIdx(resultIdx),
-                resultHeaders(resultHeaders) {};
-
-        // TODO: AST Translation
+                resultHeaders(resultHeaders) 
+            {
+                inputColumns.push_back(resultIdx);
+                inputColumns.insert(inputColumns.end(), resultColumns.begin(), resultColumns.end());
+            };
+            
+        const BaseType::TableColumn& resultIdx() const { return inputColumns[0]; }
     };
 
     // Column Store Specific Nodes
 
-    class MaterializeNode {
+    class MaterializeNode : public IrBaseNode {
     public:
-        BaseType::TableColumn idxColumn;
-        BaseType::TableColumn filterColumn;
+        MaterializeNode(const BaseType::TableColumn& idxColumn, const BaseType::TableColumn& filterColumn)
+        {
+            inputColumns.push_back(idxColumn);
+            inputColumns.push_back(filterColumn);
+        };
 
-        MaterializeNode(const BaseType::TableColumn& idxColumn, const BaseType::TableColumn& filterColumn):
-            idxColumn(idxColumn), filterColumn(filterColumn) {};
+        const BaseType::TableColumn& idxColumn() const { return inputColumns[0]; }
+        const BaseType::TableColumn& filterColumn() const { return inputColumns[1]; }
     };
 
-    class PositionList {
+    class PositionList : public IrBaseNode{
     public:
-        BaseType::TableColumn refColumn;
         std::vector<uint16_t> list;
 
         PositionList(const BaseType::TableColumn& refColumn, const std::vector<uint16_t>& list):
-            refColumn(refColumn), list(list) {};
+            list(list) 
+        {
+            inputColumns.push_back(refColumn);
+        };
+
+        const BaseType::TableColumn& refColumn() const { return inputColumns[0]; }
     };
 
-    class Bitmap {
+    class Bitmap : public IrBaseNode {
     public:
-        BaseType::TableColumn refColumn;
         std::vector<bool> map;
 
         Bitmap(const BaseType::TableColumn& refColumn, const std::vector<bool>& map):
-            refColumn(refColumn), map(map) {};
+            map(map) 
+        {
+            inputColumns.push_back(refColumn);
+        };
+
+        const BaseType::TableColumn& refColumn() const { return inputColumns[0]; }
     };
 
 };

@@ -241,23 +241,23 @@ void printNodeIr(const PlanNode& node) {
     }
     else if (const auto* n = std::get_if<IR::SelectNode>(&node.irData)) {
         std::cout << "Select " << (n->distinct ? "DISTINCT " : "") 
-                  << (n->star ? "*" : "") << n->column;
+                  << (n->star ? "*" : "") << n->column();
     }
     else if (const auto* n = std::get_if<IR::AggNode>(&node.irData)) {
         // Use AggFunc_Name to print "AGG_SUM" instead of integer "1"
-        std::cout << "Agg " << AggFunc_Name(n->aggFunc) << "(" << n->column << ")";
+        std::cout << "Agg " << AggFunc_Name(n->aggFunc) << "(" << n->column() << ")";
     }
     else if (const auto* n = std::get_if<IR::JoinNode>(&node.irData)) {
         std::cout << "Join " << joinTypeToString(n->joinType) << " ON " 
-                  << n->leftTableColumn << " " << CompType_Name(n->joinPredicate) 
-                  << " " << n->rightTableColumn;
+                  << n->leftTableColumn() << " " << CompType_Name(n->joinPredicate) 
+                  << " " << n->rightTableColumn();
     }
     else if (const auto* n = std::get_if<IR::FilterNode>(&node.irData)) {
-        std::cout << "Filter " << n->column1 << " " << CompType_Name(n->filterType) << " ";
+        std::cout << "Filter " << n->column1() << " " << CompType_Name(n->filterType) << " ";
 
-        if (n->column2.has_value()) {
+        if (n->column2().has_value()) {
             // Case 1: Column vs Column (e.g. colA = colB)
-            std::cout << n->column2.value();
+            std::cout << n->column2().value();
         } 
         else if (!n->filterArgs.empty()) {
             // Case 2: BETWEEN (val1 AND val2)
@@ -283,7 +283,7 @@ void printNodeIr(const PlanNode& node) {
     }
     else if (const auto* n = std::get_if<IR::GroupByNode>(&node.irData)) {
         std::cout << "GroupBy (";
-        for (const auto& col : n->description) std::cout << col << " ";
+        for (const auto& col : n->description()) std::cout << col << " ";
         std::cout << ")";
     }
     else if (const auto* n = std::get_if<IR::SortOrderNode>(&node.irData)) {
@@ -292,7 +292,7 @@ void printNodeIr(const PlanNode& node) {
         std::cout << ")";
     }
     else if (const auto* n = std::get_if<IR::MapNode>(&node.irData)) {
-        std::cout << "Map " << n->column << " " << ArithOp_Name(n->operatorType) << " ";
+        std::cout << "Map " << n->column() << " " << ArithOp_Name(n->operatorType) << " ";
         std::visit(printVal, n->partnerVal);
     }
     else if (const auto* n = std::get_if<IR::LimitNode>(&node.irData)) {
@@ -309,7 +309,7 @@ void printNodeIr(const PlanNode& node) {
     // Handle Column Store nodes
     else if (const auto* n = std::get_if<IR::MaterializeNode>(&node.irData)) {
         // Now works because we defined operator<< for TableColumn
-        std::cout << "Mat (" << n->idxColumn << ")"; 
+        std::cout << "Mat (" << n->idxColumn() << ")"; 
     }
     else if (std::get_if<IR::PositionList>(&node.irData)) std::cout << "PosList";
     else if (std::get_if<IR::Bitmap>(&node.irData)) std::cout << "Bitmap";

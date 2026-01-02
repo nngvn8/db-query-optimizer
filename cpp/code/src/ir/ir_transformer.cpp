@@ -479,3 +479,36 @@ std::unique_ptr<PlanNode> astToIr(ASTNode* ast) {
 
     return node;
 }
+
+void fillMaterializes(PlanNode* node, std::set<BaseType::TableColumn> columns = {}) {
+    if (!node) return;
+
+    // Add columns needed for this node to ``columns``
+    std::visit([&](auto& n) {
+        // Visit to peel of variant (peel irData) (compiler generates code for each possible type of n)
+        // get the type of n (determine with decltype, unwrap with decay_t) and check it's not monostate
+        if constexpr (!std::is_same_v<std::decay_t<decltype(n)>, std::monostate>)
+            columns.insert(n.inputColumns.begin(), n.inputColumns.end());
+    }, node->irData);
+
+    // Traverse Tree
+    for (auto& child : node->children) {
+        fillMaterializes(child.get(), columns);
+    }
+
+    // Bottom up generate materialize nodes
+    if (!node->children.empty()){
+        for (size_t i =0; i < node->children.size(); ++i) {
+            
+            // Create Materialize Node
+            auto col1 = BaseType::TableColumn(); // dummy for now
+            auto col2 = BaseType::TableColumn(); // dummy for now
+            std::unique_ptr<PlanNode> matNode = std::make_unique<PlanNode>();
+            matNode->irData = IR::MaterializeNode(col1, col2);
+
+            // Insert below current node and rewire
+            matNode->children.push_back(std::move(node->children[i]));
+            node->children[i] = std::move(matNode);
+        }
+    }
+}

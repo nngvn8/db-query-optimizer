@@ -49,6 +49,19 @@ namespace BaseType {
             columnType(columnType),
             alias((alias.has_value() && alias->empty()) ? std::nullopt : alias)
         {};
+
+        bool operator<(const TableColumn& other) const {
+            // 1. Compare Table Name
+            if (tableName != other.tableName) {
+                return tableName < other.tableName;
+            }
+            // 2. If tables are same, compare Column Name
+            if (columnName != other.columnName) {
+                return columnName < other.columnName;
+            }
+            // 3. If both are same, compare Alias (optional, depending on your logic)
+            return alias < other.alias;
+        }
     };
 
     struct PlanParams {
