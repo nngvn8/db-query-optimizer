@@ -479,7 +479,7 @@ std::unique_ptr<PlanNode> astToIr(ASTNode* ast) {
     return node;
 }
 
-void fillMaterializes(PlanNode* node, std::set<BaseType::TableColumn> columns = {}) {
+void fillMaterializes(PlanNode* node, std::set<BaseType::TableColumn> columns) {
     if (!node) return;
 
     // Top down add columns needed for this node to ``columns``

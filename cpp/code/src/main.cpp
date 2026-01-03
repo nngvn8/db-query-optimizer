@@ -1,8 +1,8 @@
 #include <iostream>
 #include <string>
-#include "generate_AST.h"
+#include <parser/generate_AST.h>
 #include <ir/ir_transformer.hpp>
-#include "generate_dot.h"
+#include <parser/generate_dot.h>
 
 using namespace std;
 

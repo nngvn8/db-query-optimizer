@@ -1,4 +1,5 @@
 #include <SQLParser.h>
+#include <ir/catalog.hpp>
 #include "generate_AST.h"
 #include "optimizer_one.h"
 #include <iostream>
@@ -10,67 +11,6 @@
 #include <memory>
 
 using namespace std;
-
-std::string getTableName(std::string columnName){
-
-    std::unordered_set<std::string> lineorder = {
-        "lo_orderdate",
-        "lo_discount",
-        "lo_quantity",
-        "lo_extendedprice",
-        "lo_revenue",
-        "lo_custkey",
-        "lo_suppkey",
-        "lo_supplycost",
-        "lo_partkey",
-        "lo_orderdate"
-    };
-
-    std::unordered_set<std::string> dates = {
-        "d_year",
-        "d_datekey",
-        "d_yearmonth",
-        "d_weeknuminyear"
-    };
-
-    std::unordered_set<std::string> part = {
-        "p_partkey",
-        "p_category",
-        "p_brand"
-    };
-
-    std::unordered_set<std::string> supplier = {
-        "s_region",
-        "s_suppkey",
-        "s_nation",
-        "s_city"
-    };
-
-    std::unordered_set<std::string> customer = {
-        "c_nation",
-        "c_custkey",
-    };
-
-    if (lineorder.find(columnName) != lineorder.end()) {
-        return "lineorder";
-    }
-    else if (dates.find(columnName) != dates.end()) {
-        return "dates";
-    }
-    else if (part.find(columnName) != part.end()) {
-        return "part";
-    }
-    else if (supplier.find(columnName) != supplier.end()) {
-        return "supplier";
-    }
-    else if (customer.find(columnName) != customer.end()) {
-        return "customer";
-    }
-    else{
-        return "Default";
-    }
-}
-
 
 std::string toUpper(const std::string& input) {
     std::string result = input;
@@ -90,7 +30,7 @@ ASTNode* makeSelectNode(hsql::Expr* expr){
 
     switch(expr->type){
         case hsql::kExprColumnRef: {
-            ASTNode* node = new ASTNode(SelectClauseNode(false,getTableName(expr->name),expr->name,"",alias,expr->distinct)); 
+            ASTNode* node = new ASTNode(SelectClauseNode(false,Catalog::getTableName(expr->name),expr->name,"",alias,expr->distinct)); 
             return node;
         }
         case hsql::kExprStar: {
@@ -114,8 +54,8 @@ ASTNode* makeSelectNode(hsql::Expr* expr){
                         op = "*";
                     }
 
-                    string a = getTableName(expr->exprList->at(0)->expr->name)+"."+expr->exprList->at(0)->expr->name;
-                    string b = getTableName(expr->exprList->at(0)->expr2->name)+"."+expr->exprList->at(0)->expr2->name;
+                    string a = Catalog::getTableName(expr->exprList->at(0)->expr->name)+"."+expr->exprList->at(0)->expr->name;
+                    string b = Catalog::getTableName(expr->exprList->at(0)->expr2->name)+"."+expr->exprList->at(0)->expr2->name;
                     
                     string column = a + " " + op + " " +b;
 
@@ -124,7 +64,7 @@ ASTNode* makeSelectNode(hsql::Expr* expr){
                     
                 }
                 case hsql::kExprColumnRef : {
-                    ASTNode* node = new ASTNode(SelectClauseNode(false,getTableName(expr->exprList->at(0)->name),expr->exprList->at(0)->name,toUpper(expr->name),alias,expr->distinct)); 
+                    ASTNode* node = new ASTNode(SelectClauseNode(false,Catalog::getTableName(expr->exprList->at(0)->name),expr->exprList->at(0)->name,toUpper(expr->name),alias,expr->distinct)); 
                     return node;
                 }
                 case hsql::kExprStar : {
@@ -235,7 +175,7 @@ ASTNode* makeWhereNode(hsql::Expr* expr){
             }
         }
         
-        ASTNode* node = new ASTNode(WhereClauseNode(getTableName(name),name,op,"","",value1,value2));
+        ASTNode* node = new ASTNode(WhereClauseNode(Catalog::getTableName(name),name,op,"","",value1,value2));
         return node;
     }
     else if(op == "OR"){
@@ -259,7 +199,7 @@ ASTNode* makeWhereNode(hsql::Expr* expr){
         
         }
 
-        ASTNode* node = new ASTNode(WhereClauseNode(getTableName(colname1),colname1,op,getTableName(colname2),colname2,value1,value2));
+        ASTNode* node = new ASTNode(WhereClauseNode(Catalog::getTableName(colname1),colname1,op,Catalog::getTableName(colname2),colname2,value1,value2));
         return node;
     }
     else{
@@ -273,28 +213,28 @@ ASTNode* makeWhereNode(hsql::Expr* expr){
 
         switch(expr->expr2->type){
             case hsql::kExprLiteralInt:{
-                ASTNode* node = new ASTNode(WhereClauseNode(getTableName(name),name,op,"","",to_string(expr->expr2->ival)));
+                ASTNode* node = new ASTNode(WhereClauseNode(Catalog::getTableName(name),name,op,"","",to_string(expr->expr2->ival)));
                 return node;
             }
 
             case hsql::kExprLiteralString:{
-                ASTNode* node = new ASTNode(WhereClauseNode(getTableName(name),name,op,"","",expr->expr2->name));
+                ASTNode* node = new ASTNode(WhereClauseNode(Catalog::getTableName(name),name,op,"","",expr->expr2->name));
                 return node;
             }
                     
             case hsql::kExprLiteralFloat:{
-                ASTNode* node = new ASTNode(WhereClauseNode(getTableName(name),name,op,"","",to_string(expr->expr2->fval)));
+                ASTNode* node = new ASTNode(WhereClauseNode(Catalog::getTableName(name),name,op,"","",to_string(expr->expr2->fval)));
                 return node;
             }
 
             case hsql::kExprLiteralNull:{
-                ASTNode* node = new ASTNode(WhereClauseNode(getTableName(name),name,op,"","","NULL"));
+                ASTNode* node = new ASTNode(WhereClauseNode(Catalog::getTableName(name),name,op,"","","NULL"));
                 return node;
             }
 
             case hsql::kExprColumnRef :{
                 std::string name2 = expr->expr2->name;
-                ASTNode* node = new ASTNode(WhereClauseNode(getTableName(name),name,op,getTableName(name2),name2,""));
+                ASTNode* node = new ASTNode(WhereClauseNode(Catalog::getTableName(name),name,op,Catalog::getTableName(name2),name2,""));
                 return node;
             }
         }        
@@ -372,26 +312,26 @@ OrderByDescription makeOrderNode(hsql::OrderDescription* order){
         case hsql::kOrderAsc:{
             switch (order->null_ordering){
                 case hsql::Undefined : {
-                    return OrderByDescription(getTableName(order->expr->name),order->expr->name,"ASC","UNDEFINED");
+                    return OrderByDescription(Catalog::getTableName(order->expr->name),order->expr->name,"ASC","UNDEFINED");
                 }
                 case hsql::First:{
-                    return OrderByDescription(getTableName(order->expr->name),order->expr->name,"ASC","FIRST");
+                    return OrderByDescription(Catalog::getTableName(order->expr->name),order->expr->name,"ASC","FIRST");
                 }
                 case hsql::Last:{
-                    return OrderByDescription(getTableName(order->expr->name),order->expr->name,"ASC","LAST");
+                    return OrderByDescription(Catalog::getTableName(order->expr->name),order->expr->name,"ASC","LAST");
                 }
             }
         }
         case hsql::kOrderDesc:{
             switch (order->null_ordering){
                 case hsql::Undefined : {
-                    return OrderByDescription(getTableName(order->expr->name),order->expr->name,"DESC","UNDEFINED");
+                    return OrderByDescription(Catalog::getTableName(order->expr->name),order->expr->name,"DESC","UNDEFINED");
                 }
                 case hsql::First:{
-                    return OrderByDescription(getTableName(order->expr->name),order->expr->name,"DESC","FIRST");
+                    return OrderByDescription(Catalog::getTableName(order->expr->name),order->expr->name,"DESC","FIRST");
                 }
                 case hsql::Last:{
-                    return OrderByDescription(getTableName(order->expr->name),order->expr->name,"DESC","LAST");
+                    return OrderByDescription(Catalog::getTableName(order->expr->name),order->expr->name,"DESC","LAST");
                 }
             }
         }
@@ -407,7 +347,7 @@ GroupByDescription makeGroupByNode(hsql::Expr* column){
     else{
         table = "";
     }
-    return GroupByDescription(getTableName(column->name),column->name);
+    return GroupByDescription(Catalog::getTableName(column->name),column->name);
 }
 
 ASTNode* exploreCrossProduct(hsql::TableRef* table){

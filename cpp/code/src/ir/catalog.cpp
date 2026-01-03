@@ -10,13 +10,8 @@ namespace Catalog {
         std::transform(tableName.begin(), tableName.end(), tableName.begin(), ::tolower);
         std::transform(columnName.begin(), columnName.end(), columnName.begin(), ::tolower);
 
-        if (tableName.empty()) {
-            if (columnName.find("lo_") == 0) tableName = "lineorder";
-            else if (columnName.find("c_") == 0) tableName = "customer";
-            else if (columnName.find("s_") == 0) tableName = "supplier";
-            else if (columnName.find("p_") == 0) tableName = "part";
-            else if (columnName.find("d_") == 0) tableName = "date";
-        }
+        if (tableName.empty()) tableName = getTableName(columnName);
+
         // Handle "dates" alias often used in SQL queries for the date table
         if (tableName == "dates") tableName = "date";
 
@@ -81,5 +76,65 @@ namespace Catalog {
         // Fallback: If we don't know the table, default to integer for ID-like columns, else String?
         // For safety in your prototype, let's default to INTEGER.
         return ColumnType::TYPE_INTEGER;
+    }
+
+    std::string getTableName(std::string columnName){
+
+        std::unordered_set<std::string> lineorder = {
+            "lo_orderdate",
+            "lo_discount",
+            "lo_quantity",
+            "lo_extendedprice",
+            "lo_revenue",
+            "lo_custkey",
+            "lo_suppkey",
+            "lo_supplycost",
+            "lo_partkey",
+            "lo_orderdate"
+        };
+
+        std::unordered_set<std::string> dates = {
+            "d_year",
+            "d_datekey",
+            "d_yearmonth",
+            "d_weeknuminyear"
+        };
+
+        std::unordered_set<std::string> part = {
+            "p_partkey",
+            "p_category",
+            "p_brand"
+        };
+
+        std::unordered_set<std::string> supplier = {
+            "s_region",
+            "s_suppkey",
+            "s_nation",
+            "s_city"
+        };
+
+        std::unordered_set<std::string> customer = {
+            "c_nation",
+            "c_custkey",
+        };
+
+        if (lineorder.find(columnName) != lineorder.end()) {
+            return "lineorder";
+        }
+        else if (dates.find(columnName) != dates.end()) {
+            return "dates";
+        }
+        else if (part.find(columnName) != part.end()) {
+            return "part";
+        }
+        else if (supplier.find(columnName) != supplier.end()) {
+            return "supplier";
+        }
+        else if (customer.find(columnName) != customer.end()) {
+            return "customer";
+        }
+        else{
+            return "Default";
+        }
     }
 }

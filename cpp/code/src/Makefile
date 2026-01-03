@@ -18,7 +18,7 @@ LIBS     := -ljsoncpp -lsqlparser $(shell pkg-config --libs protobuf)		# Librari
 BUILD_DIR := ./build
 
 # Source directories (.cpp files)
-SRC_DIRS := ./ir ./translation ./util ./parser
+SRC_DIRS := ./ir ./translation ./util ./parser 
 
 # Files to exclude as sources
 EXCLUDES := %/item_builder_example.cpp \
@@ -29,6 +29,7 @@ EXCLUDES := %/item_builder_example.cpp \
 SOURCES := $(shell find $(SRC_DIRS) -name '*.cpp')
 SOURCES := $(filter-out $(EXCLUDES), $(SOURCES))
 SOURCES += $(PROTO_SRC)
+SOURCES += ./main.cpp
 
 OBJECTS := $(SOURCES:%.cpp=$(BUILD_DIR)/%.o)
 OBJECTS := $(OBJECTS:%.cc=$(BUILD_DIR)/%.o)

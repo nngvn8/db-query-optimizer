@@ -73,4 +73,6 @@ private:
     static BaseType::Measures parseMeasures(const Json::Value& json);
 };
 
-void printPlanTree(const PlanNode& node, const std::string& prefix, bool isLast);
+void printDebug(const PlanNode& planNode);
+void printPlanTree(const PlanNode& node, const std::string& prefix, bool isLast, int contentType = 2);
+void printSequencedPlan(const std::vector<const PlanNode*> plan_seq, int contentType = 2);
