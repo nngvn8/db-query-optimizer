@@ -1,7 +1,8 @@
 #include <iostream>
 #include <string>
 #include "generate_AST.h"
-#include "predicate_pushdown.h"
+#include "generate_dot.h"
+
 using namespace std;
 
 int main() {
@@ -25,5 +26,7 @@ int main() {
 
     auto root = generateASTNode(query);
     printAST(root);
+    // generateDotFile(root,"testpic12.dot");
+    // to generate PNG do this in command line : dot -Tpng testpic7.dot -o ast.png
     std::cout<<"\n\n";
 }
