@@ -2,6 +2,8 @@
 
 Use the following commands to manage the project. The executable is called runner.
 
+Set the correct paths for **`HSQL_HEADER_DIR`** and **`HSQL_BIN_DIR`** for the [hyrise parser](https://github.com/hyrise/sql-parser), depending on your setup.
+
 ## Development Commands
 
 * **`make run`**: The standard command, runs the main (compilation of changed files and running of executable)

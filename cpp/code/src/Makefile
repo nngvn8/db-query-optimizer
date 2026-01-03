@@ -22,7 +22,6 @@ SRC_DIRS := ./ir ./translation ./util ./parser
 
 # Files to exclude as sources
 EXCLUDES := %/item_builder_example.cpp \
-            %/item_builder.cpp \
             %/query_parse_test.cpp
 
 # Find sources and filter
