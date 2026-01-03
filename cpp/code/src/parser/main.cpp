@@ -1,8 +1,9 @@
 #include <iostream>
 #include <string>
 #include "generate_AST.h"
-#include "predicate_pushdown.h"
 #include <ir/ir_transformer.hpp>
+#include "generate_dot.h"
+
 using namespace std;
 
 int main() {
@@ -25,9 +26,10 @@ int main() {
         )SQL";
 
     auto root = generateASTNode(query);
-    // printAST(root);
+    printAST(root);
+    // generateDotFile(root,"testpic12.dot");
+    // to generate PNG do this in command line : dot -Tpng testpic7.dot -o ast.png
+    std::cout<<"\n\n";
     unique_ptr<PlanNode> ir_root = astToIr(root);
     printPlanTree(*ir_root, "", true);
-
-    std::cout<<"\n\n";
 }
