@@ -134,7 +134,6 @@ std::unique_ptr<PlanNode> pruneTree(std::unique_ptr<PlanNode> node) {
             }
             node->children = std::move(childPtr->children);
         }
-
     }
     
     // Generate abstract representation and fill with needed raw data 
@@ -483,10 +482,11 @@ std::unique_ptr<PlanNode> astToIr(ASTNode* ast) {
 void fillMaterializes(PlanNode* node, std::set<BaseType::TableColumn> columns = {}) {
     if (!node) return;
 
-    // Add columns needed for this node to ``columns``
+    // Top down add columns needed for this node to ``columns``
+    // Here add columns that this node specifically needs
     std::visit([&](auto& n) {
-        // Visit to peel of variant (peel irData) (compiler generates code for each possible type of n)
-        // get the type of n (determine with decltype, unwrap with decay_t) and check it's not monostate
+        // Visit to peel of variant (peel irData) (compiler generates code for each possible content (n) of the variant)
+        // Get the type of n (determine with decltype, unwrap with decay_t) and check it's not monostate
         if constexpr (!std::is_same_v<std::decay_t<decltype(n)>, std::monostate>)
             columns.insert(n.inputColumns.begin(), n.inputColumns.end());
     }, node->irData);
