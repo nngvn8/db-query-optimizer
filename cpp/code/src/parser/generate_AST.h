@@ -101,7 +101,7 @@ class SelectClauseNode {
 
 struct GroupByDescription {
     GroupByDescription() = default;
-    GroupByDescription(const std::string col, const std::string tbl)
+    GroupByDescription(const std::string tbl,const std::string col)
         : column(col), table(tbl) {}
 
     virtual ~GroupByDescription() = default;
@@ -125,12 +125,12 @@ struct OrderByDescription {
     std::string nullordering;
 
     OrderByDescription(
-        const std::string& column = "",
         const std::string& table = "",
+        const std::string& column = "",
         const std::string& ordertype = "",
         const std::string& nullordering = ""
-    ) : column(column),
-        table(table),
+    ) : table(table),
+        column(column),
         ordertype(ordertype),
         nullordering(nullordering)
     {}
@@ -210,6 +210,11 @@ public:
     
     explicit ASTNode(LimitClauseNode node)
         : val(std::move(node)), left(nullptr), right(nullptr) {}
+
+    ~ASTNode() {
+        delete left;
+        delete right; 
+    }
 };
 
 ASTNode* makeExprNode(hsql::Expr* expr = nullptr);
