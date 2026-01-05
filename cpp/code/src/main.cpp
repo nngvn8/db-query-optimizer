@@ -32,4 +32,8 @@ int main() {
     std::cout<<"\n\n";
     unique_ptr<PlanNode> ir_root = astToIr(root);
     printPlanTree(*ir_root, "", true);
+    fillMaterializes(ir_root.get());
+    std::cout<<"\n\n";
+    printPlanTree(*ir_root, "", true);
+    return 0;
 }

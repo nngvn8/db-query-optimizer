@@ -133,11 +133,7 @@ namespace {
         auto printVal = [](const auto& val) { std::cout << val; };
 
         if (const auto* n = std::get_if<IR::TableBaseNode>(&node.irData)) {
-            std::cout << "Table " << n->table.name 
-                    << (n->table.alias.has_value() ? " (" + n->table.alias.value() + ")" : "");
-        }
-        else if (const auto* n = std::get_if<IR::FetchNode>(&node.irData)) {
-            std::cout << "Fetch " << n->table.name << (n->printToFile ? " [file]" : "");
+            std::cout << "Table " << n->table.name ; // << (n->printToFile ? " [file]" : "");
         }
         else if (const auto* n = std::get_if<IR::SelectNode>(&node.irData)) {
             std::cout << "Select " << (n->distinct ? "DISTINCT " : "") 
@@ -209,7 +205,12 @@ namespace {
         // Handle Column Store nodes
         else if (const auto* n = std::get_if<IR::MaterializeNode>(&node.irData)) {
             // Now works because we defined operator<< for TableColumn
-            std::cout << "Mat (" << n->idxColumn() << ")"; 
+            std::cout << "Mat (";
+            for (size_t i = 0; i < n->materializations.size(); ++i) {
+                std::cout << n->materializations[i].idxColumn.columnName;
+                if (i < n->materializations.size() - 1) std::cout << ", ";
+            }
+            std::cout << ")"; 
         }
         else if (std::get_if<IR::PositionList>(&node.irData)) std::cout << "PosList";
         else if (std::get_if<IR::Bitmap>(&node.irData)) std::cout << "Bitmap";
@@ -217,24 +218,24 @@ namespace {
             std::cout << "[Empty/Unknown IR]";
         }
     }
-
-    void printNode(const PlanNode& node, int mode){
-        switch (mode)
-        {
-        case 0:
-            printNodeJson(node);
-            break;
-        case 1:
-            printNodeAbstract(node);
-            break;
-        case 2:
-            printNodeIr(node);
-            break;
-        default:
-            break;
-        }
+}
+void printNode(const PlanNode& node, int mode){
+    switch (mode)
+    {
+    case 0:
+        printNodeJson(node);
+        break;
+    case 1:
+        printNodeAbstract(node);
+        break;
+    case 2:
+        printNodeIr(node);
+        break;
+    default:
+        break;
     }
 }
+
 
 // Print the structure of the tree content of nodes depending on content type
 void printPlanTree(const PlanNode& node, const std::string& prefix, bool isLast, int contentType) {

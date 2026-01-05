@@ -23,7 +23,6 @@ public:
     // 3. State: IR Tree information
     using IrData = std::variant<std::monostate,
         IR::TableBaseNode,
-        IR::FetchNode,
         IR::SelectNode,
         IR::UpdateNode, // NYI
         IR::InsertNode, // NYI
@@ -76,3 +75,4 @@ private:
 void printDebug(const PlanNode& planNode);
 void printPlanTree(const PlanNode& node, const std::string& prefix, bool isLast, int contentType = 2);
 void printSequencedPlan(const std::vector<const PlanNode*> plan_seq, int contentType = 2);
+void printNode(const PlanNode& node, int mode = 2);

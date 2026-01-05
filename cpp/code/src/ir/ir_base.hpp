@@ -12,6 +12,7 @@ namespace IR {
         public:
             // Columns that store input that will be processed within the node
             std::vector<BaseType::TableColumn> inputColumns = {};
+            BaseType::TableColumn outputColumn;
             
             // Generic helpers
             const BaseType::TableColumn& column() const { return inputColumns[0]; };
@@ -63,18 +64,19 @@ namespace IR {
     class TableBaseNode : public IrBaseNode {
     public:
         BaseType::Table table;
+        // bool printToFile;
 
         TableBaseNode(const BaseType::Table& table): table(table) {};
     };
 
-    class FetchNode : public IrBaseNode {
-    public:
-        BaseType::Table table;
-        bool printToFile;
+    // class FetchNode : public IrBaseNode {
+    // public:
+    //     BaseType::pppTable table;
+    //     bool printToFile;
 
-        FetchNode(const BaseType::Table& table, const bool printToFile):
-            table(table), printToFile(printToFile) {};
-    };
+    //     FetchNode(const BaseType::Table& table, const bool printToFile):
+    //         table(table), printToFile(printToFile) {};
+    // };
 
     class AggNode : public IrBaseNode {
     public:
@@ -96,6 +98,7 @@ namespace IR {
     public:
         BaseType::Join joinType;
         CompType joinPredicate;
+        std::set<BaseType::Table> tablesBelow;
 
         JoinNode(
             const BaseType::Join& joinType,
@@ -117,18 +120,15 @@ namespace IR {
     public:
         CompType filterType;
         std::vector<std::variant<uint64_t, float, std::string>> filterArgs;
-        BaseType::TableColumn outputColumn;
 
         FilterNode(
             const BaseType::TableColumn& column1,
             const CompType& filterType,
             const std::optional<BaseType::TableColumn>& column2,
-            const std::vector<std::variant<uint64_t, float, std::string>>& filterArgs,
-            const BaseType::TableColumn& outputColumn)
+            const std::vector<std::variant<uint64_t, float, std::string>>& filterArgs)
         :
             filterType(filterType),
-            filterArgs(filterArgs),
-            outputColumn(outputColumn)
+            filterArgs(filterArgs)
         {
             inputColumns.push_back(column1);
             if(column2.has_value()){
@@ -248,14 +248,20 @@ namespace IR {
 
     class MaterializeNode : public IrBaseNode {
     public:
-        MaterializeNode(const BaseType::TableColumn& idxColumn, const BaseType::TableColumn& filterColumn)
-        {
-            inputColumns.push_back(idxColumn);
-            inputColumns.push_back(filterColumn);
-        };
+        class Materialization {
+            public:
+                BaseType::TableColumn idxColumn;
+                BaseType::TableColumn filterColumn;
+                Materialization(const BaseType::TableColumn& idxCol, const BaseType::TableColumn& filterCol)
+                    : idxColumn(idxCol), filterColumn(filterCol) {}
 
-        const BaseType::TableColumn& idxColumn() const { return inputColumns[0]; }
-        const BaseType::TableColumn& filterColumn() const { return inputColumns[1]; }
+        };
+        std::vector<Materialization> materializations;
+        MaterializeNode() = default;
+
+        void addMaterialization2(const BaseType::TableColumn& idxColumn, const BaseType::TableColumn& filterColumn) {
+            materializations.push_back(Materialization(idxColumn, filterColumn));
+        }
     };
 
     class PositionList : public IrBaseNode{

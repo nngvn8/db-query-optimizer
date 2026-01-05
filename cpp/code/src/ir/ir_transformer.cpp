@@ -410,8 +410,7 @@ std::unique_ptr<PlanNode> astToIr(ASTNode* ast) {
             inputCol,
             opType,
             col2,
-            filterArgs,
-            inputCol
+            filterArgs
         );
     }
     // 3. JOIN Node
@@ -479,36 +478,108 @@ std::unique_ptr<PlanNode> astToIr(ASTNode* ast) {
     return node;
 }
 
-void fillMaterializes(PlanNode* node, std::set<BaseType::TableColumn> columns) {
-    if (!node) return;
-
-    // Top down add columns needed for this node to ``columns``
+std::set<BaseType::Table> fillMaterializes(PlanNode* node, std::set<BaseType::TableColumn> columnsToMaterializeOn) {
+    if (!node) return {};
+    
+    std::set<BaseType::Table> tablesBelow;
+    
+    // Top down add columns needed for this node to ``columnsToMaterializeOn``
     // Here add columns that this node specifically needs
     std::visit([&](auto& n) {
         // Visit to peel of variant (peel irData) (compiler generates code for each possible content (n) of the variant)
         // Get the type of n (determine with decltype, unwrap with decay_t) and check it's not monostate
         if constexpr (!std::is_same_v<std::decay_t<decltype(n)>, std::monostate>)
-            columns.insert(n.inputColumns.begin(), n.inputColumns.end());
+            columnsToMaterializeOn.insert(n.inputColumns.begin(), n.inputColumns.end());
     }, node->irData);
 
-    // Traverse Tree
-    for (auto& child : node->children) {
-        fillMaterializes(child.get(), columns);
-    }
+    std::set<BaseType::Table> allTablesBelow;
 
-    // Bottom up generate materialize nodes
-    if (!node->children.empty()){
-        for (size_t i =0; i < node->children.size(); ++i) {
+    // Generate materialize nodes (bottom up)    
+    for (size_t i = 0; i < node->children.size(); ++i) {
+
+        // const auto& node->children[i] = node->children[i];
+        std::set<BaseType::Table> tablesBelowChild = fillMaterializes(node->children[i].get(), columnsToMaterializeOn);
+
+        
+        BaseType::TableColumn filterCol;
+        bool isPositionListNode;
+        
+        // Check if child outputs a position list and if so, get it
+        std::visit([&](auto n) {
+            using T = std::decay_t<decltype(n)>;
+            if constexpr (std::is_same_v<T, IR::FilterNode> ||
+                std::is_same_v<T, IR::JoinNode> ||
+                std::is_same_v<T, IR::GroupByNode> ||
+                std::is_same_v<T, IR::SortOrderNode> ||
+                std::is_same_v<T, IR::SetOperationNode>){
+                    filterCol = n.outputColumn;
+                    isPositionListNode = true;
+                }
+                else {
+                    isPositionListNode = false;
+                }
+                
+            }, node->children[i]->irData);
             
-            // Create Materialize Node
-            auto col1 = BaseType::TableColumn(); // dummy for now
-            auto col2 = BaseType::TableColumn(); // dummy for now
-            std::unique_ptr<PlanNode> matNode = std::make_unique<PlanNode>();
-            matNode->irData = IR::MaterializeNode(col1, col2);
 
-            // Insert below current node and rewire
+        if (isPositionListNode) {
+            // Build plan node
+            std::unique_ptr<PlanNode> matNode = std::make_unique<PlanNode>();
+            auto matNodeContent = IR::MaterializeNode();
+            
+            for (const auto& idxCol : columnsToMaterializeOn) {
+                // Add a materialization to the materilization node if table below
+                // TODO: enable correct parsing of aliases -> ideally let TableColumn contain an entry of type Table
+                if (tablesBelowChild.count(idxCol.tableName)) {
+                    matNodeContent.materializations.push_back(IR::MaterializeNode::Materialization(idxCol, filterCol));
+                }
+            }
+
+            // Insert materializationNode below current node and rewire
+            matNode->irData = matNodeContent;
             matNode->children.push_back(std::move(node->children[i]));
             node->children[i] = std::move(matNode);
         }
+
+        allTablesBelow.merge(tablesBelowChild);
+
     }
+
+    // The node is a leafnode (a table node)
+    if (const auto* n = std::get_if<IR::TableBaseNode>(&node->irData)) {
+        allTablesBelow.insert(n->table);
+    }
+
+    return allTablesBelow;
 }
+
+//  printNode(*node);
+//     std::cout << "\nColumns to Materialize on:";
+//     for (const auto& col : columnsToMaterializeOn) {
+//         std::cout << col.columnName << ", ";
+//     }
+//     std::cout << std::endl;
+//     std::cout << "Tables Below:";
+//     for (const auto& table : tablesBelow) {
+//         std::cout << table.name << ", ";
+//     }
+//     std::cout << std::endl;
+
+
+//     std::cout << "Columns to Materialize on AFTER:";
+//     for (const auto& col : columnsToMaterializeOn) {
+//         std::cout << col.columnName << ", ";
+//     }
+//     std::cout << "\n\n\n";
+
+
+
+// // Filter columns to only contain ones where there is table below
+// for (auto it = columnsToMaterializeOn.begin(); it != columnsToMaterializeOn.end(); ) {
+//     // Erase column if not found in tablesBelow
+//     if (tablesBelow.find(it->tableName) == tablesBelow.end()) {
+//         it = columnsToMaterializeOn.erase(it); // erase returns the next valid iterator
+//     } else {
+//         ++it;
+//     }
+// }
