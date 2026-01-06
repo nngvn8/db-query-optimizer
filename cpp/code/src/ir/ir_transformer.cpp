@@ -528,9 +528,9 @@ std::set<BaseType::Table> fillMaterializes(PlanNode* node, std::set<BaseType::Ta
             auto matNodeContent = IR::MaterializeNode();
             
             for (const auto& idxCol : columnsToMaterializeOn) {
-                // Add a materialization to the materilization node if table below
+                // Add a materialization to the materialization node if table below
                 // TODO: enable correct parsing of aliases -> ideally let TableColumn contain an entry of type Table
-                if (tablesBelowChild.count(idxCol.tableName)) {
+                if (tablesBelowChild.contains(BaseType::Table(idxCol.tableName))) {
                     matNodeContent.materializations.push_back(IR::MaterializeNode::Materialization(idxCol, filterCol));
                 }
             }

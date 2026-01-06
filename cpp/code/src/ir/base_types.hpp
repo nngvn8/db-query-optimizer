@@ -52,19 +52,23 @@ namespace BaseType {
     };
 
     // Table column with table name, column name and datatype
+    // TODO: let Table Column include table object
     struct TableColumn {
         std::string tableName;
+        // Table table;
         std::string columnName;
         ColumnType columnType;
         std::optional<std::string> alias;
         TableColumn(){}; // TODO remove later
         TableColumn(
             const std::string& tableName,
+            // const Table table&,
             const std::string& columnName,
             const ColumnType& columnType, // from workitem
             const std::optional<std::string>& alias = std::nullopt)
         :
             tableName(tableName),
+            // table(table),
             columnName(columnName),
             columnType(columnType),
             alias((alias.has_value() && alias->empty()) ? std::nullopt : alias)

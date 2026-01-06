@@ -65,6 +65,38 @@ public:
     PlanNode() = default;
     explicit PlanNode(const Json::Value& queryPlan);
 
+    // IrData IrBaseNode getters
+    std::vector<BaseType::TableColumn>* getIrDataInputColumns() {
+        return std::visit([](auto& n) -> std::vector<BaseType::TableColumn>* {
+            if constexpr (requires { n.inputColumns; }) {
+                return &n.inputColumns;
+            } else {
+                return nullptr;
+            }
+        }, irData);
+    }
+
+    BaseType::TableColumn* getIrDataOutputColumn() {
+        return std::visit([](auto& n) -> BaseType::TableColumn* {
+            if constexpr (requires { n.outputColumn; }) {
+                return &n.outputColumn;
+            } else {
+                return nullptr;
+            }
+        }, irData);
+    }
+
+
+    std::vector<BaseType::TableColumn>* getIrDataInputColumnsC17() {
+        return std::visit([](auto& n) -> std::vector<BaseType::TableColumn>* {
+            if constexpr (!std::is_same_v<std::decay_t<decltype(n)>, std::monostate>) {
+                return &n.inputColumns;
+            } else {
+                return nullptr;
+            }
+        }, irData);
+    }
+
 private:
     // Parsing Helpers
     static BaseType::PlanParams parsePlanParams(const Json::Value& json);
