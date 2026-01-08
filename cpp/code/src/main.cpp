@@ -3,6 +3,7 @@
 #include <parser/generate_AST.h>
 #include <ir/ir_transformer.hpp>
 #include <parser/generate_dot.h>
+#include <translation/item_builder.h>
 
 using namespace std;
 
@@ -38,5 +39,8 @@ int main() {
     std::cout<<"\n\n";
     irToApiData(ir_root.get());
     printPlanTree(*ir_root, 3);
+
+    ItemBuilder itemBuilder;
+
     return 0;
 }

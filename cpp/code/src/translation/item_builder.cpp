@@ -1,5 +1,5 @@
 #include "item_builder.h"
-
+#include <ir/plan_node.hpp>
 #define DEBUG true
 
 uint32_t currentPlanId = 0;
@@ -338,4 +338,72 @@ WorkItem ItemBuilder::createResultItem(const std::string& file, const std::vecto
         resultItem->add_resultheader(header);
     }
     return workItem;
+}
+
+
+namespace {
+
+
+    void traversePostOrderRecursive(PlanNode* node, ItemBuilder& builder, std::vector<ItemBuilder::ExecutedItem>& history) {
+        if (!node) {
+            return;
+        }
+
+        // --- Post-order traversal ---
+        for (const auto& child : node->children) {
+            traversePostOrderRecursive(child.get(), builder, history);
+        }
+        
+        // --- Handle NodeTypes ---
+        if (auto* vec = std::get_if<std::vector<ItemBuilder::FetchNode>>(&node->apiData)) {
+            for (const auto& item : *vec) {
+                builder.createFetchItem(item);
+                history.emplace_back(item);
+            }
+        }
+        else if (auto* vec = std::get_if<std::vector<ItemBuilder::MaterializeNode>>(&node->apiData)) {
+            for (const auto& item : *vec) {
+                builder.createMaterializeItem(item);
+                history.emplace_back(item);
+            }
+        }
+        else if (auto* item = std::get_if<ItemBuilder::FilterNode>(&node->apiData)) {
+            builder.createFilterItem(*item);
+            history.emplace_back(*item);
+        }
+        else if (auto* item = std::get_if<ItemBuilder::JoinNode>(&node->apiData)) {
+            builder.createJoinItem(*item);
+            history.emplace_back(*item);
+        }
+        else if (auto* item = std::get_if<ItemBuilder::MapNode>(&node->apiData)) {
+            builder.createMapItem(*item);
+            history.emplace_back(*item);
+        }
+        else if (auto* item = std::get_if<ItemBuilder::MultiGroupNode>(&node->apiData)) {
+            builder.createMultiGroupItem(*item);
+            history.emplace_back(*item);
+        }
+        else if (auto* item = std::get_if<ItemBuilder::SetOperationNode>(&node->apiData)) {
+            builder.createSetOperationItem(*item);
+            history.emplace_back(*item);
+        }
+        else if (auto* item = std::get_if<ItemBuilder::SortNode>(&node->apiData)) {
+            builder.createSortItem(*item);
+            history.emplace_back(*item);
+        }
+        else if (auto* item = std::get_if<ItemBuilder::AggNode>(&node->apiData)) {
+            builder.createAggItem(*item);
+            history.emplace_back(*item);
+        }
+        else if (auto* item = std::get_if<ItemBuilder::ResultNode>(&node->apiData)) {
+            builder.createResultItem(*item);
+            history.emplace_back(*item);
+        }
+    }
+}
+
+std::vector<ItemBuilder::ExecutedItem> ItemBuilder::createWorkItemsPostOrder(PlanNode* root) {
+    std::vector<ItemBuilder::ExecutedItem> executionHistory;
+    traversePostOrderRecursive(root, *this, executionHistory);
+    return executionHistory;
 }

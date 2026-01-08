@@ -1,8 +1,11 @@
 #include <vector>
 #include <WorkItem.pb.h>
 #include <variant>
+#include <memory>
 
 #include <ir/base_types.hpp>
+
+class PlanNode;
 
 class ItemBuilder {
     public:
@@ -130,4 +133,20 @@ class ItemBuilder {
 
         WorkItem createResultItem(const std::string& file, const std::vector<BaseType::TableColumn*>& resultColumns,
             const BaseType::TableColumn* resultIdx, const std::vector<std::string>& headers);
+        
+
+        using ExecutedItem = std::variant<
+            ItemBuilder::FetchNode,
+            ItemBuilder::FilterNode,
+            ItemBuilder::JoinNode,
+            ItemBuilder::MapNode,
+            ItemBuilder::MaterializeNode,
+            ItemBuilder::MultiGroupNode,
+            ItemBuilder::SetOperationNode,
+            ItemBuilder::SortNode,
+            ItemBuilder::AggNode,
+            ItemBuilder::ResultNode
+        >;
+
+        std::vector<ExecutedItem> createWorkItemsPostOrder(PlanNode* root);
 };
