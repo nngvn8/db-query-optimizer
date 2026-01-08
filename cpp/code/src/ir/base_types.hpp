@@ -3,13 +3,17 @@
 #include <optional>
 #include <variant>
 
+
 #include <WorkItem.pb.h>
 
 #ifndef BASETYPE_H
 #define BASETYPE_H
 
 namespace BaseType {
+    
+    // --- Types relevant in general but also used in json parsing ---
 
+    // Representation of a table: name, alias, isVirtual, schema
     struct Table {
         std::string name;
         std::optional<std::string> alias;
@@ -29,22 +33,43 @@ namespace BaseType {
             isVirtual(isVirtual),
             schema(schema) 
         {};
+
+        bool operator<(const Table& other) const {
+            // 1. Compare Schema (Tables in different schemas are different)
+            if (schema != other.schema) {
+                return schema < other.schema;
+            }
+            // 2. Compare Table Name
+            if (name != other.name) {
+                return name < other.name;
+            }
+            // 3. Compare Alias (std::optional has built-in comparison)
+            if (alias != other.alias) {
+                return alias < other.alias;
+            }
+            // 4. Compare isVirtual (bool comparison: false < true)
+            return isVirtual < other.isVirtual;
+        }
     };
 
-    // table column with table name, column name and datatype
+    // Table column with table name, column name and datatype
+    // TODO: let Table Column include table object
     struct TableColumn {
         std::string tableName;
+        // Table table;
         std::string columnName;
         ColumnType columnType;
         std::optional<std::string> alias;
         TableColumn(){}; // TODO remove later
         TableColumn(
             const std::string& tableName,
+            // const Table table&,
             const std::string& columnName,
             const ColumnType& columnType, // from workitem
             const std::optional<std::string>& alias = std::nullopt)
         :
             tableName(tableName),
+            // table(table),
             columnName(columnName),
             columnType(columnType),
             alias((alias.has_value() && alias->empty()) ? std::nullopt : alias)
@@ -63,6 +88,8 @@ namespace BaseType {
             return alias < other.alias;
         }
     };
+
+    // --- Types only relevant for json plan parsing ---
 
     struct PlanParams {
         std::optional<Table> baseTable;

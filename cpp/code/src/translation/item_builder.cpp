@@ -1,5 +1,5 @@
 #include "item_builder.h"
-
+#include <ir/plan_node.hpp>
 #define DEBUG true
 
 uint32_t currentPlanId = 0;
@@ -278,10 +278,11 @@ WorkItem ItemBuilder::createSortItem(const std::vector<BaseType::TableColumn*>& 
     setTableColumnType(idxOut, idxOutput);
     setTableColumnType(exIdx, existingIdx);
 
-    idx = 0;
+    // idx = 0;
     for (const bool& order : sortOrders) {
-        sortItem->set_sortorder(idx, order);
-        idx++;
+        // sortItem->set_sortorder(idx, order);
+        // idx++;
+        sortItem->add_sortorder(order);
     }
     return workItem;
 }
@@ -338,4 +339,64 @@ WorkItem ItemBuilder::createResultItem(const std::string& file, const std::vecto
         resultItem->add_resultheader(header);
     }
     return workItem;
+}
+
+
+std::vector<WorkItem> ItemBuilder::createWorkItems(std::vector<const PlanNode*>& nodes) {
+
+    std::vector<WorkItem> workItems;
+
+    for (const auto& node : nodes) {
+
+        if (auto* vec = std::get_if<std::vector<ItemBuilder::FetchNode>>(&node->apiData)) {
+            for (const auto& item : *vec) {
+                WorkItem w = ItemBuilder::createFetchItem(item);
+                workItems.push_back(w);
+            }
+        }
+        else if (auto* vec = std::get_if<std::vector<ItemBuilder::MaterializeNode>>(&node->apiData)) {
+            for (const auto& item : *vec) {
+                WorkItem w = ItemBuilder::createMaterializeItem(item);
+                workItems.push_back(w);
+            }
+        }
+        else if (auto* item = std::get_if<ItemBuilder::FilterNode>(&node->apiData)) {
+            WorkItem w = ItemBuilder::createFilterItem(*item);
+            workItems.push_back(w);
+        }
+        else if (auto* item = std::get_if<ItemBuilder::JoinNode>(&node->apiData)) {
+            WorkItem w = ItemBuilder::createJoinItem(*item);
+            workItems.push_back(w);
+        }
+        else if (auto* item = std::get_if<ItemBuilder::MapNode>(&node->apiData)) {
+            WorkItem w = ItemBuilder::createMapItem(*item);
+            workItems.push_back(w);
+        }
+        else if (auto* item = std::get_if<ItemBuilder::MultiGroupNode>(&node->apiData)) {
+            WorkItem w = ItemBuilder::createMultiGroupItem(*item);
+            workItems.push_back(w);
+        }
+        else if (auto* item = std::get_if<ItemBuilder::SetOperationNode>(&node->apiData)) {
+            WorkItem w = ItemBuilder::createSetOperationItem(*item);
+            workItems.push_back(w);
+        }
+        else if (auto* item = std::get_if<ItemBuilder::SortNode>(&node->apiData)) {
+            WorkItem w = ItemBuilder::createSortItem(*item);
+            workItems.push_back(w);
+        }
+        else if (auto* item = std::get_if<ItemBuilder::AggNode>(&node->apiData)) {
+            WorkItem w = ItemBuilder::createAggItem(*item);
+            workItems.push_back(w);
+        }
+        else if (auto* item = std::get_if<ItemBuilder::ResultNode>(&node->apiData)) {
+            WorkItem w = ItemBuilder::createResultItem(*item);
+            workItems.push_back(w);
+        }
+        
+        std::cout << " -- ";
+            printNode(*node, 2);
+            std::cout << std::endl;
+    }
+
+    return workItems;
 }

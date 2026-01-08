@@ -9,7 +9,7 @@ PROTO_SRC := ../../generated/src/WorkItem.pb.cc
 
 # Compiler settings
 CXX      := g++																# Compiler
-CXXFLAGS := -std=c++17 -Wall -Wextra -MMD -MP								# Flags
+CXXFLAGS := -std=c++20 -Wall -Wextra -MMD -MP -g							# Flags
 INCLUDES := -I. -I../../generated/include -I$(HSQL_HEADER_DIR)				# Header search paths
 LDFLAGS  := -L$(HSQL_BIN_DIR) -Wl,-rpath,$(HSQL_BIN_DIR)					# Library directory(ies)
 LIBS     := -ljsoncpp -lsqlparser $(shell pkg-config --libs protobuf)		# Libraries to link

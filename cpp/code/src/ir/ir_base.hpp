@@ -12,7 +12,11 @@ namespace IR {
         public:
             // Columns that store input that will be processed within the node
             std::vector<BaseType::TableColumn> inputColumns = {};
+            BaseType::TableColumn outputColumn;
             
+            IrBaseNode() = default;
+            IrBaseNode(const BaseType::TableColumn& outputColumn) : outputColumn(outputColumn) {}
+
             // Generic helpers
             const BaseType::TableColumn& column() const { return inputColumns[0]; };
             const BaseType::TableColumn& column2() const { return inputColumns[1]; };
@@ -50,7 +54,9 @@ namespace IR {
         SelectNode(
             const bool star,
             const BaseType::TableColumn& column,
-            const bool distinct):
+            const bool distinct,
+            const BaseType::TableColumn& outputColumn):
+                IrBaseNode(outputColumn),
                 star(star),
                 distinct(distinct)
             {
@@ -63,18 +69,19 @@ namespace IR {
     class TableBaseNode : public IrBaseNode {
     public:
         BaseType::Table table;
+        // bool printToFile;
 
         TableBaseNode(const BaseType::Table& table): table(table) {};
     };
 
-    class FetchNode : public IrBaseNode {
-    public:
-        BaseType::Table table;
-        bool printToFile;
+    // class FetchNode : public IrBaseNode {
+    // public:
+    //     BaseType::pppTable table;
+    //     bool printToFile;
 
-        FetchNode(const BaseType::Table& table, const bool printToFile):
-            table(table), printToFile(printToFile) {};
-    };
+    //     FetchNode(const BaseType::Table& table, const bool printToFile):
+    //         table(table), printToFile(printToFile) {};
+    // };
 
     class AggNode : public IrBaseNode {
     public:
@@ -82,8 +89,10 @@ namespace IR {
 
         AggNode(
             const BaseType::TableColumn& column,
-            const AggFunc& aggFunc)
+            const AggFunc& aggFunc,
+            const BaseType::TableColumn& outputColumn)
             :
+                IrBaseNode(outputColumn),
                 aggFunc(aggFunc) 
             {
                 inputColumns.push_back(column);
@@ -96,12 +105,15 @@ namespace IR {
     public:
         BaseType::Join joinType;
         CompType joinPredicate;
+        std::set<BaseType::Table> tablesBelow;
 
         JoinNode(
             const BaseType::Join& joinType,
             const CompType& joinPredicate,
             const BaseType::TableColumn& leftTableColumn,
-            const BaseType::TableColumn& rightTableColumn):
+            const BaseType::TableColumn& rightTableColumn,
+            const BaseType::TableColumn& outputColumn):
+                IrBaseNode(outputColumn),
                 joinType(joinType),
                 joinPredicate(joinPredicate)
             {
@@ -117,7 +129,6 @@ namespace IR {
     public:
         CompType filterType;
         std::vector<std::variant<uint64_t, float, std::string>> filterArgs;
-        BaseType::TableColumn outputColumn;
 
         FilterNode(
             const BaseType::TableColumn& column1,
@@ -126,9 +137,9 @@ namespace IR {
             const std::vector<std::variant<uint64_t, float, std::string>>& filterArgs,
             const BaseType::TableColumn& outputColumn)
         :
+            IrBaseNode(outputColumn),
             filterType(filterType),
-            filterArgs(filterArgs),
-            outputColumn(outputColumn)
+            filterArgs(filterArgs)
         {
             inputColumns.push_back(column1);
             if(column2.has_value()){
@@ -146,7 +157,8 @@ namespace IR {
 
     class GroupByNode : public IrBaseNode {
     public:
-        GroupByNode(const std::vector<BaseType::TableColumn>& description) 
+        GroupByNode(const std::vector<BaseType::TableColumn>& description, const BaseType::TableColumn& outputColumn) 
+        : IrBaseNode(outputColumn)
         {
             inputColumns = description;
         };
@@ -161,7 +173,7 @@ namespace IR {
         // Cannot remove this because OrderDescription contains extra data (ASC/DESC)
         std::vector<BaseType::OrderDescription> columnList;
 
-        SortOrderNode(const std::vector<BaseType::OrderDescription>& columnList) : columnList(columnList) 
+        SortOrderNode(const std::vector<BaseType::OrderDescription>& columnList, const BaseType::TableColumn& outputColumn) : IrBaseNode(outputColumn), columnList(columnList) 
         {
             for(const auto& item : columnList){
                 inputColumns.push_back(item.column);
@@ -178,7 +190,9 @@ namespace IR {
 
         LimitNode(
             const std::string& limit = "",
-            const std::string& offset = ""):
+            const std::string& offset = "",
+            const BaseType::TableColumn& outputColumn = {}):
+                IrBaseNode(outputColumn),
                 limit(limit),
                 offset(offset) {};
     };
@@ -191,7 +205,9 @@ namespace IR {
         MapNode(
             const BaseType::TableColumn& column,
             const ArithOp& operatorType,
-            const std::variant<BaseType::TableColumn, uint64_t, float, std::string>& partnerVal):
+            const std::variant<BaseType::TableColumn, uint64_t, float, std::string>& partnerVal,
+            const BaseType::TableColumn& outputColumn):
+                IrBaseNode(outputColumn),
                 operatorType(operatorType),
                 partnerVal(partnerVal) 
             {
@@ -211,7 +227,9 @@ namespace IR {
         SetOperationNode(
             const RelOp& operation,
             const BaseType::TableColumn& innerColumn,
-            const BaseType::TableColumn& outerColumn):
+            const BaseType::TableColumn& outerColumn,
+            const BaseType::TableColumn& outputColumn):
+                IrBaseNode(outputColumn),
                 operation(operation)
             {
                 inputColumns.push_back(innerColumn);
@@ -232,7 +250,9 @@ namespace IR {
             const std::string& fileName,
             const std::vector<BaseType::TableColumn>& resultColumns,
             const BaseType::TableColumn& resultIdx,
-            const std::vector<std::string>& resultHeaders):
+            const std::vector<std::string>& resultHeaders,
+            const BaseType::TableColumn& outputColumn):
+                IrBaseNode(outputColumn),
                 fileName(fileName),
                 resultColumns(resultColumns),
                 resultHeaders(resultHeaders) 
@@ -248,21 +268,31 @@ namespace IR {
 
     class MaterializeNode : public IrBaseNode {
     public:
-        MaterializeNode(const BaseType::TableColumn& idxColumn, const BaseType::TableColumn& filterColumn)
-        {
-            inputColumns.push_back(idxColumn);
-            inputColumns.push_back(filterColumn);
-        };
+        class Materialization {
+            public:
+                BaseType::TableColumn idxColumn;
+                BaseType::TableColumn filterColumn;
+                BaseType::TableColumn outputColumn;
 
-        const BaseType::TableColumn& idxColumn() const { return inputColumns[0]; }
-        const BaseType::TableColumn& filterColumn() const { return inputColumns[1]; }
+                Materialization(const BaseType::TableColumn& idxCol, const BaseType::TableColumn& filterCol, const BaseType::TableColumn& outputColumn)
+                    : idxColumn(idxCol), filterColumn(filterCol), outputColumn(idxCol) {}
+
+        };
+        std::vector<Materialization> materializations;
+        
+        MaterializeNode(const BaseType::TableColumn& outputColumn = {}) : IrBaseNode(outputColumn) {};
+
+        void addMaterialization2(const BaseType::TableColumn& idxColumn, const BaseType::TableColumn& filterColumn) {
+            materializations.push_back(Materialization(idxColumn, filterColumn, idxColumn));
+        }
     };
 
     class PositionList : public IrBaseNode{
     public:
         std::vector<uint16_t> list;
 
-        PositionList(const BaseType::TableColumn& refColumn, const std::vector<uint16_t>& list):
+        PositionList(const BaseType::TableColumn& refColumn, const std::vector<uint16_t>& list, const BaseType::TableColumn& outputColumn):
+            IrBaseNode(outputColumn),
             list(list) 
         {
             inputColumns.push_back(refColumn);
@@ -275,7 +305,8 @@ namespace IR {
     public:
         std::vector<bool> map;
 
-        Bitmap(const BaseType::TableColumn& refColumn, const std::vector<bool>& map):
+        Bitmap(const BaseType::TableColumn& refColumn, const std::vector<bool>& map, const BaseType::TableColumn& outputColumn):
+            IrBaseNode(outputColumn),
             map(map) 
         {
             inputColumns.push_back(refColumn);

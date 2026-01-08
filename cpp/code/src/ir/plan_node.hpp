@@ -23,7 +23,6 @@ public:
     // 3. State: IR Tree information
     using IrData = std::variant<std::monostate,
         IR::TableBaseNode,
-        IR::FetchNode,
         IR::SelectNode,
         IR::UpdateNode, // NYI
         IR::InsertNode, // NYI
@@ -45,18 +44,18 @@ public:
 
 
     // 3. State: API Item Tree information
-    using ApiData = std::variant<std::variant<std::monostate,
-        ItemBuilder::FetchNode, // relates to Table
+    using ApiData = std::variant<std::monostate,
+        std::vector<ItemBuilder::FetchNode>, // relates to Table
         ItemBuilder::FilterNode, // relates to Filter
         ItemBuilder::JoinNode, // relates to Join
         ItemBuilder::MapNode, // currently missing in IrData
-        ItemBuilder::MaterializeNode, // currently missing in IrData
+        std::vector<ItemBuilder::MaterializeNode>, // currently missing in IrData
         ItemBuilder::MultiGroupNode, // relates to Group
         ItemBuilder::SetOperationNode, // relates to Set Operation
         ItemBuilder::SortNode, // relates to SortNode
         ItemBuilder::AggNode, // aggregate node currently missing in IR! (included in select)
         ItemBuilder::ResultNode // relates to select node
-    >>;
+    >;
     ApiData apiData;
 
     // 4. Tree Structure
@@ -66,6 +65,38 @@ public:
     PlanNode() = default;
     explicit PlanNode(const Json::Value& queryPlan);
 
+    // IrData IrBaseNode getters
+    std::vector<BaseType::TableColumn>* getIrDataInputColumns() {
+        return std::visit([](auto& n) -> std::vector<BaseType::TableColumn>* {
+            if constexpr (requires { n.inputColumns; }) {
+                return &n.inputColumns;
+            } else {
+                return nullptr;
+            }
+        }, irData);
+    }
+
+    BaseType::TableColumn* getIrDataOutputColumn() {
+        return std::visit([](auto& n) -> BaseType::TableColumn* {
+            if constexpr (requires { n.outputColumn; }) {
+                return &n.outputColumn;
+            } else {
+                return nullptr;
+            }
+        }, irData);
+    }
+
+
+    std::vector<BaseType::TableColumn>* getIrDataInputColumnsC17() {
+        return std::visit([](auto& n) -> std::vector<BaseType::TableColumn>* {
+            if constexpr (!std::is_same_v<std::decay_t<decltype(n)>, std::monostate>) {
+                return &n.inputColumns;
+            } else {
+                return nullptr;
+            }
+        }, irData);
+    }
+
 private:
     // Parsing Helpers
     static BaseType::PlanParams parsePlanParams(const Json::Value& json);
@@ -74,5 +105,6 @@ private:
 };
 
 void printDebug(const PlanNode& planNode);
-void printPlanTree(const PlanNode& node, const std::string& prefix, bool isLast, int contentType = 2);
+void printPlanTree(const PlanNode& node, int contentType = 2);
 void printSequencedPlan(const std::vector<const PlanNode*> plan_seq, int contentType = 2);
+void printNode(const PlanNode& node, int mode = 2);

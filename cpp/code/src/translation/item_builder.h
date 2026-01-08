@@ -1,8 +1,13 @@
+#pragma once
+
 #include <vector>
 #include <WorkItem.pb.h>
 #include <variant>
+#include <memory>
 
 #include <ir/base_types.hpp>
+
+class PlanNode;
 
 class ItemBuilder {
     public:
@@ -130,4 +135,6 @@ class ItemBuilder {
 
         WorkItem createResultItem(const std::string& file, const std::vector<BaseType::TableColumn*>& resultColumns,
             const BaseType::TableColumn* resultIdx, const std::vector<std::string>& headers);
+
+        std::vector<WorkItem> createWorkItems(std::vector<const PlanNode*>& nodes);
 };
