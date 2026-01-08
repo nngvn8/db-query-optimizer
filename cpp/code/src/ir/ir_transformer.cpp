@@ -678,7 +678,7 @@ void irToApiData(PlanNode* node) {
         sortStruct.idxOutput = &n->outputColumn;
         
         // MISSING INFO: ItemBuilder asks for 'existingIdx' (pointer).
-        sortStruct.existingIdx = &missingCol;
+        sortStruct.existingIdx = &n->columnList[0].column; //&missingCol;
 
         node->apiData = sortStruct;
     }

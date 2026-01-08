@@ -391,8 +391,9 @@ void printPlanTree(const PlanNode& node, int contentType) {
 // Print sequence of nodes after have been sequenced into vector. Content based on content type
 void printSequencedPlan(const std::vector<const PlanNode*> plan_seq, int contentType) {
     for (const PlanNode* node : plan_seq) {
+        std::cout << " -- ";
         printNode(*node, contentType);
-        std::cout << "--";
+        std::cout << "\n";
     }
     std::cout << std::endl;
 }

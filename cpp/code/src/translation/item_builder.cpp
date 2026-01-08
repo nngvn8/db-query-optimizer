@@ -278,10 +278,11 @@ WorkItem ItemBuilder::createSortItem(const std::vector<BaseType::TableColumn*>& 
     setTableColumnType(idxOut, idxOutput);
     setTableColumnType(exIdx, existingIdx);
 
-    idx = 0;
+    // idx = 0;
     for (const bool& order : sortOrders) {
-        sortItem->set_sortorder(idx, order);
-        idx++;
+        // sortItem->set_sortorder(idx, order);
+        // idx++;
+        sortItem->add_sortorder(order);
     }
     return workItem;
 }
@@ -341,69 +342,61 @@ WorkItem ItemBuilder::createResultItem(const std::string& file, const std::vecto
 }
 
 
-namespace {
+std::vector<WorkItem> ItemBuilder::createWorkItems(std::vector<const PlanNode*>& nodes) {
 
+    std::vector<WorkItem> workItems;
 
-    void traversePostOrderRecursive(PlanNode* node, ItemBuilder& builder, std::vector<ItemBuilder::ExecutedItem>& history) {
-        if (!node) {
-            return;
-        }
+    for (const auto& node : nodes) {
 
-        // --- Post-order traversal ---
-        for (const auto& child : node->children) {
-            traversePostOrderRecursive(child.get(), builder, history);
-        }
-        
-        // --- Handle NodeTypes ---
         if (auto* vec = std::get_if<std::vector<ItemBuilder::FetchNode>>(&node->apiData)) {
             for (const auto& item : *vec) {
-                builder.createFetchItem(item);
-                history.emplace_back(item);
+                WorkItem w = ItemBuilder::createFetchItem(item);
+                workItems.push_back(w);
             }
         }
         else if (auto* vec = std::get_if<std::vector<ItemBuilder::MaterializeNode>>(&node->apiData)) {
             for (const auto& item : *vec) {
-                builder.createMaterializeItem(item);
-                history.emplace_back(item);
+                WorkItem w = ItemBuilder::createMaterializeItem(item);
+                workItems.push_back(w);
             }
         }
         else if (auto* item = std::get_if<ItemBuilder::FilterNode>(&node->apiData)) {
-            builder.createFilterItem(*item);
-            history.emplace_back(*item);
+            WorkItem w = ItemBuilder::createFilterItem(*item);
+            workItems.push_back(w);
         }
         else if (auto* item = std::get_if<ItemBuilder::JoinNode>(&node->apiData)) {
-            builder.createJoinItem(*item);
-            history.emplace_back(*item);
+            WorkItem w = ItemBuilder::createJoinItem(*item);
+            workItems.push_back(w);
         }
         else if (auto* item = std::get_if<ItemBuilder::MapNode>(&node->apiData)) {
-            builder.createMapItem(*item);
-            history.emplace_back(*item);
+            WorkItem w = ItemBuilder::createMapItem(*item);
+            workItems.push_back(w);
         }
         else if (auto* item = std::get_if<ItemBuilder::MultiGroupNode>(&node->apiData)) {
-            builder.createMultiGroupItem(*item);
-            history.emplace_back(*item);
+            WorkItem w = ItemBuilder::createMultiGroupItem(*item);
+            workItems.push_back(w);
         }
         else if (auto* item = std::get_if<ItemBuilder::SetOperationNode>(&node->apiData)) {
-            builder.createSetOperationItem(*item);
-            history.emplace_back(*item);
+            WorkItem w = ItemBuilder::createSetOperationItem(*item);
+            workItems.push_back(w);
         }
         else if (auto* item = std::get_if<ItemBuilder::SortNode>(&node->apiData)) {
-            builder.createSortItem(*item);
-            history.emplace_back(*item);
+            WorkItem w = ItemBuilder::createSortItem(*item);
+            workItems.push_back(w);
         }
         else if (auto* item = std::get_if<ItemBuilder::AggNode>(&node->apiData)) {
-            builder.createAggItem(*item);
-            history.emplace_back(*item);
+            WorkItem w = ItemBuilder::createAggItem(*item);
+            workItems.push_back(w);
         }
         else if (auto* item = std::get_if<ItemBuilder::ResultNode>(&node->apiData)) {
-            builder.createResultItem(*item);
-            history.emplace_back(*item);
+            WorkItem w = ItemBuilder::createResultItem(*item);
+            workItems.push_back(w);
         }
+        
+        std::cout << " -- ";
+            printNode(*node, 2);
+            std::cout << std::endl;
     }
-}
 
-std::vector<ItemBuilder::ExecutedItem> ItemBuilder::createWorkItemsPostOrder(PlanNode* root) {
-    std::vector<ItemBuilder::ExecutedItem> executionHistory;
-    traversePostOrderRecursive(root, *this, executionHistory);
-    return executionHistory;
+    return workItems;
 }
