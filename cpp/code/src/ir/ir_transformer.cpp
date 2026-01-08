@@ -360,15 +360,15 @@ std::unique_ptr<PlanNode> astToIr(ASTNode* ast) {
             
             BaseType::TableColumn aggInputCol(e->table, e->column, type);
             
-            aggNode->irData = IR::AggNode(aggInputCol, aggType.value());
+            aggNode->irData = IR::AggNode(aggInputCol, aggType.value(), aggInputCol);
 
             // Outer Select selects the Agg result
-            node->irData = IR::SelectNode(e->star, col, e->distinct);
+            node->irData = IR::SelectNode(e->star, col, e->distinct, col);
 
             childrenTarget = aggNode.get(); 
             node->children.push_back(std::move(aggNode));
         } else {
-            node->irData = IR::SelectNode(e->star, col, e->distinct);
+            node->irData = IR::SelectNode(e->star, col, e->distinct, col);
         }
     }
     // 2. WHERE / Filter Node
@@ -410,7 +410,8 @@ std::unique_ptr<PlanNode> astToIr(ASTNode* ast) {
             inputCol,
             opType,
             col2,
-            filterArgs
+            filterArgs,
+            inputCol
         );
     }
     // 3. JOIN Node
@@ -420,12 +421,14 @@ std::unique_ptr<PlanNode> astToIr(ASTNode* ast) {
 
         BaseType::TableColumn leftCol(e->onLeftTable, e->onLeftTableColumn, leftType);
         BaseType::TableColumn rightCol(e->onRightTable, e->onRightTableColumn, rightType);
+        BaseType::TableColumn outCol("", e->onLeftTableColumn + "=" + e->onRightTableColumn, ColumnType::TYPE_PAIR_POSLIST);
         
         node->irData = IR::JoinNode(
             mapStringToJoinType(e->joinType),
             CompType::COMP_EQ, 
             leftCol, 
-            rightCol
+            rightCol,
+            outCol
         );
     }
     // 4. Base Table
@@ -435,15 +438,23 @@ std::unique_ptr<PlanNode> astToIr(ASTNode* ast) {
     // 5. Group By
     else if (auto e = std::get_if<GroupByClauseNode>(&ast->val)) {
         std::vector<BaseType::TableColumn> groups;
+        std::string groupingColString = "GROUP_";
+        int i = 0;
         for (const auto& desc : e->description) {
             ColumnType type = Catalog::getSSBColumnType(desc.table, desc.column);
             groups.emplace_back(desc.table, desc.column, type);
+            
+            groupingColString += desc.table[0] + "." + desc.column + (i < e->description.size() - 1 ? "_" : "");
+            i++;
         }
-        node->irData = IR::GroupByNode(groups);
+        BaseType::TableColumn outCol("", groupingColString, ColumnType::TYPE_INTEGER);
+        node->irData = IR::GroupByNode(groups, outCol);
     }
     // 6. Order By
     else if (auto e = std::get_if<OrderByClauseNode>(&ast->val)) {
         std::vector<BaseType::OrderDescription> orders;
+        int i = 0;
+        std::string orderColString = "ORDER_";
         for (const auto& desc : e->orderByList) {
             ColumnType type = Catalog::getSSBColumnType(desc.table, desc.column);
             bool isAsc = (desc.ordertype != "DESC"); 
@@ -454,17 +465,26 @@ std::unique_ptr<PlanNode> astToIr(ASTNode* ast) {
                 isAsc, 
                 isNullsFirst
             );
+
+            orderColString += desc.table[0] + "." + desc.column + (i < e->orderByList.size() - 1 ? "_" : "");
+            i++;
         }
-        node->irData = IR::SortOrderNode(orders);
+        BaseType::TableColumn outCol("", orderColString, ColumnType::TYPE_INTEGER);
+        node->irData = IR::SortOrderNode(orders, outCol);
     }
-    // 7. Limit
-    else if (auto e = std::get_if<LimitClauseNode>(&ast->val)) {
-        node->irData = IR::LimitNode(e->limit, e->offset);
-    }
+    // 7. Limit (don't support Limit for now)
+    // else if (auto e = std::get_if<LimitClauseNode>(&ast->val)) {
+    //     node->irData = IR::LimitNode(e->limit, e->offset);
+    // }
     // 8. Set Ops
     else if (auto e = std::get_if<SetOperationNode>(&ast->val)) {
         BaseType::TableColumn dummy; // Still dummy as AST has no columns here
-        node->irData = IR::SetOperationNode(mapStringToRelOp(e->setOperation), dummy, dummy);
+        BaseType::TableColumn outCol(
+            "", 
+            e->setOperation, 
+            ColumnType::TYPE_INTEGER
+        );
+        node->irData = IR::SetOperationNode(mapStringToRelOp(e->setOperation), dummy, dummy, outCol);
     }
 
     // Recursion
@@ -473,6 +493,13 @@ std::unique_ptr<PlanNode> astToIr(ASTNode* ast) {
     }
     if (ast->right) {
         childrenTarget->children.push_back(astToIr(ast->right));
+    }
+
+    // Set Ops: set input columns;
+    if (auto e = std::get_if<IR::SetOperationNode>(&node->irData)) {
+        std::vector<BaseType::TableColumn>& inputColumns = e->inputColumns;
+        inputColumns[0] = *node->children[0]->getIrDataOutputColumn();
+        inputColumns[1] = *node->children[1]->getIrDataOutputColumn();
     }
 
     return node;
