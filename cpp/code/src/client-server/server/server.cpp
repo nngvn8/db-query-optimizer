@@ -22,14 +22,23 @@ void handleClient(int clientSocket, ThreadPool& threadPool) {
             break;
 
         for (ssize_t i = 0; i < bytes; ++i) {
-            if (buffer[i] == ';') {
+            char c = buffer[i];
+
+            if (c == ';') {
                 std::string message = data;
+                data.clear();
+
+                // Process in thread pool
                 threadPool.enqueue([message] {
                     handleRequest(message);
                 });
-                data.clear();
+
+                // Send response to client
+                std::string response = "OK;";
+                send(clientSocket, response.c_str(), response.size(), 0);
             } else {
-                data += buffer[i];
+                // Add characters to current message
+                data += c;
             }
         }
     }
@@ -41,16 +50,6 @@ void handleClient(int clientSocket, ThreadPool& threadPool) {
  * argv[1] number of threads the server handles
  */
 int main(int argc, char* argv[]) {
-/*     int threadPoolSize = 5;
-    switch (argc) {
-    case 1:
-        threadPoolSize = argv[0];
-        break;
-
-    default:
-        break;
-    } */
-
     int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
     if (serverSocket < 0) {
         perror("socket");
