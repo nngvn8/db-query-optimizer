@@ -44,18 +44,18 @@ public:
 
 
     // 3. State: API Item Tree information
-    using ApiData = std::variant<std::variant<std::monostate,
-        ItemBuilder::FetchNode, // relates to Table
+    using ApiData = std::variant<std::monostate,
+        std::vector<ItemBuilder::FetchNode>, // relates to Table
         ItemBuilder::FilterNode, // relates to Filter
         ItemBuilder::JoinNode, // relates to Join
         ItemBuilder::MapNode, // currently missing in IrData
-        ItemBuilder::MaterializeNode, // currently missing in IrData
+        std::vector<ItemBuilder::MaterializeNode>, // currently missing in IrData
         ItemBuilder::MultiGroupNode, // relates to Group
         ItemBuilder::SetOperationNode, // relates to Set Operation
         ItemBuilder::SortNode, // relates to SortNode
         ItemBuilder::AggNode, // aggregate node currently missing in IR! (included in select)
         ItemBuilder::ResultNode // relates to select node
-    >>;
+    >;
     ApiData apiData;
 
     // 4. Tree Structure
@@ -105,6 +105,6 @@ private:
 };
 
 void printDebug(const PlanNode& planNode);
-void printPlanTree(const PlanNode& node, const std::string& prefix, bool isLast, int contentType = 2);
+void printPlanTree(const PlanNode& node, int contentType = 2);
 void printSequencedPlan(const std::vector<const PlanNode*> plan_seq, int contentType = 2);
 void printNode(const PlanNode& node, int mode = 2);

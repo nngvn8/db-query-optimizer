@@ -272,8 +272,10 @@ namespace IR {
             public:
                 BaseType::TableColumn idxColumn;
                 BaseType::TableColumn filterColumn;
-                Materialization(const BaseType::TableColumn& idxCol, const BaseType::TableColumn& filterCol)
-                    : idxColumn(idxCol), filterColumn(filterCol) {}
+                BaseType::TableColumn outputColumn;
+
+                Materialization(const BaseType::TableColumn& idxCol, const BaseType::TableColumn& filterCol, const BaseType::TableColumn& outputColumn)
+                    : idxColumn(idxCol), filterColumn(filterCol), outputColumn(idxCol) {}
 
         };
         std::vector<Materialization> materializations;
@@ -281,7 +283,7 @@ namespace IR {
         MaterializeNode(const BaseType::TableColumn& outputColumn = {}) : IrBaseNode(outputColumn) {};
 
         void addMaterialization2(const BaseType::TableColumn& idxColumn, const BaseType::TableColumn& filterColumn) {
-            materializations.push_back(Materialization(idxColumn, filterColumn));
+            materializations.push_back(Materialization(idxColumn, filterColumn, idxColumn));
         }
     };
 

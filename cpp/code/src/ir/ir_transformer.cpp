@@ -505,6 +505,7 @@ std::unique_ptr<PlanNode> astToIr(ASTNode* ast) {
     return node;
 }
 
+// Puts Materializes everywhere and also populates the columns to fetch in TableBaseNode
 std::set<BaseType::Table> fillMaterializes(PlanNode* node, std::set<BaseType::TableColumn> columnsToMaterializeOn) {
     if (!node) return {};
     
@@ -558,7 +559,7 @@ std::set<BaseType::Table> fillMaterializes(PlanNode* node, std::set<BaseType::Ta
                 // Add a materialization to the materialization node if table below
                 // TODO: enable correct parsing of aliases -> ideally let TableColumn contain an entry of type Table
                 if (tablesBelowChild.contains(BaseType::Table(idxCol.tableName))) {
-                    matNodeContent.materializations.push_back(IR::MaterializeNode::Materialization(idxCol, filterCol));
+                    matNodeContent.materializations.push_back(IR::MaterializeNode::Materialization(idxCol, filterCol, idxCol));
                 }
             }
 
@@ -573,40 +574,161 @@ std::set<BaseType::Table> fillMaterializes(PlanNode* node, std::set<BaseType::Ta
     }
 
     // The node is a leafnode (a table node)
-    if (const auto* n = std::get_if<IR::TableBaseNode>(&node->irData)) {
+    if (auto* n = std::get_if<IR::TableBaseNode>(&node->irData)) {
+        for (BaseType::TableColumn col : columnsToMaterializeOn) {
+            if (col.tableName == n->table.name || (n->table.alias ? n->table.alias == col.tableName : false)) {
+                n->inputColumns.push_back(col);
+            }      
         allTablesBelow.insert(n->table);
+        }
     }
 
     return allTablesBelow;
 }
 
-//  printNode(*node);
-//     std::cout << "\nColumns to Materialize on:";
-//     for (const auto& col : columnsToMaterializeOn) {
-//         std::cout << col.columnName << ", ";
-//     }
-//     std::cout << std::endl;
-//     std::cout << "Tables Below:";
-//     for (const auto& table : tablesBelow) {
-//         std::cout << table.name << ", ";
-//     }
-//     std::cout << std::endl;
 
+void irToApiData(PlanNode* node) {
+    if (!node) return;
 
-//     std::cout << "Columns to Materialize on AFTER:";
-//     for (const auto& col : columnsToMaterializeOn) {
-//         std::cout << col.columnName << ", ";
-//     }
-//     std::cout << "\n\n\n";
+    static BaseType::TableColumn missingCol;
 
+    // 1. Filter Node (checked)
+    if (auto* n = std::get_if<IR::FilterNode>(&node->irData)) {
+        ItemBuilder::FilterNode filterStruct;
+        filterStruct.inputColumn = &n->inputColumns[0];
+        filterStruct.outputColumn = &n->outputColumn;
+        filterStruct.filterType = n->filterType;
+        filterStruct.filterArgVals = n->filterArgs;
 
+        node->apiData = filterStruct;
+    }
 
-// // Filter columns to only contain ones where there is table below
-// for (auto it = columnsToMaterializeOn.begin(); it != columnsToMaterializeOn.end(); ) {
-//     // Erase column if not found in tablesBelow
-//     if (tablesBelow.find(it->tableName) == tablesBelow.end()) {
-//         it = columnsToMaterializeOn.erase(it); // erase returns the next valid iterator
-//     } else {
-//         ++it;
-//     }
-// }
+    // 2. Join Node
+    else if (auto* n = std::get_if<IR::JoinNode>(&node->irData)) {
+        ItemBuilder::JoinNode joinStruct;
+        
+        joinStruct.innerColumn = &n->inputColumns[0];
+        joinStruct.outerColumn = &n->inputColumns[1];
+        joinStruct.outputColumn = &n->outputColumn;
+        
+        // POINTER ISSUE: ItemBuilder expects CompType*, IR has CompType nue.
+        // We take the address of the nue stored in the variant.
+        joinStruct.joinPredicate = &n->joinPredicate; 
+
+        node->apiData = joinStruct;
+    }
+
+    // 3. Base Table (checked)
+    else if (auto* n = std::get_if<IR::TableBaseNode>(&node->irData)) {
+        std::vector<ItemBuilder::FetchNode> fetchColList;
+        for (auto& colFetch : n->inputColumns) {
+            ItemBuilder::FetchNode fetchStruct;
+            
+            fetchStruct.inputColumn = &colFetch;
+            fetchStruct.printToFile = false; // Defaulting to false
+
+            fetchColList.push_back(fetchStruct);
+        }
+        node->apiData = fetchColList;
+    }
+
+    // 4. Group By (MultiGroup)
+    else if (auto* n = std::get_if<IR::GroupByNode>(&node->irData)) {
+        ItemBuilder::MultiGroupNode groupStruct;
+
+        // Convert values to pointers
+        for (auto& col : n->inputColumns) {
+            groupStruct.groupColumns.push_back(&col);
+        }
+
+        groupStruct.outputIdx = &n->outputColumn;
+
+        // MISSING INFO: The following are required by ItemBuilder but missing in IR::GroupByNode
+        groupStruct.outputCluster = &missingCol; 
+        groupStruct.aggColumn = &missingCol; 
+        groupStruct.aggResultColumn = &missingCol;
+        groupStruct.storeExtends = false; 
+        // groupStruct.sortOrders = {}; // empty default
+
+        node->apiData = groupStruct;
+    }
+
+    // 5. Aggregation
+    else if (auto* n = std::get_if<IR::AggNode>(&node->irData)) {
+        ItemBuilder::AggNode aggStruct;
+        aggStruct.inputColumn = &n->inputColumns[0];
+        aggStruct.outputColumn = &n->outputColumn;
+        aggStruct.aggFunc = n->aggFunc;
+        // groupColumns in IR::AggNode (vector<string>) matches ItemBuilder logic
+        // If IR vector is empty, it assumes purely scalar agg or handled by MultiGroup
+        aggStruct.groupColumns = {}; 
+
+        node->apiData = aggStruct;
+    }
+
+    // 6. Sort (checked())
+    else if (auto* n = std::get_if<IR::SortOrderNode>(&node->irData)) {
+        ItemBuilder::SortNode sortStruct;
+
+        for (auto& desc : n->columnList) {
+            sortStruct.inputColumns.push_back(&desc.column);
+            sortStruct.sortOrders.push_back(desc.orderType); // assuming bool maps directly
+        }
+
+        sortStruct.idxOutput = &n->outputColumn;
+        
+        // MISSING INFO: ItemBuilder asks for 'existingIdx' (pointer).
+        sortStruct.existingIdx = &missingCol;
+
+        node->apiData = sortStruct;
+    }
+
+    // 7. Set Operation (checked())
+    else if (auto* n = std::get_if<IR::SetOperationNode>(&node->irData)) {
+        ItemBuilder::SetOperationNode setStruct;
+        setStruct.operation = n->operation;
+        
+        // IR stores inputs in a vector, Builder wants explicit pointers
+        setStruct.innerColumn = (n->inputColumns.size() > 0) ? &n->inputColumns[0] : nullptr;
+        setStruct.outerColumn = (n->inputColumns.size() > 1) ? &n->inputColumns[1] : nullptr;
+        setStruct.outputColumn = &n->outputColumn;
+
+        node->apiData = setStruct;
+    }
+
+    // 8. Materialize (checked)
+    else if (auto* n = std::get_if<IR::MaterializeNode>(&node->irData)) {
+        std::vector<ItemBuilder::MaterializeNode> matList;
+        for (auto& matData : n->materializations) {
+            ItemBuilder::MaterializeNode matStruct;
+
+            matStruct.idxColumn = &matData.idxColumn;
+            matStruct.filterColumn = &matData.filterColumn;
+            matStruct.outputColumn = &matData.idxColumn; // Reuse input as output if not specified otherwise
+            matList.push_back(matStruct);
+        }
+        node->apiData = matList;
+    }
+
+    // 9. Select (Result)
+    else if (auto* n = std::get_if<IR::SelectNode>(&node->irData)) {
+        ItemBuilder::ResultNode resultStruct;
+
+        // MISSING INFO: Filename is not in IR.
+        resultStruct.filename = "result.csv"; 
+
+        // IR::SelectNode has 'outputColumn' (singular). 
+        // Builder expects a vector of result columns.
+        resultStruct.resultColumns.push_back(&n->outputColumn);
+        resultStruct.resultHeaders.push_back(n->outputColumn.columnName);
+        
+        // MISSING INFO: resultIdx
+        resultStruct.resultIdx = &missingCol;
+
+        node->apiData = resultStruct;
+    }
+
+    for (const auto& child : node->children){
+        irToApiData(child.get());
+    }
+}

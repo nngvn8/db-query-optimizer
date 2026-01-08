@@ -31,9 +31,12 @@ int main() {
     // to generate PNG do this in command line : dot -Tpng testpic7.dot -o ast.png
     std::cout<<"\n\n";
     unique_ptr<PlanNode> ir_root = astToIr(root);
-    printPlanTree(*ir_root, "", true);
+    printPlanTree(*ir_root, 2);
     fillMaterializes(ir_root.get());
     std::cout<<"\n\n";
-    printPlanTree(*ir_root, "", true);
+    printPlanTree(*ir_root, 2);
+    std::cout<<"\n\n";
+    irToApiData(ir_root.get());
+    printPlanTree(*ir_root, 3);
     return 0;
 }

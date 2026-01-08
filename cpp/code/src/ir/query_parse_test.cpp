@@ -25,7 +25,7 @@ int main(){
         print_query_data(sqlQueryData);
         planNodeRoot = enrichTree(std::move(planNodeRoot), sqlQueryData);
         // printDebug(*planNodeRoot);
-        printPlanTree(*planNodeRoot, "", true);
+        printPlanTree(*planNodeRoot, 1);
         // std::vector<const PlanNode*> sequenced_plan = to_sequence_children_list<PlanNode>(planNodeRoot.get());
         // printSequencedPlan(sequenced_plan);
         // break;

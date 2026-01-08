@@ -134,6 +134,12 @@ namespace {
 
         if (const auto* n = std::get_if<IR::TableBaseNode>(&node.irData)) {
             std::cout << "Table " << n->table.name ; // << (n->printToFile ? " [file]" : "");
+            std::cout << " (";
+            for (size_t i = 0; i < n->inputColumns.size(); ++i) {
+                    std::cout << n->inputColumns[i].columnName;
+                    if (i < n->inputColumns.size() - 1) std::cout << ", ";
+                }
+                std::cout << ")";
         }
         else if (const auto* n = std::get_if<IR::SelectNode>(&node.irData)) {
             std::cout << "Select " << (n->distinct ? "DISTINCT " : "") 
@@ -179,12 +185,17 @@ namespace {
         }
         else if (const auto* n = std::get_if<IR::GroupByNode>(&node.irData)) {
             std::cout << "GroupBy (";
-            for (const auto& col : n->description()) std::cout << col << " ";
+            const auto& desc = n->description();
+            for (size_t i = 0; i < desc.size(); ++i) {
+                std::cout << desc[i] << (i < desc.size() - 1? " " : "");
+            }
             std::cout << ")";
         }
         else if (const auto* n = std::get_if<IR::SortOrderNode>(&node.irData)) {
             std::cout << "Sort (";
-            for (const auto& item : n->columnList) std::cout << item.column << " ";
+            for (size_t i = 0; i < n->columnList.size(); ++i) {
+                std::cout << n->columnList[i].column << (i < n->columnList.size() - 1 ? " " : "");
+            }
             std::cout << ")";
         }
         else if (const auto* n = std::get_if<IR::MapNode>(&node.irData)) {
@@ -219,6 +230,99 @@ namespace {
         }
     }
 }
+
+void printNodeApi(const PlanNode& node) {
+    // Helper to handle pointer-based columns in ApiData
+    auto printCol = [](const BaseType::TableColumn* col) {
+        if (col) std::cout << (col->columnName.empty() ? "UDEFCOL!" : col->columnName);
+        else std::cout << "NULL";
+    };
+
+    auto printVal = [](const auto& val) { std::cout << val; };
+
+    // ApiData is variant<variant<...>>, so we visit the inner variant
+    std::visit([&](auto&& data) {
+        using T = std::decay_t<decltype(data)>;
+
+        if constexpr (std::is_same_v<T, std::monostate>) {
+            std::cout << "[Empty API]";
+        }
+        else if constexpr (std::is_same_v<T, std::vector<ItemBuilder::FetchNode>>) {
+            std::cout << "API Fetch (";
+            for (size_t i = 0; i < data.size(); ++i) {
+                printCol(data[i].inputColumn);
+                if (data[i].printToFile) std::cout << "[f]";
+                if (i < data.size() - 1) std::cout << ", ";
+            }
+            std::cout << ")";
+        }
+        else if constexpr (std::is_same_v<T, ItemBuilder::FilterNode>) {
+            std::cout << "API Filter ";
+            printCol(data.inputColumn);
+            std::cout << " -> ";
+            printCol(data.outputColumn);
+            std::cout << " [" << CompType_Name(data.filterType) << "] (";
+            for (size_t i = 0; i < data.filterArgVals.size(); ++i) {
+                std::visit(printVal, data.filterArgVals[i]);
+                if (i < data.filterArgVals.size() - 1) std::cout << ", ";
+            }
+            std::cout << ")";
+        }
+        else if constexpr (std::is_same_v<T, ItemBuilder::JoinNode>) {
+            std::cout << "API Join: Inner=";
+            printCol(data.innerColumn);
+            std::cout << " Outer=";
+            printCol(data.outerColumn);
+            std::cout << " Out=";
+            printCol(data.outputColumn);
+        }
+        else if constexpr (std::is_same_v<T, ItemBuilder::MapNode>) {
+            std::cout << "API Map: ";
+            printCol(data.inputColumn);
+            std::cout << " -> ";
+            printCol(data.outputColumn);
+        }
+        else if constexpr (std::is_same_v<T, std::vector<ItemBuilder::MaterializeNode>>) {
+            std::cout << "API Mat (";
+            for (size_t i = 0; i < data.size(); ++i) {
+                printCol(data[i].idxColumn);
+                if (i < data.size() - 1) std::cout << ", ";
+            }
+            std::cout << ")";
+        }
+        else if constexpr (std::is_same_v<T, ItemBuilder::MultiGroupNode>) {
+            std::cout << "API MultiGroup (";
+            for (size_t i = 0; i < data.groupColumns.size(); ++i) {
+                printCol(data.groupColumns[i]);
+                if (i < data.groupColumns.size() - 1) std::cout << ", ";
+            }
+            std::cout << ") Agg=";
+            printCol(data.aggColumn);
+        }
+        else if constexpr (std::is_same_v<T, ItemBuilder::SetOperationNode>) {
+            std::cout << "API SetOp [" << (int)data.operation << "]";
+        }
+        else if constexpr (std::is_same_v<T, ItemBuilder::SortNode>) {
+            std::cout << "API Sort (";
+            for (size_t i = 0; i < data.inputColumns.size(); ++i) {
+                printCol(data.inputColumns[i]);
+                if (i < data.inputColumns.size() - 1) std::cout << ", ";
+            }
+            std::cout << ")";
+        }
+        else if constexpr (std::is_same_v<T, ItemBuilder::AggNode>) {
+            std::cout << "API Agg " << AggFunc_Name(data.aggFunc) << " (";
+            for (size_t i = 0; i < data.groupColumns.size(); ++i) {
+                std::cout << data.groupColumns[i] << (i < data.groupColumns.size() - 1 ? ", " : "");
+            }
+            std::cout << ")";
+        }
+        else if constexpr (std::is_same_v<T, ItemBuilder::ResultNode>) {
+            std::cout << "API Result -> " << data.filename;
+        }
+    }, node.apiData);
+}
+
 void printNode(const PlanNode& node, int mode){
     switch (mode)
     {
@@ -231,6 +335,9 @@ void printNode(const PlanNode& node, int mode){
     case 2:
         printNodeIr(node);
         break;
+    case 3:
+        printNodeApi(node);
+        break;
     default:
         break;
     }
@@ -238,7 +345,8 @@ void printNode(const PlanNode& node, int mode){
 
 
 // Print the structure of the tree content of nodes depending on content type
-void printPlanTree(const PlanNode& node, const std::string& prefix, bool isLast, int contentType) {
+void printPlanTreeSub(const PlanNode& node, const std::string& prefix, bool isLast, int contentType) {
+    
     // 1. Determine the drawing character for the current node
     std::cout << prefix;
     std::cout << (isLast ? "└── " : "├── ");
@@ -254,8 +362,30 @@ void printPlanTree(const PlanNode& node, const std::string& prefix, bool isLast,
     for (size_t i = 0; i < node.children.size(); ++i) {
         const auto& child = node.children[i];
         bool isChildLast = (i == node.children.size() - 1);
-        printPlanTree(*child, newPrefix, isChildLast);
+        printPlanTreeSub(*child, newPrefix, isChildLast, contentType);
     }
+}
+
+void printPlanTree(const PlanNode& node, int contentType) {
+    switch (contentType)
+    {
+    case 0:
+        std::cout << "############ Printing Json Data ############";
+        break;
+    case 1:
+        std::cout << "############ Printing Abstract Data ############";
+        break;
+    case 2:
+        std::cout << "############ Printing IR Data ############";
+        break;
+    case 3:
+        std::cout << "############ Printing API Data ############";
+        break;
+    default:
+        break;
+    }
+    std::cout << std::endl;
+    printPlanTreeSub(node, "", true, contentType);
 }
 
 // Print sequence of nodes after have been sequenced into vector. Content based on content type
