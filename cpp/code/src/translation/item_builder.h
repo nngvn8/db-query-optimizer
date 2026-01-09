@@ -47,10 +47,10 @@ class ItemBuilder {
 
         struct MultiGroupNode {
             std::vector<BaseType::TableColumn*> groupColumns;
-            BaseType::TableColumn* outputIdx;
-            BaseType::TableColumn* outputCluster;
-            BaseType::TableColumn* aggColumn;
-            BaseType::TableColumn* aggResultColumn;
+            BaseType::TableColumn* outputIdx; // sorted index (compressed _ext)
+            BaseType::TableColumn* outputCluster; // cluster sizes (for several aggs with sorted index)
+            BaseType::TableColumn* aggColumn; // column to be aggregated
+            BaseType::TableColumn* aggResultColumn; // column containing the result of aggregations
             bool storeExtends;
             std::vector<bool> sortOrders;
         };
@@ -77,10 +77,10 @@ class ItemBuilder {
         };
 
         struct ResultNode {
-            std::string filename;
-            std::vector<BaseType::TableColumn*> resultColumns;
-            BaseType::TableColumn* resultIdx;
-            std::vector<std::string> resultHeaders;
+            std::string filename; // unique name or empty, rather not null might crash
+            std::vector<BaseType::TableColumn*> resultColumns; // input columns to display
+            BaseType::TableColumn* resultIdx; // position list (do not need to set)
+            std::vector<std::string> resultHeaders; // name to display
         };
 
         BaseType::TableColumn createTableColumn(const std::string& tableName, const std::string& columnName, const ColumnType& columnType) {
