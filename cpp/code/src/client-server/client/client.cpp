@@ -4,9 +4,15 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 
+// HISTORY
 #include <fstream>
 #include <termios.h>
 #include <vector>
+
+// SIGINT
+#include <csignal>
+#include <atomic>
+#include <cerrno>
 
 constexpr const char* EXIT_CMD = "exit";
 constexpr const char* QUIT_CMD = "quit";
@@ -21,12 +27,20 @@ enum class ClientAction {
     Exit
 };
 
+// client history global parameters
 constexpr const char* HISTORY_FILE = ".client_history";
-
 std::vector<std::string> history;
 int historyIndex = 0;
 std::ofstream historyFile;
 termios origTerm;
+
+// shutdown flags
+std::atomic<bool> g_shouldExit{false};
+int g_serverSocket = -1;
+
+void handleSigInt(int) {
+    g_shouldExit.store(true);
+}
 
 void enableRawMode() {
     tcgetattr(STDIN_FILENO, &origTerm);
@@ -44,6 +58,20 @@ void saveHistory(const std::string& query) {
     historyIndex = history.size();
     historyFile << query << "\n";
     historyFile.flush();
+}
+
+void cleanup() {
+    disableRawMode();
+
+    if (g_serverSocket != -1) {
+        close(g_serverSocket);
+        g_serverSocket = -1;
+    }
+
+    if (historyFile.is_open())
+        historyFile.close();
+
+    std::remove(HISTORY_FILE);
 }
 
 std::string_view trim(std::string_view s) {
@@ -83,7 +111,13 @@ ClientAction readQueryInput(std::string& outQuery) {
 
     // use read so we can use arrow keys for history
     // need to use flush to still write the output in raw mode
-    while (read(STDIN_FILENO, &c, 1) == 1) {
+    ssize_t n;
+    while ((n = read(STDIN_FILENO, &c, 1)) != 0) {
+        if (n < 0) {
+            if (errno == EINTR && g_shouldExit.load())
+                return ClientAction::Exit;
+            continue;
+        }
 
         // Handle arrow keys
         if (c == 27) { // ESC
@@ -174,6 +208,8 @@ bool readServerResponse(int serverSocket, std::string& response) {
 }
 
 int main(int argc, char* argv[]) {
+    std::signal(SIGINT, handleSigInt);
+
     int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
     if (serverSocket < 0) {
         perror("socket");
@@ -195,9 +231,13 @@ int main(int argc, char* argv[]) {
     historyFile.open(HISTORY_FILE, std::ios::out | std::ios::trunc);
     enableRawMode();
 
-    while (true) {
+    // main loop with sigint handling if aborted
+    while (!g_shouldExit.load()) {
         std::string query;
         ClientAction action = readQueryInput(query);
+
+        if (g_shouldExit.load())
+            break;
 
         if (action == ClientAction::Exit)
             break;
@@ -218,10 +258,7 @@ int main(int argc, char* argv[]) {
             std::cout << "Server response: " << response << std::endl;
         }
     }
-    disableRawMode();
-    historyFile.close();
-    std::remove(HISTORY_FILE);
-
+    cleanup();
     close(serverSocket);
     return 0;
 }
