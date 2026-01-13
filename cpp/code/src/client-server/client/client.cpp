@@ -4,6 +4,10 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 
+#include <fstream>
+#include <termios.h>
+#include <vector>
+
 constexpr const char* EXIT_CMD = "exit";
 constexpr const char* QUIT_CMD = "quit";
 
@@ -16,6 +20,31 @@ enum class ClientAction {
     SendQuery,
     Exit
 };
+
+constexpr const char* HISTORY_FILE = ".client_history";
+
+std::vector<std::string> history;
+int historyIndex = 0;
+std::ofstream historyFile;
+termios origTerm;
+
+void enableRawMode() {
+    tcgetattr(STDIN_FILENO, &origTerm);
+    termios raw = origTerm;
+    raw.c_lflag &= ~(ICANON | ECHO);
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
+}
+
+void disableRawMode() {
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &origTerm);
+}
+
+void saveHistory(const std::string& query) {
+    history.push_back(query);
+    historyIndex = history.size();
+    historyFile << query << "\n";
+    historyFile.flush();
+}
 
 std::string_view trim(std::string_view s) {
     while (!s.empty() && std::isspace(static_cast<unsigned char>(s.front())))
@@ -52,47 +81,78 @@ ClientAction readQueryInput(std::string& outQuery) {
     static std::string buffer;
     char c;
 
-    while (std::cin.get(c)) {
+    // use read so we can use arrow keys for history
+    // need to use flush to still write the output in raw mode
+    while (read(STDIN_FILENO, &c, 1) == 1) {
 
-        // normalize whitespace
-        if (c == '\n' || c == '\t') {
-            if (!buffer.empty() && buffer.back() != ' ')
-                buffer.push_back(' ');
-        } else {
-            buffer.push_back(c);
+        // Handle arrow keys
+        if (c == 27) { // ESC
+            char seq[2];
+            if (read(STDIN_FILENO, &seq[0], 1) != 1) continue;
+            if (read(STDIN_FILENO, &seq[1], 1) != 1) continue;
+
+            // UP arrow
+            if (seq[0] == '[' && seq[1] == 'A') {
+                if (!history.empty() && historyIndex > 0) {
+                    historyIndex--;
+                    buffer = history[historyIndex];
+                    std::cout << "\33[2K\r" << buffer << std::flush;
+                }
+            }
+            continue;
         }
 
-        if (buffer.size() > MAX_LENGTH) {
-            std::cerr << "Query too long\n";
+        // Backspace
+        if (c == 127 || c == '\b') {
+            if (!buffer.empty()) {
+                buffer.pop_back();
+                std::cout << "\b \b" << std::flush;
+            }
+            continue;
+        }
+
+        // ENTER → submit query
+        if (c == '\n') {
+            std::cout << std::endl;
+
+            std::string_view trimmed = trim(buffer);
+
+            if (equalsIgnoreCase(trimmed, EXIT_CMD) ||
+                equalsIgnoreCase(trimmed, QUIT_CMD)) {
+                buffer.clear();
+                return ClientAction::Exit;
+            }
+
+            if (!trimmed.empty()) {
+                outQuery = std::string(trimmed) + ";";
+                buffer.clear();
+                return ClientAction::SendQuery;
+            }
+
             buffer.clear();
             return ClientAction::Continue;
         }
 
-        // exit conditions
-        if (c == '\n') {
-            std::string_view trimmed = trim(buffer);
-            if (equalsIgnoreCase(trimmed, "exit") ||
-                equalsIgnoreCase(trimmed, "quit")) {
-                buffer.clear();
-                return ClientAction::Exit;
+        // Normalize whitespace
+        if (c == '\t') {
+            if (!buffer.empty() && buffer.back() != ' ') {
+                buffer.push_back(' ');
+                std::cout << ' ' << std::flush;
             }
+            continue;
         }
 
-        // query delimiter
-        size_t pos = buffer.find(';');
-        if (pos != std::string::npos) {
+        // Normal character
+        buffer.push_back(c);
+        std::cout << c << std::flush;
 
-            outQuery = buffer.substr(0, pos + 1);
-            buffer.erase(0, pos + 1);
-
-            std::string_view trimmed = trim(outQuery);
-            if (equalsIgnoreCase(trimmed, "exit;") ||
-                equalsIgnoreCase(trimmed, "quit;")) {
-                return ClientAction::Exit;
-            }
-            return ClientAction::SendQuery;
+        if (buffer.size() > MAX_LENGTH) {
+            std::cerr << "\nQuery too long\n";
+            buffer.clear();
+            return ClientAction::Continue;
         }
     }
+
     return ClientAction::Exit;
 }
 
@@ -132,6 +192,9 @@ int main(int argc, char* argv[]) {
 
     std::cout << "Connected to server. Ready to read queries." << std::endl;
 
+    historyFile.open(HISTORY_FILE, std::ios::out | std::ios::trunc);
+    enableRawMode();
+
     while (true) {
         std::string query;
         ClientAction action = readQueryInput(query);
@@ -144,6 +207,7 @@ int main(int argc, char* argv[]) {
                 std::cerr << "Send failed" << std::endl;
                 break;
             }
+            saveHistory(query.substr(0, query.size() - 1));
 
             std::string response;
             if (!readServerResponse(serverSocket, response)) {
@@ -154,6 +218,10 @@ int main(int argc, char* argv[]) {
             std::cout << "Server response: " << response << std::endl;
         }
     }
+    disableRawMode();
+    historyFile.close();
+    std::remove(HISTORY_FILE);
+
     close(serverSocket);
     return 0;
 }
