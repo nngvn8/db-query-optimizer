@@ -90,7 +90,7 @@ ASTNode* makeSelectNode(hsql::Expr* expr){
 
     switch(expr->type){
         case hsql::kExprColumnRef: {
-            ASTNode* node = new ASTNode(SelectClauseNode(false,getTableName(expr->name),expr->name,"",alias,expr->distinct)); 
+            ASTNode* node = new ASTNode(SelectClauseNode(false,getTableName(expr->name),expr->name,"",alias,std::nullopt,expr->distinct)); 
             return node;
         }
         case hsql::kExprStar: {
@@ -113,22 +113,29 @@ ASTNode* makeSelectNode(hsql::Expr* expr){
                     else if(expr->exprList->at(0)->opType == hsql::kOpSlash){
                         op = "*";
                     }
-
-                    string a = getTableName(expr->exprList->at(0)->expr->name)+"."+expr->exprList->at(0)->expr->name;
-                    string b = getTableName(expr->exprList->at(0)->expr2->name)+"."+expr->exprList->at(0)->expr2->name;
                     
-                    string column = a + " " + op + " " +b;
+                    Map map(getTableName(expr->exprList->at(0)->expr->name),
+                            expr->exprList->at(0)->expr->name,
+                            getTableName(expr->exprList->at(0)->expr2->name),
+                            expr->exprList->at(0)->expr2->name,
+                            op
+                        );
 
-                    ASTNode* node = new ASTNode(SelectClauseNode(false,"",column,toUpper(expr->name),alias,expr->distinct)); 
+                    ASTNode* node = new ASTNode(SelectClauseNode(false,"","",toUpper(expr->name),alias,map,expr->distinct)); 
                     return node;
                     
                 }
                 case hsql::kExprColumnRef : {
-                    ASTNode* node = new ASTNode(SelectClauseNode(false,getTableName(expr->exprList->at(0)->name),expr->exprList->at(0)->name,toUpper(expr->name),alias,expr->distinct)); 
+                    
+                    Map map(getTableName(expr->exprList->at(0)->name),
+                                        expr->exprList->at(0)->name
+                        );
+
+                    ASTNode* node = new ASTNode(SelectClauseNode(false,"","",toUpper(expr->name),alias,map,expr->distinct)); 
                     return node;
                 }
                 case hsql::kExprStar : {
-                        ASTNode* node = new ASTNode(SelectClauseNode(true,"","",expr->name,alias,expr->distinct)); 
+                        ASTNode* node = new ASTNode(SelectClauseNode(true,"","",expr->name,alias,std::nullopt,expr->distinct)); 
                         return node;
                 }
             }
@@ -484,7 +491,8 @@ void printAST(ASTNode* root){
             col = e->column + " ";
         }
         if (!e->aggregateFunction.empty()) {
-            aggfunc = " " + e->aggregateFunction + "(" + e->column + ")";
+            if(e->map){cout<<"map is heree";};
+            aggfunc = " " + e->aggregateFunction + "(" + e->map->table1 +"."+ e->map->column1 + " "+e->map->operatorType + " " + e->map->table2 +"."+ e->map->column2+")";
             col = "";
         }
         if (!e->alias.empty()) {
