@@ -4,6 +4,7 @@
 #include "hsql/SQLParser.h"
 #include <iostream>
 #include <variant>
+#include <optional>
 #include <vector>
 #include <string>
 #include <queue>
@@ -72,6 +73,32 @@ class WhereClauseNode {
                     {};
 };
 
+struct Map {
+    std::string table1;
+    std::string column1;
+    std::string table2;    
+    std::string column2;
+    std::string operatorType;
+    std::string value;
+
+    Map(
+        const std::string& table1 = "",
+        const std::string& column1 = "",
+        const std::string& table2 = "",
+        const std::string& column2 = "",
+        const std::string& operatorType = "",
+        const std::string& value = ""
+    )
+        : column1(column1),
+          table1(table1),
+          column2(column2),
+          table2(table2),
+          operatorType(operatorType),
+          value(value)
+    {}
+};
+
+
 class SelectClauseNode {
     public:
         bool star;
@@ -79,6 +106,7 @@ class SelectClauseNode {
         std::string column;
         std::string aggregateFunction;
         std::string alias;
+        std::optional<Map> map;
         bool distinct;
         
         SelectClauseNode(
@@ -87,6 +115,7 @@ class SelectClauseNode {
                 const std::string& column = "",
                 const std::string& aggrFunc = "",
                 const std::string& alias = "",
+                std::optional<Map> map = std::nullopt,
                 const bool distinct = false)
                     :
                     star(star),
@@ -94,10 +123,12 @@ class SelectClauseNode {
                     column(column),
                     aggregateFunction(aggrFunc),
                     alias(alias),
+                    map(std::move(map)),
                     distinct(distinct)
                     {};
   
 };
+
 
 struct GroupByDescription {
     GroupByDescription() = default;
