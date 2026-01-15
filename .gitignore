@@ -8,3 +8,6 @@ python/generated
 **/*.d
 **/runner
 cpp/code/src/build/
+*.png
+*.dot
+
