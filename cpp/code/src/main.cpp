@@ -35,7 +35,7 @@ int main() {
     std::cout<<"\n\n";
     
     // Generate IR tree for second optimizer
-    unique_ptr<PlanNode> ir_root = astToIr(root);
+    shared_ptr<PlanNode> ir_root = astToIr(root);
     generatePlanDotFile(*ir_root, "ir_plan.dot", DotContentType::IR_DATA);
     printPlanTree(*ir_root, 2);
     std::cout<<"\n\n";
@@ -43,13 +43,13 @@ int main() {
     // Fill Materializes
     fillMaterializes(ir_root.get());
     generatePlanDotFile(*ir_root, "ir_plan_mat.dot", DotContentType::IR_DATA);
-    // printPlanTree(*ir_root, 2);
+    printPlanTree(*ir_root, 2);
     // std::cout<<"\n\n";
 
     // Map to Api (Physical) Data
     irToApiData(ir_root.get());
     generatePlanDotFile(*ir_root, "api_plan.dot", DotContentType::IR_DATA);
-    // printPlanTree(*ir_root, 3);
+    printPlanTree(*ir_root, 3);
 
     // Sequentialize 
     std::vector<const PlanNode*> sequenced_plan = to_sequence_children_list<PlanNode>(ir_root.get());

@@ -60,9 +60,9 @@ PlanNode::AbstractData convertToAbstract(const BaseType::JsonRawData& rawJson) {
     return abstract_data;
 }
 
-void removeDeepAggregate(std::unique_ptr<PlanNode>& node) {
-    // Pointer to the unique_ptr we are currently inspecting
-    std::unique_ptr<PlanNode>* currentPtr = &node;
+void removeDeepAggregate(std::shared_ptr<PlanNode>& node) {
+    // Pointer to the shared_ptr we are currently inspecting
+    std::shared_ptr<PlanNode>* currentPtr = &node;
 
     // Find aggregate
     while (*currentPtr && !isNodeType(currentPtr->get(), AGG)) {
@@ -73,18 +73,18 @@ void removeDeepAggregate(std::unique_ptr<PlanNode>& node) {
     // Replace the aggregate with its own child
     if (*currentPtr && isNodeType(currentPtr->get(), AGG)) {
         if ((*currentPtr)->children.size() == 1) {
-            *currentPtr = std::move((*currentPtr)->children[0]);
+            *currentPtr = (*currentPtr)->children[0];
         }
     }
 }
 
-std::unique_ptr<PlanNode> pruneTree(std::unique_ptr<PlanNode> node) {
+std::shared_ptr<PlanNode> pruneTree(std::shared_ptr<PlanNode> node) {
     if (!node) return nullptr;
 
     // 1. RECURSE FIRST: Process children bottom-up
     // We modify the vector in-place by assigning the result of the recursive call back to the slot.
     for (auto& child : node->children) {
-        child = pruneTree(std::move(child)); 
+        child = pruneTree(child); 
     }
 
     // Safety check: If node has no raw data (synthetic), return as is
@@ -101,7 +101,7 @@ std::unique_ptr<PlanNode> pruneTree(std::unique_ptr<PlanNode> node) {
         // 2. We return that child to the *caller* (the parent of 'node').
         // 3. 'node' itself (the Hash/Gather) goes out of scope here and is deleted.
         if (node->children.size() == 1) {
-            return std::move(node->children[0]);
+            return node->children[0];
         }
     }
 
@@ -112,7 +112,7 @@ std::unique_ptr<PlanNode> pruneTree(std::unique_ptr<PlanNode> node) {
             removeDeepAggregate(node->children[0]);
             
             // Delete the Gather itself by returning the fixed child
-            return std::move(node->children[0]);
+            return node->children[0];
         }
     }
     
@@ -132,7 +132,7 @@ std::unique_ptr<PlanNode> pruneTree(std::unique_ptr<PlanNode> node) {
                     node->rawJson->planParams.index = childPtr->rawJson->planParams.index;
                 }
             }
-            node->children = std::move(childPtr->children);
+            node->children = childPtr->children;
         }
     }
     
@@ -182,7 +182,7 @@ std::set<std::string> enrichTreeSub(PlanNode* node, SqlQueryData& queryData){
     std::set<std::string> currentTables;
 
     // Collect base tables from children
-    for (const std::unique_ptr<PlanNode>& child : node->children) {
+    for (const std::shared_ptr<PlanNode>& child : node->children) {
         std::set<std::string> childTables = enrichTreeSub(child.get(), queryData);
         childTableSets.push_back(childTables);
         currentTables.insert(childTables.begin(), childTables.end());
@@ -259,13 +259,13 @@ std::set<std::string> enrichTreeSub(PlanNode* node, SqlQueryData& queryData){
     return currentTables;
 }
 
-std::unique_ptr<PlanNode> enrichTree(std::unique_ptr<PlanNode> root, SqlQueryData& queryData) {
+std::shared_ptr<PlanNode> enrichTree(std::shared_ptr<PlanNode> root, SqlQueryData& queryData) {
 
     // Enrich all nodes of the tree with data from query 
     enrichTreeSub(root.get(), queryData);
 
     // Build result node as new root
-    std::unique_ptr<PlanNode> resultNode = std::make_unique<PlanNode>();
+    std::shared_ptr<PlanNode> resultNode = std::make_shared<PlanNode>();
     
     AbstractResult result;
     
@@ -278,7 +278,7 @@ std::unique_ptr<PlanNode> enrichTree(std::unique_ptr<PlanNode> root, SqlQueryDat
     // Fill result node and set it as new root of the tree
     result.output_cols = select_cols;
     resultNode->abstractData = result;
-    resultNode->children.push_back(std::move(root));
+    resultNode->children.push_back(root);
 
     return resultNode;
 }
@@ -340,10 +340,10 @@ namespace {
     }
 }
 
-std::unique_ptr<PlanNode> astToIr(ASTNode* ast) {
+std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
     if (!ast) return nullptr;
 
-    auto node = std::make_unique<PlanNode>();
+    auto node = std::make_shared<PlanNode>();
     PlanNode* childrenTarget = node.get();
 
     // 1. SELECT Node
@@ -356,7 +356,7 @@ std::unique_ptr<PlanNode> astToIr(ASTNode* ast) {
 
         if (aggType.has_value()) {
             // Dismantle: Select -> Agg
-            auto aggNode = std::make_unique<PlanNode>();
+            auto aggNode = std::make_shared<PlanNode>();
             
             BaseType::TableColumn aggInputCol(e->table, e->column, type);
             
@@ -366,7 +366,7 @@ std::unique_ptr<PlanNode> astToIr(ASTNode* ast) {
             node->irData = IR::SelectNode(e->star, col, e->distinct, col);
 
             childrenTarget = aggNode.get(); 
-            node->children.push_back(std::move(aggNode));
+            node->children.push_back(aggNode);
         } else {
             node->irData = IR::SelectNode(e->star, col, e->distinct, col);
         }
@@ -552,7 +552,7 @@ std::set<BaseType::Table> fillMaterializes(PlanNode* node, std::set<BaseType::Ta
 
         if (isPositionListNode) {
             // Build plan node
-            std::unique_ptr<PlanNode> matNode = std::make_unique<PlanNode>();
+            std::shared_ptr<PlanNode> matNode = std::make_shared<PlanNode>();
             auto matNodeContent = IR::MaterializeNode();
             
             for (const auto& idxCol : columnsToMaterializeOn) {
@@ -565,8 +565,8 @@ std::set<BaseType::Table> fillMaterializes(PlanNode* node, std::set<BaseType::Ta
 
             // Insert materializationNode below current node and rewire
             matNode->irData = matNodeContent;
-            matNode->children.push_back(std::move(node->children[i]));
-            node->children[i] = std::move(matNode);
+            matNode->children.push_back(node->children[i]);
+            node->children[i] = matNode;
         }
 
         allTablesBelow.merge(tablesBelowChild);

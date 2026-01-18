@@ -100,7 +100,7 @@ PlanNode::PlanNode(const Json::Value& queryPlan) {
     const Json::Value& childrenJson = queryPlan["children"];
     if (!childrenJson.isNull() && childrenJson.isArray()) {
         for (const Json::Value& child : childrenJson) {
-            this->children.push_back(std::make_unique<PlanNode>(child));
+            this->children.push_back(std::make_shared<PlanNode>(child));
         }
     }
 }
