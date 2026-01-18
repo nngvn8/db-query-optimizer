@@ -153,6 +153,9 @@ namespace {
             std::cout << "Fetch: " << n->column();
             if (n->wasTableBaseNode) std::cout << " [TBN]";
         }
+        else if (const auto* n = std::get_if<IR::FetchNode>(&node.irData)) {
+            std::cout << "Fetch: " << n->column();
+        }
         else if (const auto* n = std::get_if<IR::SelectNode>(&node.irData)) {
             std::cout << "Select " << (n->distinct ? "DISTINCT " : "") 
                     << (n->star ? "*" : "") << n->column();

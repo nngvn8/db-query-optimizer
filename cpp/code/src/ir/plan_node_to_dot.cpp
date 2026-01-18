@@ -69,6 +69,9 @@ namespace {
              ss << "Fetch: " << n->column();
              if (n->wasTableBaseNode) ss << "\n[TBN]";
         }
+        else if (const auto* n = std::get_if<IR::FetchNode>(&node.irData)) {
+             ss << "Fetch: " << n->column();
+        }
         else if (const auto* n = std::get_if<IR::SelectNode>(&node.irData)) {
             ss << "Select " << (n->distinct ? "DISTINCT " : "") 
                << (n->star ? "*" : "") << "\n" << n->column();
