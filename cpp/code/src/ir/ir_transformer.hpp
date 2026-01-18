@@ -8,11 +8,11 @@
 
 PlanNode::AbstractData convertToAbstract(const BaseType::JsonRawData& rawJson);
 
-std::unique_ptr<PlanNode> pruneTree(std::unique_ptr<PlanNode> node);
+std::shared_ptr<PlanNode> pruneTree(std::shared_ptr<PlanNode> node);
 
-std::unique_ptr<PlanNode> enrichTree(std::unique_ptr<PlanNode> root, SqlQueryData& queryData);
+std::shared_ptr<PlanNode> enrichTree(std::shared_ptr<PlanNode> root, SqlQueryData& queryData);
 
-std::unique_ptr<PlanNode> astToIr(ASTNode* ast);
+std::shared_ptr<PlanNode> astToIr(ASTNode* ast);
 
 std::set<BaseType::Table> fillMaterializes(PlanNode* node, std::set<BaseType::TableColumn> columnsToMaterializeOn = {});
 

@@ -17,13 +17,13 @@ int main(){
         std::string query = read_ssb_query(base_dir, query_file);
 
 
-        std::unique_ptr planNodeRoot = std::make_unique<PlanNode>(queryPlan);
+        std::shared_ptr planNodeRoot = std::make_shared<PlanNode>(queryPlan);
         // printDebug(*planNodeRoot);
         // printPlanTree(*planNodeRoot, "", true);
-        planNodeRoot = pruneTree(std::move(planNodeRoot));
+        planNodeRoot = pruneTree(planNodeRoot);
         SqlQueryData sqlQueryData = parseQuery(query);
         print_query_data(sqlQueryData);
-        planNodeRoot = enrichTree(std::move(planNodeRoot), sqlQueryData);
+        planNodeRoot = enrichTree(planNodeRoot, sqlQueryData);
         // printDebug(*planNodeRoot);
         printPlanTree(*planNodeRoot, 1);
         // std::vector<const PlanNode*> sequenced_plan = to_sequence_children_list<PlanNode>(planNodeRoot.get());

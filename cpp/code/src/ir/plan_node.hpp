@@ -59,7 +59,7 @@ public:
     ApiData apiData;
 
     // 4. Tree Structure
-    std::vector<std::unique_ptr<PlanNode>> children {};
+    std::vector<std::shared_ptr<PlanNode>> children {};
 
     // Constructors
     PlanNode() = default;
