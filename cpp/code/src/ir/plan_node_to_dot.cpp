@@ -29,8 +29,8 @@ namespace {
 
     // Reuse printing logic for TableColumn
     std::ostream& operator<<(std::ostream& os, const BaseType::TableColumn& col) {
-        if (!col.tableName.empty()) {
-            os << col.tableName << ".";
+        if (!col.table.name.empty()) {
+            os << col.table.name << ".";
         }
         os << col.columnName;
         if (col.alias.has_value()) {
@@ -65,17 +65,9 @@ namespace {
         // Visitor for variant values (used in Filter/Map)
         auto streamVal = [&](const auto& val) { ss << val; };
 
-        if (const auto* n = std::get_if<IR::TableBaseNode>(&node.irData)) {
-            ss << "Table: " << n->table.name;
-            ss << "\n(";
-            for (size_t i = 0; i < n->inputColumns.size(); ++i) {
-                ss << n->inputColumns[i].columnName;
-                if (i < n->inputColumns.size() - 1) ss << ", ";
-            }
-            ss << ")";
-        }
-        else if (const auto* n = std::get_if<IR::FetchNode>(&node.irData)) {
+        if (const auto* n = std::get_if<IR::FetchNode>(&node.irData)) {
              ss << "Fetch: " << n->column();
+             if (n->wasTableBaseNode) ss << "\n[TBN]";
         }
         else if (const auto* n = std::get_if<IR::SelectNode>(&node.irData)) {
             ss << "Select " << (n->distinct ? "DISTINCT " : "") 

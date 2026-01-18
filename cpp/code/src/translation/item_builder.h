@@ -84,11 +84,7 @@ class ItemBuilder {
         };
 
         BaseType::TableColumn createTableColumn(const std::string& tableName, const std::string& columnName, const ColumnType& columnType) {
-            BaseType::TableColumn* tableCol;
-            tableCol->tableName = tableName;
-            tableCol->columnName = columnName;
-            tableCol->columnType = columnType;
-            return *tableCol;
+            return BaseType::TableColumn(BaseType::Table(tableName), columnName, columnType);
         }
 
         WorkItem createWorkItem();

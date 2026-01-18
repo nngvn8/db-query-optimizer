@@ -22,7 +22,6 @@ public:
 
     // 3. State: IR Tree information
     using IrData = std::variant<std::monostate,
-        IR::TableBaseNode,
         IR::FetchNode,
         IR::SelectNode,
         IR::UpdateNode, // NYI
@@ -46,7 +45,7 @@ public:
 
     // 3. State: API Item Tree information
     using ApiData = std::variant<std::monostate,
-        std::vector<ItemBuilder::FetchNode>, // relates to Table
+        ItemBuilder::FetchNode, // relates to Table
         ItemBuilder::FilterNode, // relates to Filter
         ItemBuilder::JoinNode, // relates to Join
         ItemBuilder::MapNode, // currently missing in IrData

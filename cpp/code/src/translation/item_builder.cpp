@@ -13,7 +13,7 @@ void setTableColumnType(ColumnMessage* columnMessage, const std::string& tabName
 }
 
 void setTableColumnType(ColumnMessage* columnMessage, const BaseType::TableColumn* tableColumn) {
-    columnMessage->set_tabname(tableColumn->tableName);
+    columnMessage->set_tabname(tableColumn->table.name);
     columnMessage->set_colname(tableColumn->columnName);
     columnMessage->set_coltype(tableColumn->columnType);
 }
@@ -348,11 +348,9 @@ std::vector<WorkItem> ItemBuilder::createWorkItems(std::vector<const PlanNode*>&
 
     for (const auto& node : nodes) {
 
-        if (auto* vec = std::get_if<std::vector<ItemBuilder::FetchNode>>(&node->apiData)) {
-            for (const auto& item : *vec) {
-                WorkItem w = ItemBuilder::createFetchItem(item);
-                workItems.push_back(w);
-            }
+        if (auto* item = std::get_if<ItemBuilder::FetchNode>(&node->apiData)) {
+            WorkItem w = ItemBuilder::createFetchItem(*item);
+            workItems.push_back(w);
         }
         else if (auto* item = std::get_if<ItemBuilder::MaterializeNode>(&node->apiData)) {
             WorkItem w = ItemBuilder::createMaterializeItem(*item);

@@ -66,27 +66,14 @@ namespace IR {
         const BaseType::TableColumn& column() const { return inputColumns[0]; }
     };
 
-    class TableBaseNode : public IrBaseNode {
-    public:
-        BaseType::Table table;
-        // bool printToFile;
-
-        TableBaseNode(const BaseType::Table& table): table(table) {};
-    };
-
-    // class FetchNode : public IrBaseNode {
-    // public:
-    //     BaseType::pppTable table;
-    //     bool printToFile;
-
-    //     FetchNode(const BaseType::Table& table, const bool printToFile):
-    //         table(table), printToFile(printToFile) {};
-    // };
-
     class FetchNode : public IrBaseNode {
     public:
 
-        FetchNode(const BaseType::TableColumn& inputCol) {inputColumns.push_back(inputCol);};
+        bool wasTableBaseNode;
+
+        FetchNode(const BaseType::TableColumn& inputCol, bool wasTableBaseNode = false) : wasTableBaseNode(wasTableBaseNode) {inputColumns.push_back(inputCol);};
+        
+        const BaseType::TableColumn& column() const { return inputColumns[0]; }
     };
 
     class AggNode : public IrBaseNode {
