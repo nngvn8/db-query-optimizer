@@ -14,6 +14,19 @@ std::shared_ptr<PlanNode> enrichTree(std::shared_ptr<PlanNode> root, SqlQueryDat
 
 std::shared_ptr<PlanNode> astToIr(ASTNode* ast);
 
-std::set<BaseType::Table> fillMaterializes(PlanNode* node, std::set<BaseType::TableColumn> columnsToMaterializeOn = {});
+struct MaterializationData {
+    std::set<BaseType::Table> tablesBelow;
+    std::map<BaseType::TableColumn, std::shared_ptr<PlanNode>> previousMaterializations;
+    MaterializationData(
+        std::set<BaseType::Table> tablesBelow, 
+        std::map<BaseType::TableColumn, std::shared_ptr<PlanNode>>previousMaterializations
+    ) :
+        tablesBelow(tablesBelow),
+        previousMaterializations(previousMaterializations)
+    {}
+    MaterializationData() = default;
+};
+
+MaterializationData fillMaterializes(PlanNode* node, std::set<BaseType::TableColumn> columnsToMaterializeOn = {});
 
 void irToApiData(PlanNode* node);
