@@ -123,8 +123,8 @@ namespace {
     // --- 1. Define operator<< for TableColumn ---
     // This teaches std::cout how to print a TableColumn
     std::ostream& operator<<(std::ostream& os, const BaseType::TableColumn& col) {
-        if (!col.tableName.empty()) {
-            os << col.tableName << ".";
+        if (!col.table.name.empty()) {
+            os << col.table.name << ".";
         }
         os << col.columnName;
         if (col.alias.has_value()) {
@@ -149,17 +149,9 @@ namespace {
         // Helper lambda to print inner variants (used in Filter/Map)
         auto printVal = [](const auto& val) { std::cout << val; };
 
-        if (const auto* n = std::get_if<IR::TableBaseNode>(&node.irData)) {
-            std::cout << "Table " << n->table.name ; // << (n->printToFile ? " [file]" : "");
-            std::cout << " (";
-            for (size_t i = 0; i < n->inputColumns.size(); ++i) {
-                    std::cout << n->inputColumns[i].columnName;
-                    if (i < n->inputColumns.size() - 1) std::cout << ", ";
-                }
-                std::cout << ")";
-        }
-        else if (const auto* n = std::get_if<IR::FetchNode>(&node.irData)) {
+        if (const auto* n = std::get_if<IR::FetchNode>(&node.irData)) {
             std::cout << "Fetch: " << n->column();
+            if (n->wasTableBaseNode) std::cout << " [TBN]";
         }
         else if (const auto* n = std::get_if<IR::SelectNode>(&node.irData)) {
             std::cout << "Select " << (n->distinct ? "DISTINCT " : "") 

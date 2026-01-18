@@ -55,21 +55,18 @@ namespace BaseType {
     // Table column with table name, column name and datatype
     // TODO: let Table Column include table object
     struct TableColumn {
-        std::string tableName;
-        // Table table;
+        Table table;
         std::string columnName;
         ColumnType columnType;
         std::optional<std::string> alias;
         TableColumn(){}; // TODO remove later
         TableColumn(
-            const std::string& tableName,
-            // const Table table&,
+            const Table& table, // can pass string of table name as Table constructible via string
             const std::string& columnName,
             const ColumnType& columnType, // from workitem
             const std::optional<std::string>& alias = std::nullopt)
         :
-            tableName(tableName),
-            // table(table),
+            table(table),
             columnName(columnName),
             columnType(columnType),
             alias((alias.has_value() && alias->empty()) ? std::nullopt : alias)
@@ -77,8 +74,8 @@ namespace BaseType {
 
         bool operator<(const TableColumn& other) const {
             // 1. Compare Table Name
-            if (tableName != other.tableName) {
-                return tableName < other.tableName;
+            if (table.name != other.table.name) {
+                return table.name < other.table.name;
             }
             // 2. If tables are same, compare Column Name
             if (columnName != other.columnName) {
