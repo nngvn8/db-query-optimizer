@@ -1,10 +1,27 @@
 #pragma once
 
 #include <iostream>
+#include <unordered_set>
 #include "plan_node.hpp"
+
+// Forward declaration
+void printDebugSub(const PlanNode& planNode, std::unordered_set<const PlanNode*>& visited);
 
 // print infomration about a node
 void printDebug(const PlanNode& planNode) {
+    std::unordered_set<const PlanNode*> visited;
+    printDebugSub(planNode, visited);
+}
+
+void printDebugSub(const PlanNode& planNode, std::unordered_set<const PlanNode*>& visited) {
+    // Check visited
+    if (visited.count(&planNode)) {
+        std::cout << "Node: [Visited/Shared] " << &planNode << std::endl;
+        std::cout << "--------------------------------------" << std::endl;
+        return;
+    }
+    visited.insert(&planNode);
+
     // Check if raw data exists (it might not if we created a synthetic abstract node later)
     if (!planNode.rawJson.has_value()) {
         std::cout << "Node: [Synthetic/Abstract Node]" << std::endl;
@@ -49,7 +66,7 @@ void printDebug(const PlanNode& planNode) {
 
     // Recurse
     for (const auto& child : planNode.children) {
-        if (child) printDebug(*child);
+        if (child) printDebugSub(*child, visited);
     }
 }
 
@@ -141,6 +158,9 @@ namespace {
                 }
                 std::cout << ")";
         }
+        else if (const auto* n = std::get_if<IR::FetchNode>(&node.irData)) {
+            std::cout << "Fetch: " << n->column();
+        }
         else if (const auto* n = std::get_if<IR::SelectNode>(&node.irData)) {
             std::cout << "Select " << (n->distinct ? "DISTINCT " : "") 
                     << (n->star ? "*" : "") << n->column();
@@ -216,12 +236,7 @@ namespace {
         // Handle Column Store nodes
         else if (const auto* n = std::get_if<IR::MaterializeNode>(&node.irData)) {
             // Now works because we defined operator<< for TableColumn
-            std::cout << "Mat (";
-            for (size_t i = 0; i < n->materializations.size(); ++i) {
-                std::cout << n->materializations[i].idxColumn.columnName;
-                if (i < n->materializations.size() - 1) std::cout << ", ";
-            }
-            std::cout << ")"; 
+            std::cout << "Mat Idx: " << n->column() << " Filter: " << n->column2();
         }
         else if (std::get_if<IR::PositionList>(&node.irData)) std::cout << "PosList";
         else if (std::get_if<IR::Bitmap>(&node.irData)) std::cout << "Bitmap";
@@ -256,6 +271,11 @@ void printNodeApi(const PlanNode& node) {
             }
             std::cout << ")";
         }
+        else if constexpr (std::is_same_v<T, ItemBuilder::FetchNode>) {
+            std::cout << "API Fetch ";
+            printCol(data.inputColumn);
+            if (data.printToFile) std::cout << "[f]";
+        }
         else if constexpr (std::is_same_v<T, ItemBuilder::FilterNode>) {
             std::cout << "API Filter ";
             printCol(data.inputColumn);
@@ -282,13 +302,11 @@ void printNodeApi(const PlanNode& node) {
             std::cout << " -> ";
             printCol(data.outputColumn);
         }
-        else if constexpr (std::is_same_v<T, std::vector<ItemBuilder::MaterializeNode>>) {
-            std::cout << "API Mat (";
-            for (size_t i = 0; i < data.size(); ++i) {
-                printCol(data[i].idxColumn);
-                if (i < data.size() - 1) std::cout << ", ";
-            }
-            std::cout << ")";
+        else if constexpr (std::is_same_v<T, ItemBuilder::MaterializeNode>) {
+            std::cout << "API Mat Idx: ";
+            printCol(data.idxColumn);
+            std::cout << " Filter: ";
+            printCol(data.filterColumn);
         }
         else if constexpr (std::is_same_v<T, ItemBuilder::MultiGroupNode>) {
             std::cout << "API MultiGroup (";
@@ -345,11 +363,18 @@ void printNode(const PlanNode& node, int mode){
 
 
 // Print the structure of the tree content of nodes depending on content type
-void printPlanTreeSub(const PlanNode& node, const std::string& prefix, bool isLast, int contentType) {
+void printPlanTreeSub(const PlanNode& node, const std::string& prefix, bool isLast, int contentType, std::unordered_set<const PlanNode*>& visited) {
     
     // 1. Determine the drawing character for the current node
     std::cout << prefix;
     std::cout << (isLast ? "└── " : "├── ");
+
+    // Check visited
+    if (visited.count(&node)) {
+        std::cout << "[Visited/Shared] " << &node << std::endl;
+        return;
+    }
+    visited.insert(&node);
 
     // 2. Print node
     printNode(node, contentType);
@@ -362,7 +387,7 @@ void printPlanTreeSub(const PlanNode& node, const std::string& prefix, bool isLa
     for (size_t i = 0; i < node.children.size(); ++i) {
         const auto& child = node.children[i];
         bool isChildLast = (i == node.children.size() - 1);
-        printPlanTreeSub(*child, newPrefix, isChildLast, contentType);
+        printPlanTreeSub(*child, newPrefix, isChildLast, contentType, visited);
     }
 }
 
@@ -385,7 +410,8 @@ void printPlanTree(const PlanNode& node, int contentType) {
         break;
     }
     std::cout << std::endl;
-    printPlanTreeSub(node, "", true, contentType);
+    std::unordered_set<const PlanNode*> visited;
+    printPlanTreeSub(node, "", true, contentType, visited);
 }
 
 // Print sequence of nodes after have been sequenced into vector. Content based on content type

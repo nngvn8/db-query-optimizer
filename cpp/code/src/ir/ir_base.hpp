@@ -83,6 +83,12 @@ namespace IR {
     //         table(table), printToFile(printToFile) {};
     // };
 
+    class FetchNode : public IrBaseNode {
+    public:
+
+        FetchNode(const BaseType::TableColumn& inputCol) {inputColumns.push_back(inputCol);};
+    };
+
     class AggNode : public IrBaseNode {
     public:
         AggFunc aggFunc;
@@ -268,23 +274,14 @@ namespace IR {
 
     class MaterializeNode : public IrBaseNode {
     public:
-        class Materialization {
-            public:
-                BaseType::TableColumn idxColumn;
-                BaseType::TableColumn filterColumn;
-                BaseType::TableColumn outputColumn;
 
-                Materialization(const BaseType::TableColumn& idxCol, const BaseType::TableColumn& filterCol, const BaseType::TableColumn& outputColumn)
-                    : idxColumn(idxCol), filterColumn(filterCol), outputColumn(idxCol) {}
-
+        MaterializeNode(const BaseType::TableColumn& idxColumn, const BaseType::TableColumn& filterColumn, const BaseType::TableColumn& outputColumn) : IrBaseNode(outputColumn) {
+            inputColumns.push_back(idxColumn);
+            inputColumns.push_back(filterColumn);
         };
-        std::vector<Materialization> materializations;
-        
-        MaterializeNode(const BaseType::TableColumn& outputColumn = {}) : IrBaseNode(outputColumn) {};
 
-        void addMaterialization2(const BaseType::TableColumn& idxColumn, const BaseType::TableColumn& filterColumn) {
-            materializations.push_back(Materialization(idxColumn, filterColumn, idxColumn));
-        }
+        BaseType::TableColumn idxColumn() { return inputColumns[0]; };
+        BaseType::TableColumn filterColumn() { return inputColumns[1]; };
     };
 
     class PositionList : public IrBaseNode{

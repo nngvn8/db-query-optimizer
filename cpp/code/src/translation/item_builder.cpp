@@ -354,11 +354,9 @@ std::vector<WorkItem> ItemBuilder::createWorkItems(std::vector<const PlanNode*>&
                 workItems.push_back(w);
             }
         }
-        else if (auto* vec = std::get_if<std::vector<ItemBuilder::MaterializeNode>>(&node->apiData)) {
-            for (const auto& item : *vec) {
-                WorkItem w = ItemBuilder::createMaterializeItem(item);
-                workItems.push_back(w);
-            }
+        else if (auto* item = std::get_if<ItemBuilder::MaterializeNode>(&node->apiData)) {
+            WorkItem w = ItemBuilder::createMaterializeItem(*item);
+            workItems.push_back(w);
         }
         else if (auto* item = std::get_if<ItemBuilder::FilterNode>(&node->apiData)) {
             WorkItem w = ItemBuilder::createFilterItem(*item);

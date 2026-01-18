@@ -4,6 +4,7 @@
 #include <iostream>
 #include <cstdint>
 #include <algorithm>
+#include <unordered_set>
 
 // --- Helper Functions (Local) ---
 
@@ -73,6 +74,9 @@ namespace {
             }
             ss << ")";
         }
+        else if (const auto* n = std::get_if<IR::FetchNode>(&node.irData)) {
+             ss << "Fetch: " << n->column();
+        }
         else if (const auto* n = std::get_if<IR::SelectNode>(&node.irData)) {
             ss << "Select " << (n->distinct ? "DISTINCT " : "") 
                << (n->star ? "*" : "") << "\n" << n->column();
@@ -139,12 +143,7 @@ namespace {
         else if (std::get_if<IR::InsertNode>(&node.irData)) ss << "Insert";
         else if (std::get_if<IR::DeleteNode>(&node.irData)) ss << "Delete";
         else if (const auto* n = std::get_if<IR::MaterializeNode>(&node.irData)) {
-            ss << "Mat (";
-            for (size_t i = 0; i < n->materializations.size(); ++i) {
-                ss << n->materializations[i].idxColumn.columnName;
-                if (i < n->materializations.size() - 1) ss << ", ";
-            }
-            ss << ")"; 
+            ss << "Mat\nIdx: " << n->column() << "\nFilter: " << n->column2();
         }
         else if (std::get_if<IR::PositionList>(&node.irData)) ss << "PosList";
         else if (std::get_if<IR::Bitmap>(&node.irData)) ss << "Bitmap";
@@ -175,6 +174,9 @@ namespace {
                 }
                 ss << ")";
             }
+            else if constexpr (std::is_same_v<T, ItemBuilder::FetchNode>) {
+                ss << "API Fetch " << data.inputColumn << (data.printToFile ? "[f]" : "");
+            }
             else if constexpr (std::is_same_v<T, ItemBuilder::FilterNode>) {
                 ss << "API Filter\n";
                 ss << data.inputColumn << " -> " << data.outputColumn << "\n";
@@ -194,13 +196,8 @@ namespace {
                 ss << "API Map\n";
                 ss << data.inputColumn << " -> " << data.outputColumn;
             }
-            else if constexpr (std::is_same_v<T, std::vector<ItemBuilder::MaterializeNode>>) {
-                ss << "API Mat\n(";
-                for (size_t i = 0; i < data.size(); ++i) {
-                    ss << data[i].idxColumn;
-                    if (i < data.size() - 1) ss << ", ";
-                }
-                ss << ")";
+            else if constexpr (std::is_same_v<T, ItemBuilder::MaterializeNode>) {
+                ss << "API Mat\nIdx: " << data.idxColumn << "\nFilter: " << data.filterColumn;
             }
             else if constexpr (std::is_same_v<T, ItemBuilder::MultiGroupNode>) {
                 ss << "API MultiGroup\n(";
@@ -236,8 +233,12 @@ namespace {
         return escapeLabel(ss.str());
     }
 
-    void writePlanNodeDot(const PlanNode* node, std::ofstream& file, DotContentType contentType) {
+    void writePlanNodeDot(const PlanNode* node, std::ofstream& file, DotContentType contentType, std::unordered_set<const PlanNode*>& visited) {
         if (!node) return;
+        
+        // Handle DAG/Cycles: If already visited, stop.
+        if (visited.count(node)) return;
+        visited.insert(node);
 
         std::ostringstream id;
         id << reinterpret_cast<std::uintptr_t>(node);
@@ -260,7 +261,7 @@ namespace {
                 file << "    " << id.str() << " -> " << childId.str() << ";\n";
                 
                 // Recurse
-                writePlanNodeDot(child.get(), file, contentType);
+                writePlanNodeDot(child.get(), file, contentType, visited);
             }
         }
     }
@@ -276,7 +277,8 @@ void generatePlanDotFile(const PlanNode& root, const std::string& filename, DotC
     file << "digraph PlanNode {\n";
     file << "    node [shape=box, fontname=\"Helvetica\"];\n";
     
-    writePlanNodeDot(&root, file, contentType);
+    std::unordered_set<const PlanNode*> visited;
+    writePlanNodeDot(&root, file, contentType, visited);
 
     file << "}\n";
     file.close();
