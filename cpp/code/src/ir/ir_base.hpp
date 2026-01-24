@@ -66,6 +66,30 @@ namespace IR {
         const BaseType::TableColumn& column() const { return inputColumns[0]; }
     };
 
+    class ResultNode : public IrBaseNode {
+    public:
+        std::string fileName;
+        std::vector<BaseType::TableColumn> resultColumns; // Kept for metadata access
+        std::vector<std::string> resultHeaders;
+
+        ResultNode(
+            const std::string& fileName,
+            const std::vector<BaseType::TableColumn>& resultColumns,
+            const BaseType::TableColumn& resultIdx,
+            const std::vector<std::string>& resultHeaders,
+            const BaseType::TableColumn& outputColumn):
+                IrBaseNode(outputColumn),
+                fileName(fileName),
+                resultColumns(resultColumns),
+                resultHeaders(resultHeaders) 
+            {
+                inputColumns.push_back(resultIdx);
+                inputColumns.insert(inputColumns.end(), resultColumns.begin(), resultColumns.end());
+            };
+            
+        const BaseType::TableColumn& resultIdx() const { return inputColumns[0]; }
+    };
+
     class FetchNode : public IrBaseNode {
     public:
 
@@ -231,30 +255,6 @@ namespace IR {
 
         const BaseType::TableColumn& innerColumn() const { return inputColumns[0]; }
         const BaseType::TableColumn& outerColumn() const { return inputColumns[1]; }
-    };
-
-    class ResultNode : public IrBaseNode {
-    public:
-        std::string fileName;
-        std::vector<BaseType::TableColumn> resultColumns; // Kept for metadata access
-        std::vector<std::string> resultHeaders;
-
-        ResultNode(
-            const std::string& fileName,
-            const std::vector<BaseType::TableColumn>& resultColumns,
-            const BaseType::TableColumn& resultIdx,
-            const std::vector<std::string>& resultHeaders,
-            const BaseType::TableColumn& outputColumn):
-                IrBaseNode(outputColumn),
-                fileName(fileName),
-                resultColumns(resultColumns),
-                resultHeaders(resultHeaders) 
-            {
-                inputColumns.push_back(resultIdx);
-                inputColumns.insert(inputColumns.end(), resultColumns.begin(), resultColumns.end());
-            };
-            
-        const BaseType::TableColumn& resultIdx() const { return inputColumns[0]; }
     };
 
     // Column Store Specific Nodes
