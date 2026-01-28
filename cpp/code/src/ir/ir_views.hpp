@@ -21,8 +21,8 @@ public:
                          const CompType& joinPredicate) {
         IrData irData;
         irData.inputColumns = {inner, outer};
-        irData.outputCols = {out};
-        irData.opInfo = JoinOp{joinType, joinPredicate};
+        irData.outputCols = {inner, outer};
+        irData.opInfo = JoinOp{joinType, joinPredicate, out};
         return irData;
     }
 

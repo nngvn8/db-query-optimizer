@@ -558,10 +558,6 @@ MaterializationData fillMaterializes(PlanNode* node, std::set<BaseType::TableCol
         MaterializationData matData = fillMaterializes(node->children[i].get(), columnsToMaterializeOn, columnsThisNode);
         std::set<BaseType::Table> tablesBelowChild = matData.tablesBelow;
         pMat.merge(matData.previousMaterializations);
-
-        if (node->irData.is<GroupOp>()) {
-            std::cout << "hi" << std::endl;
-        }
         
         
         BaseType::TableColumn filterCol;
@@ -576,20 +572,15 @@ MaterializationData fillMaterializes(PlanNode* node, std::set<BaseType::TableCol
                 childIsPositionListNode = true;
             }
         
-        // Create a materialization or update fetch node
+        // Create or update materialization if child outputs position list
         if (childIsPositionListNode) {
-            
-                      
+                             
             for (const auto& idxCol : columnsToMaterializeOn) {
-
-                if (node->irData.is<GroupOp>() && idxCol.columnName == "d_year") {
-                    std::cout << "hi" << std::endl;
-                }
 
                 // Add a materialization to the materialization node if table below
                 if (tablesBelowChild.contains(BaseType::Table(idxCol.table.name))) {
                                                             
-                    // Materialization node
+                    // Create materialization node
                     std::shared_ptr<PlanNode> matNode = std::make_shared<PlanNode>();
                     matNode->irData = MaterializeView::create(idxCol, filterCol, idxCol);
                     
@@ -608,46 +599,46 @@ MaterializationData fillMaterializes(PlanNode* node, std::set<BaseType::TableCol
                     // Right child Filter
                     matNode->children.push_back(originalChild);
                     
-                    // Set as child if this nodes needs this column
-                    if (columnsThisNode.count(idxCol)) {
-                        node->children[i] = matNode;                        
-                    }
-                    
                     // Set this materialization as the most recent one
                     pMat[idxCol] = matNode;
                 }
             }
         }
-        // else {
-        //     BaseType::TableColumn outCol = node->irData.outputCols[0];
-        //     std::shared_ptr<PlanNode> physOutNode = std::make_shared<PlanNode>(*node);
-        //     if (!outCol.columnName.empty()) pMat[outCol] = physOutNode;
-        // }
+        else {
+            BaseType::TableColumn outCol = node->irData.outputCols[0];
+            std::shared_ptr<PlanNode> physOutNode = std::make_shared<PlanNode>(*node);
+            // if (!outCol.columnName.empty()) pMat[outCol] = physOutNode;
+        }
 
         allTablesBelow.merge(tablesBelowChild);
 
     }
 
-    // node->children = {};
-    // for (auto& idxCol : columnsThisNode) {
-    //     if (pMat.count(idxCol))
-    //         node->children.push_back(pMat[idxCol]);
-    //     else {
-    //         std::cout << "scream" << std::endl;
-    //     }
-    // }
-
     // The node is a leafnode (a table node)
     if (auto fetchV = node->irData.get_view_if<FetchView>()) {
         if (fetchV->wasTableBaseNode()) {
+            // Set column names (TableBaseNode did not have any)
             for (auto& fetchCol : inputOfParent) {
                 if (fetchCol.table.name == fetchV->inputCol().table.name) {
                     fetchV->inputCol().columnName = fetchCol.columnName;
                     fetchV->outputCol().columnName = fetchCol.columnName;
+                    pMat[fetchCol] = std::make_shared<PlanNode>(*node);
                 }
             }
-
+            // Add the table of this node to tables below
             allTablesBelow.insert(fetchV->inputCol().table);
+        }
+    }
+    // Rewire children if not leaf node
+    else {
+        node->children = {};
+        for (auto& idxCol : columnsThisNode) {
+            // Set most recent materialization of children as column
+            if (pMat.count(idxCol))
+                node->children.push_back(pMat[idxCol]);
+            else {
+                std::cout << "scream" << std::endl;
+            }
         }
     }
 
