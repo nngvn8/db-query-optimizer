@@ -30,6 +30,6 @@ struct MaterializationData {
     MaterializationData() = default;
 };
 
-MaterializationData fillMaterializes(PlanNode* node, std::set<BaseType::TableColumn> columnsToMaterializeOn = {});
+MaterializationData fillMaterializes(PlanNode* node, std::set<BaseType::TableColumn> columnsToMaterializeOn = {}, const std::set<BaseType::TableColumn>& inputOfParent = {});
 
 void irToApiData(PlanNode* node);

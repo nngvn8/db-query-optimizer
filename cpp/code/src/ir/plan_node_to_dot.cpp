@@ -62,6 +62,15 @@ namespace {
     // --- IR Label Generation ---
     std::string getIrLabel(const PlanNode& node) {
         std::stringstream ss;
+
+        // Input Columns
+        if (!node.irData.inputColumns.empty()) {
+             ss << "Input: ";
+             for(size_t i=0; i<node.irData.inputColumns.size(); ++i) {
+                ss << node.irData.inputColumns[i] << (i < node.irData.inputColumns.size() - 1 ? ", " : "");
+             }
+             ss << "\n----------------\n";
+        }
         
         // Visitor for variant values (used in Filter/Map)
         auto streamVal = [&](const auto& val) { ss << val; };
@@ -155,6 +164,15 @@ namespace {
         }
         else {
             ss << "[Empty/Unknown IR]";
+        }
+
+        // Output Columns
+        if (!node.irData.outputCols.empty()) {
+             ss << "\n----------------\n";
+             ss << "Output: ";
+             for(size_t i=0; i<node.irData.outputCols.size(); ++i) {
+                ss << node.irData.outputCols[i] << (i < node.irData.outputCols.size() - 1 ? ", " : "");
+             }
         }
 
         return escapeLabel(ss.str());
