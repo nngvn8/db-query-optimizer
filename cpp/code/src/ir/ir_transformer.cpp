@@ -572,10 +572,10 @@ MaterializationData fillMaterializes(PlanNode* node, std::set<BaseType::TableCol
         //     }, node->children[i]->irData);
 
         if (node->children[i]->irData.is<JoinOp>()
-            || node->irData.is<FilterOp>()
-            || node->irData.is<GroupOp>()
-            || node->irData.is<SortOp>()
-            || node->irData.is<SetOp>()) {
+            || node->children[i]->irData.is<FilterOp>()
+            || node->children[i]->irData.is<GroupOp>()
+            || node->children[i]->irData.is<SortOp>()
+            || node->children[i]->irData.is<SetOp>()) {
                 filterCol = node->children[i]->irData.outputCols[0]; // except for Select/Result all nodes at the moment only have one output column
                 childIsPositionListNode = true;
             }
@@ -590,6 +590,8 @@ MaterializationData fillMaterializes(PlanNode* node, std::set<BaseType::TableCol
         }
         // Create a materialization or update fetch node
         if (childIsPositionListNode || childIsFetchNode) {
+            
+            std::shared_ptr<PlanNode> originalChild = node->children[i];
                       
             for (const auto& idxCol : columnsToMaterializeOn) {
                 
@@ -627,7 +629,7 @@ MaterializationData fillMaterializes(PlanNode* node, std::set<BaseType::TableCol
                     }
                     
                     // Right child Filter
-                    matNode->children.push_back(node->children[i]);
+                    matNode->children.push_back(originalChild);
                     
                     // Set as child if this nodes needs this column
                     if (columnsThisNode.count(idxCol)) {
