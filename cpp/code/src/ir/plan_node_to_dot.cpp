@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <algorithm>
 #include <unordered_set>
+#include <ir/ir_views.hpp>
 
 // --- Helper Functions (Local) ---
 
@@ -65,80 +66,93 @@ namespace {
         // Visitor for variant values (used in Filter/Map)
         auto streamVal = [&](const auto& val) { ss << val; };
 
-        if (const auto* n = std::get_if<IR::FetchNode>(&node.irData)) {
-             ss << "Fetch: " << n->column();
-             if (n->wasTableBaseNode) ss << "\n[TBN]";
-        }
-        else if (const auto* n = std::get_if<IR::SelectNode>(&node.irData)) {
-            ss << "Select " << (n->distinct ? "DISTINCT " : "") 
-               << (n->star ? "*" : "") << "\n" << n->column();
-        }
-        else if (const auto* n = std::get_if<IR::AggNode>(&node.irData)) {
-            ss << "Agg " << AggFunc_Name(n->aggFunc) << "\n(" << n->column() << ")";
-        }
-        else if (const auto* n = std::get_if<IR::JoinNode>(&node.irData)) {
-            ss << "Join " << joinTypeToString(n->joinType) << "\nON " 
-               << n->leftTableColumn() << " " << CompType_Name(n->joinPredicate) 
-               << " " << n->rightTableColumn();
-        }
-        else if (const auto* n = std::get_if<IR::FilterNode>(&node.irData)) {
-            ss << "Filter " << CompType_Name(n->filterType) << "\n" << n->column1() << " ";
+        // Helper to get non-const ref for views
+        IrData& mutableIr = const_cast<IrData&>(node.irData);
 
-            if (n->column2().has_value()) {
-                ss << n->column2().value();
+        if (node.irData.is<FetchOp>()) {
+             FetchView view(mutableIr);
+             ss << "Fetch: " << view.inputCol();
+             if (view.wasTableBaseNode()) ss << "\n[TBN]";
+        }
+        else if (node.irData.is<SelectOp>()) {
+            SelectView view(mutableIr);
+            ss << "Select " << (view.distinct() ? "DISTINCT " : "") 
+               << (view.star() ? "*" : "") << "\n";
+            
+            for(size_t i=0; i<view.resultCols().size(); ++i) {
+                ss << view.resultCols()[i] << (i < view.resultCols().size() - 1 ? ", " : "");
+            }
+        }
+        else if (node.irData.is<AggOp>()) {
+            AggView view(mutableIr);
+            ss << "Agg " << AggFunc_Name(view.aggFunc()) << "\n(" << view.colToAgg() << ")";
+        }
+        else if (node.irData.is<JoinOp>()) {
+            JoinView view(mutableIr);
+            ss << "Join " << joinTypeToString(view.joinType()) << "\nON " 
+               << view.inner() << " " << CompType_Name(view.joinPredicate()) 
+               << " " << view.outer();
+        }
+        else if (node.irData.is<FilterOp>()) {
+            FilterView view(mutableIr);
+            ss << "Filter " << CompType_Name(view.filterType()) << "\n" << view.col1() << " ";
+
+            if (view.col2() != nullptr) {
+                ss << *view.col2();
             } 
-            else if (!n->filterArgs.empty()) {
-                if (n->filterType == CompType::COMP_BETWEEN && n->filterArgs.size() >= 2) {
-                    std::visit(streamVal, n->filterArgs[0]);
+            else if (!view.filterArgs().empty()) {
+                if (view.filterType() == CompType::COMP_BETWEEN && view.filterArgs().size() >= 2) {
+                    std::visit(streamVal, view.filterArgs()[0]);
                     ss << " AND ";
-                    std::visit(streamVal, n->filterArgs[1]);
+                    std::visit(streamVal, view.filterArgs()[1]);
                 }
-                else if (n->filterType == CompType::COMP_IN) {
+                else if (view.filterType() == CompType::COMP_IN) {
                     ss << "(";
-                    for (size_t i = 0; i < n->filterArgs.size(); ++i) {
-                        std::visit(streamVal, n->filterArgs[i]);
-                        if (i < n->filterArgs.size() - 1) ss << ", ";
+                    for (size_t i = 0; i < view.filterArgs().size(); ++i) {
+                        std::visit(streamVal, view.filterArgs()[i]);
+                        if (i < view.filterArgs().size() - 1) ss << ", ";
                     }
                     ss << ")";
                 }
                 else {
-                    std::visit(streamVal, n->filterArgs[0]);
+                    std::visit(streamVal, view.filterArgs()[0]);
                 }
             }
         }
-        else if (const auto* n = std::get_if<IR::GroupByNode>(&node.irData)) {
+        else if (node.irData.is<GroupOp>()) {
+            GroupView view(mutableIr);
             ss << "GroupBy (";
-            const auto& desc = n->description();
-            for (size_t i = 0; i < desc.size(); ++i) {
-                ss << desc[i] << (i < desc.size() - 1? " " : "");
+            const auto& cols = view.groupingCols();
+            for (size_t i = 0; i < cols.size(); ++i) {
+                ss << cols[i] << (i < cols.size() - 1? " " : "");
             }
             ss << ")";
+            if(view.aggCol().has_value()){
+                ss << "\nAgg: " << view.aggCol().value();
+            }
         }
-        else if (const auto* n = std::get_if<IR::SortOrderNode>(&node.irData)) {
+        else if (node.irData.is<SortOp>()) {
+            SortOrderView view(mutableIr);
             ss << "Sort (";
-            for (size_t i = 0; i < n->columnList.size(); ++i) {
-                ss << n->columnList[i].column << (i < n->columnList.size() - 1 ? " " : "");
+            const auto& descs = view.orderDescriptions();
+            for (size_t i = 0; i < descs.size(); ++i) {
+                ss << descs[i].column << (i < descs.size() - 1 ? " " : "");
             }
             ss << ")";
         }
-        else if (const auto* n = std::get_if<IR::MapNode>(&node.irData)) {
-            ss << "Map " << n->column() << " " << ArithOp_Name(n->operatorType) << " ";
-            std::visit(streamVal, n->partnerVal);
+        else if (node.irData.is<MapOp>()) {
+            MapView view(mutableIr);
+            ss << "Map " << view.column() << " " << ArithOp_Name(view.operatorType()) << " ";
+            std::visit(streamVal, view.partnerVal());
         }
-        else if (const auto* n = std::get_if<IR::LimitNode>(&node.irData)) {
-            ss << "Limit " << n->limit << " Offset " << n->offset;
+        else if (node.irData.is<SetOp>()) {
+            SetOpView view(mutableIr);
+            ss << "SetOp [" << (int)view.operation() << "]"; 
         }
-        else if (const auto* n = std::get_if<IR::ResultNode>(&node.irData)) {
-            ss << "Result -> " << n->fileName;
+        else if (node.irData.is<MatOp>()) {
+            MaterializeView view(mutableIr);
+            ss << "Mat\nIdx: " << view.idxCol() << "\nFilter: " << view.filterCol();
         }
-        else if (std::get_if<IR::UpdateNode>(&node.irData)) ss << "Update";
-        else if (std::get_if<IR::InsertNode>(&node.irData)) ss << "Insert";
-        else if (std::get_if<IR::DeleteNode>(&node.irData)) ss << "Delete";
-        else if (const auto* n = std::get_if<IR::MaterializeNode>(&node.irData)) {
-            ss << "Mat\nIdx: " << n->column() << "\nFilter: " << n->column2();
-        }
-        else if (std::get_if<IR::PositionList>(&node.irData)) ss << "PosList";
-        else if (std::get_if<IR::Bitmap>(&node.irData)) ss << "Bitmap";
         else {
             ss << "[Empty/Unknown IR]";
         }

@@ -5,7 +5,8 @@
 #include <regex>
 
 #include <ir/catalog.hpp>
-#include <ir/ir_base.hpp>
+#include <ir/ir_types.hpp>
+#include <ir/ir_views.hpp>
 
 // #include <WorkItem.pb.h>
 
@@ -360,15 +361,18 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
             
             BaseType::TableColumn aggInputCol(e->table, e->column, type);
             
-            aggNode->irData = IR::AggNode(aggInputCol, aggType.value(), aggInputCol);
+            // aggNode->irData = IR::AggNode(aggInputCol, aggType.value(), aggInputCol);
+            aggNode->irData = AggView::create(aggInputCol, aggInputCol, aggType.value());
 
             // Outer Select selects the Agg result
-            node->irData = IR::SelectNode(e->star, col, e->distinct, col);
+            // node->irData = IR::SelectNode(e->star, col, e->distinct, col);
+            node->irData = SelectView::create({col},e->star,e->distinct);
 
             childrenTarget = aggNode.get(); 
             node->children.push_back(aggNode);
         } else {
-            node->irData = IR::SelectNode(e->star, col, e->distinct, col);
+            // node->irData = IR::SelectNode(e->star, col, e->distinct, col);
+            node->irData = SelectView::create({col},e->star,e->distinct);
         }
     }
     // 2. WHERE / Filter Node
@@ -406,13 +410,21 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
             filterArgs.push_back(parseValueByType(e->value, colType));
         }
 
-        node->irData = IR::FilterNode(
+        // node->irData = IR::FilterNode(
+        //     inputCol,
+        //     opType,
+        //     col2,
+        //     filterArgs,
+        //     inputCol
+        // );
+        node->irData = FilterView::create(
             inputCol,
             opType,
             col2,
             filterArgs,
             inputCol
         );
+
     }
     // 3. JOIN Node
     else if (auto e = std::get_if<TableJoinNode>(&ast->val)) {
@@ -423,18 +435,18 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
         BaseType::TableColumn rightCol(e->onRightTable, e->onRightTableColumn, rightType);
         BaseType::TableColumn outCol(BaseType::Table(""), e->onLeftTableColumn + "=" + e->onRightTableColumn, ColumnType::TYPE_INTEGER);
         
-        node->irData = IR::JoinNode(
-            mapStringToJoinType(e->joinType),
-            CompType::COMP_EQ, 
+        node->irData = JoinView::create(
             leftCol, 
             rightCol,
-            outCol
+            outCol,
+            mapStringToJoinType(e->joinType),
+            CompType::COMP_EQ 
         );
     }
     // 4. Base Table
     else if (auto e = std::get_if<TableBaseNode>(&ast->val)) {
         BaseType::Table table(e->tableName, e->tableAlias);
-        node->irData = IR::FetchNode(BaseType::TableColumn(table, "", ColumnType::TYPE_INTEGER), true);
+        node->irData = FetchView::create(BaseType::TableColumn(table, "", ColumnType::TYPE_INTEGER), true);
     }
     // 5. Group By
     else if (auto e = std::get_if<GroupByClauseNode>(&ast->val)) {
@@ -449,7 +461,7 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
             i++;
         }
         BaseType::TableColumn outCol(BaseType::Table(""), groupingColString, ColumnType::TYPE_INTEGER);
-        node->irData = IR::GroupByNode(groups, outCol);
+        node->irData = GroupView::create(groups, outCol);
     }
     // 6. Order By
     else if (auto e = std::get_if<OrderByClauseNode>(&ast->val)) {
@@ -471,7 +483,7 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
             i++;
         }
         BaseType::TableColumn outCol(BaseType::Table(""), orderColString, ColumnType::TYPE_INTEGER);
-        node->irData = IR::SortOrderNode(orders, outCol);
+        node->irData = SortOrderView::create(orders, outCol);
     }
     // 7. Limit (don't support Limit for now)
     // else if (auto e = std::get_if<LimitClauseNode>(&ast->val)) {
@@ -485,7 +497,12 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
             e->setOperation, 
             ColumnType::TYPE_INTEGER
         );
-        node->irData = IR::SetOperationNode(mapStringToRelOp(e->setOperation), dummy, dummy, outCol);
+        node->irData = SetOpView::create(
+            dummy, 
+            dummy, 
+            outCol,
+            mapStringToRelOp(e->setOperation) 
+        );
     }
 
     // Recursion
@@ -497,10 +514,10 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
     }
 
     // Set Ops: set input columns;
-    if (auto e = std::get_if<IR::SetOperationNode>(&node->irData)) {
-        std::vector<BaseType::TableColumn>& inputColumns = e->inputColumns;
-        inputColumns[0] = *node->children[0]->getIrDataOutputColumn();
-        inputColumns[1] = *node->children[1]->getIrDataOutputColumn();
+    if (node->irData.is<SetOp>()) {
+        std::vector<BaseType::TableColumn>& inputColumns = node->irData.inputColumns;
+        inputColumns[0] = node->children[0]->irData.outputCols[0];
+        inputColumns[1] = node->children[1]->irData.outputCols[0];
     }
 
     return node;
@@ -513,15 +530,8 @@ MaterializationData fillMaterializes(PlanNode* node, std::set<BaseType::TableCol
     std::map<BaseType::TableColumn, std::shared_ptr<PlanNode>> pMat; // previous materializations
     
     std::set<BaseType::Table> tablesBelow;
-    
-    // Top down add columns needed for this node to ``columnsToMaterializeOn``
-    // Here add columns that this node specifically needs
-    std::visit([&](auto& n) {
-        // Visit to peel of variant (peel irData) (compiler generates code for each possible content (n) of the variant)
-        // Get the type of n (determine with decltype, unwrap with decay_t) and check it's not monostate
-        if constexpr (!std::is_same_v<std::decay_t<decltype(n)>, std::monostate>)
-            columnsToMaterializeOn.insert(n.inputColumns.begin(), n.inputColumns.end());
-    }, node->irData);
+
+    columnsToMaterializeOn.insert(node->irData.inputColumns.begin(), node->irData.inputColumns.end());
 
     std::set<BaseType::Table> allTablesBelow;
 
@@ -538,48 +548,60 @@ MaterializationData fillMaterializes(PlanNode* node, std::set<BaseType::TableCol
         bool childIsPositionListNode;
         bool childIsFetchNode;
         
-        // Check if child outputs a position list
-        std::visit([&](auto child) {
-            using T = std::decay_t<decltype(child)>;
-            if constexpr (std::is_same_v<T, IR::FilterNode> ||
-                std::is_same_v<T, IR::JoinNode> ||
-                std::is_same_v<T, IR::GroupByNode> ||
-                std::is_same_v<T, IR::SortOrderNode> ||
-                std::is_same_v<T, IR::SetOperationNode>){
-                    filterCol = child.outputColumn;
-                    childIsPositionListNode = true;
-                }
-                else {
-                    childIsPositionListNode = false;
-                    if constexpr (std::is_same_v<T, IR::FetchNode>) {
-                        childIsFetchNode = true;
-                    }
-                    else {
-                        childIsFetchNode = false;
-                    }
-                }
+        // // Check if child outputs a position list
+        // std::visit([&](auto child) {
+        //     using T = std::decay_t<decltype(child)>;
+        //     if constexpr (std::is_same_v<T, IR::FilterNode> ||
+        //         std::is_same_v<T, IR::JoinNode> ||
+        //         std::is_same_v<T, IR::GroupByNode> ||
+        //         std::is_same_v<T, IR::SortOrderNode> ||
+        //         std::is_same_v<T, IR::SetOperationNode>){
+        //             filterCol = child.outputColumn;
+        //             childIsPositionListNode = true;
+        //         }
+        //         else {
+        //             childIsPositionListNode = false;
+        //             if constexpr (std::is_same_v<T, IR::FetchNode>) {
+        //                 childIsFetchNode = true;
+        //             }
+        //             else {
+        //                 childIsFetchNode = false;
+        //             }
+        //         }
                 
-            }, node->children[i]->irData);
-            
+        //     }, node->children[i]->irData);
+
+        if (node->children[i]->irData.is<JoinOp>()
+            || node->irData.is<FilterOp>()
+            || node->irData.is<GroupOp>()
+            || node->irData.is<SortOp>()
+            || node->irData.is<SetOp>()) {
+                filterCol = node->children[i]->irData.outputCols[0]; // except for Select/Result all nodes at the moment only have one output column
+                childIsPositionListNode = true;
+            }
+        else {
+            childIsPositionListNode = false;
+            if (node->children[i]->irData.is<FetchOp>()) {
+                childIsFetchNode = true;
+            }
+            else {
+                childIsFetchNode = false;            
+            }
+        }
         // Create a materialization or update fetch node
         if (childIsPositionListNode || childIsFetchNode) {
                       
             for (const auto& idxCol : columnsToMaterializeOn) {
                 
                 // Fetch columns this node needs
-                    std::set<BaseType::TableColumn> columnsThisNode;
-                    std::visit([&](auto& n) {
-                        if constexpr (!std::is_same_v<std::decay_t<decltype(n)>, std::monostate>)
-                            columnsThisNode = std::set<BaseType::TableColumn>(n.inputColumns.begin(), n.inputColumns.end());
-                    }, node->irData);
-                
+                std::set<BaseType::TableColumn> columnsThisNode(node->irData.inputColumns.begin(), node->irData.inputColumns.end());
                 
                 // If Fetch Node now add the name of the column this node needs
                 // Before the node only contained the name of the table (was TableBaseNode)
                 if (childIsFetchNode) {
-                    if (columnsThisNode.count(idxCol)) {
+                    if (columnsThisNode.contains(idxCol)) {
                         std::shared_ptr<PlanNode>fetchNode = std::make_shared<PlanNode>();
-                        fetchNode->irData = IR::FetchNode(idxCol, true);
+                        fetchNode->irData = FetchView::create(idxCol, true);
                         node->children[i] = fetchNode;
                     }
                     continue;
@@ -590,7 +612,7 @@ MaterializationData fillMaterializes(PlanNode* node, std::set<BaseType::TableCol
                                                             
                     // Materialization node
                     std::shared_ptr<PlanNode> matNode = std::make_shared<PlanNode>();
-                    matNode->irData = IR::MaterializeNode(idxCol, filterCol, idxCol);
+                    matNode->irData = MaterializeView::create(idxCol, filterCol, idxCol);
                     
                     // Left child is Source/Data (Materialization or Fetch)
                     if (auto& mat = pMat[idxCol]){
@@ -600,7 +622,7 @@ MaterializationData fillMaterializes(PlanNode* node, std::set<BaseType::TableCol
                     else {
                         // Create a Fetch Node
                         std::shared_ptr<PlanNode>fetchNode = std::make_shared<PlanNode>();
-                        fetchNode->irData = IR::FetchNode(idxCol);
+                        fetchNode->irData = FetchView::create(idxCol);
                         matNode->children.push_back(fetchNode);
                     }
                     
@@ -622,17 +644,34 @@ MaterializationData fillMaterializes(PlanNode* node, std::set<BaseType::TableCol
 
     }
 
+    // // The node is a leafnode (a table node)
+    // if (auto n = std::get_if<IR::FetchNode>(&node->irData)) {
+    //     if (n->wasTableBaseNode) {
+    //         for (BaseType::TableColumn col : columnsToMaterializeOn) {
+    //             std::string tableName = n->inputColumns[0].table.name;
+    //             std::string tableAlias = n->inputColumns[0].table.alias.value_or("");
+
+    //             if (col.table.name == tableName || (!tableAlias.empty() ? tableAlias == col.table.name : false)) {
+    //                 n->inputColumns.push_back(col);
+    //             }      
+    //         allTablesBelow.insert(n->column().table);
+    //         }
+    //     }
+    // }
+
     // The node is a leafnode (a table node)
-    if (auto* n = std::get_if<IR::FetchNode>(&node->irData)) {
-        if (n->wasTableBaseNode) {
+    if (auto fetchV = node->irData.get_view_if<FetchView>()) {
+        if (fetchV->wasTableBaseNode()) {
+            
+            // TODO: why are we having this loop here? Why a re we possibly inserting several?
             for (BaseType::TableColumn col : columnsToMaterializeOn) {
-                std::string tableName = n->inputColumns[0].table.name;
-                std::string tableAlias = n->inputColumns[0].table.alias.value_or("");
+                std::string tableName = fetchV->inputCol().table.name;
+                std::string tableAlias = fetchV->inputCol().table.alias.value_or("");
 
                 if (col.table.name == tableName || (!tableAlias.empty() ? tableAlias == col.table.name : false)) {
-                    n->inputColumns.push_back(col);
+                    node->irData.inputColumns.push_back(col);
                 }      
-            allTablesBelow.insert(n->column().table);
+            allTablesBelow.insert(fetchV->inputCol().table);
             }
         }
     }
@@ -647,68 +686,71 @@ void irToApiData(PlanNode* node) {
     static BaseType::TableColumn missingCol;
 
     // 1. Filter Node (checked)
-    if (auto* n = std::get_if<IR::FilterNode>(&node->irData)) {
+    if (auto filterV = node->irData.get_view_if<FilterView>()) {
         ItemBuilder::FilterNode filterStruct;
-        filterStruct.inputColumn = &n->inputColumns[0];
-        filterStruct.outputColumn = &n->outputColumn;
-        filterStruct.filterType = n->filterType;
-        filterStruct.filterArgVals = n->filterArgs;
+        filterStruct.inputColumn = &filterV->col1();
+        filterStruct.outputColumn = &filterV->outputCol();
+        filterStruct.filterType = filterV->filterType();
+        filterStruct.filterArgVals = filterV->filterArgs();
 
         node->apiData = filterStruct;
     }
 
     // 2. Join Node
-    else if (auto* n = std::get_if<IR::JoinNode>(&node->irData)) {
+    else if (auto joinV = node->irData.get_view_if<JoinView>()) {
         ItemBuilder::JoinNode joinStruct;
         
-        joinStruct.innerColumn = &n->inputColumns[0];
-        joinStruct.outerColumn = &n->inputColumns[1];
-        joinStruct.outputColumn = &n->outputColumn;
-        
-        // POINTER ISSUE: ItemBuilder expects CompType*, IR has CompType nue.
-        // We take the address of the nue stored in the variant.
-        joinStruct.joinPredicate = &n->joinPredicate; 
+        joinStruct.innerColumn = &joinV->inner();
+        joinStruct.outerColumn = &joinV->outer();
+        joinStruct.outputColumn = &joinV->output();
+        joinStruct.joinPredicate = &joinV->joinPredicate(); 
 
         node->apiData = joinStruct;
     }
 
     // 3. Base Table (checked)
-    else if (auto* n = std::get_if<IR::FetchNode>(&node->irData)) {
+    else if (auto fetchV = node->irData.get_view_if<FetchView>()) {
             ItemBuilder::FetchNode fetchStruct;
             
-            fetchStruct.inputColumn = &n->inputColumns[0];
+            fetchStruct.inputColumn = &fetchV->inputCol();
             fetchStruct.printToFile = false; // Defaulting to false
 
         node->apiData = fetchStruct;
     }
 
     // 4. Group By (MultiGroup)
-    else if (auto* n = std::get_if<IR::GroupByNode>(&node->irData)) {
+    else if (auto groupV = node->irData.get_view_if<GroupView>()) {
         ItemBuilder::MultiGroupNode groupStruct;
 
         // Convert values to pointers
-        for (auto& col : n->inputColumns) {
+        for (auto& col : groupV->groupingCols()) {
             groupStruct.groupColumns.push_back(&col);
         }
-
-        groupStruct.outputIdx = &n->outputColumn;
-
-        // MISSING INFO: The following are required by ItemBuilder but missing in IR::GroupByNode
-        groupStruct.outputCluster = &missingCol; 
-        groupStruct.aggColumn = &missingCol; 
-        groupStruct.aggResultColumn = &missingCol;
+        groupStruct.outputIdx = &groupV->outputIdx();
+        groupStruct.outputCluster = &groupV->outputCluster(); 
+        // TODO: how to set aggCol if not provided
+        if (auto& aggCol = groupV->aggCol()) {
+            if (auto& aggResultCol = groupV->aggResultCol()) {
+                groupStruct.aggColumn = &aggCol.value(); 
+                groupStruct.aggResultColumn = &aggResultCol.value();
+            }
+        }
+        else {
+            groupStruct.aggColumn = &missingCol;
+            groupStruct.aggResultColumn = &missingCol;
+        }
         groupStruct.storeExtends = false; 
-        // groupStruct.sortOrders = {}; // empty default
-
+        groupStruct.sortOrders = groupV->sortOrders();
+        
         node->apiData = groupStruct;
     }
 
     // 5. Aggregation
-    else if (auto* n = std::get_if<IR::AggNode>(&node->irData)) {
+    else if (auto aggV = node->irData.get_view_if<AggView>()) {
         ItemBuilder::AggNode aggStruct;
-        aggStruct.inputColumn = &n->inputColumns[0];
-        aggStruct.outputColumn = &n->outputColumn;
-        aggStruct.aggFunc = n->aggFunc;
+        aggStruct.inputColumn = &aggV->colToAgg();
+        aggStruct.outputColumn = &aggV->aggResultCol();
+        aggStruct.aggFunc = aggV->aggFunc();
         // groupColumns in IR::AggNode (vector<string>) matches ItemBuilder logic
         // If IR vector is empty, it assumes purely scalar agg or handled by MultiGroup
         aggStruct.groupColumns = {}; 
@@ -717,49 +759,46 @@ void irToApiData(PlanNode* node) {
     }
 
     // 6. Sort (checked())
-    else if (auto* n = std::get_if<IR::SortOrderNode>(&node->irData)) {
+    else if (auto sortV = node->irData.get_view_if<SortOrderView>()) {
         ItemBuilder::SortNode sortStruct;
 
-        for (auto& desc : n->columnList) {
+        for (auto& desc : sortV->orderDescriptions()) {
             sortStruct.inputColumns.push_back(&desc.column);
             sortStruct.sortOrders.push_back(desc.orderType); // assuming bool maps directly
         }
-
-        sortStruct.idxOutput = &n->outputColumn;
-        
-        // MISSING INFO: ItemBuilder asks for 'existingIdx' (pointer).
-        sortStruct.existingIdx = &n->columnList[0].column; //&missingCol;
+        sortStruct.idxOutput = &sortV->idxOutput();
+        sortStruct.existingIdx = sortV->existingIdx() ? &*sortV->existingIdx() : &missingCol;
 
         node->apiData = sortStruct;
     }
 
     // 7. Set Operation (checked())
-    else if (auto* n = std::get_if<IR::SetOperationNode>(&node->irData)) {
+    else if (auto setOpV = node->irData.get_view_if<SetOpView>()) {
         ItemBuilder::SetOperationNode setStruct;
-        setStruct.operation = n->operation;
+        setStruct.operation = setOpV->operation();
         
         // IR stores inputs in a vector, Builder wants explicit pointers
-        setStruct.innerColumn = (n->inputColumns.size() > 0) ? &n->inputColumns[0] : nullptr;
-        setStruct.outerColumn = (n->inputColumns.size() > 1) ? &n->inputColumns[1] : nullptr;
-        setStruct.outputColumn = &n->outputColumn;
+        setStruct.innerColumn = &setOpV->innerCol();
+        setStruct.outerColumn = &setOpV->outerCol();
+        setStruct.outputColumn = &setOpV->outputCol();
 
         node->apiData = setStruct;
     }
 
     // 8. Materialize (checked)
-    else if (auto* n = std::get_if<IR::MaterializeNode>(&node->irData)) {
+    else if (auto matV = node->irData.get_view_if<MaterializeView>()) {
         
         ItemBuilder::MaterializeNode matStruct;
 
-        matStruct.idxColumn = &n->inputColumns[0];
-        matStruct.filterColumn = &n->inputColumns[1];
-        matStruct.outputColumn = &n->inputColumns[0]; // Reuse input as output if not specified otherwise
+        matStruct.idxColumn = &matV->idxCol();
+        matStruct.filterColumn = &matV->filterCol();
+        matStruct.outputColumn = &matV->outputCol();
         
         node->apiData = matStruct;
     }
 
     // 9. Select (Result)
-    else if (auto* n = std::get_if<IR::SelectNode>(&node->irData)) {
+    else if (auto selectV = node->irData.get_view_if<SelectView>()) {
         ItemBuilder::ResultNode resultStruct;
 
         // MISSING INFO: Filename is not in IR.
@@ -767,11 +806,11 @@ void irToApiData(PlanNode* node) {
 
         // IR::SelectNode has 'outputColumn' (singular). 
         // Builder expects a vector of result columns.
-        resultStruct.resultColumns.push_back(&n->outputColumn);
-        resultStruct.resultHeaders.push_back(n->outputColumn.columnName);
-        
-        // MISSING INFO: resultIdx
-        resultStruct.resultIdx = &missingCol;
+        for (auto& col : selectV->resultCols()) {
+            resultStruct.resultColumns.push_back(&col);
+        }
+        resultStruct.resultHeaders = selectV->resultHeaders();
+        resultStruct.resultIdx = selectV->resultIdx().has_value() ? &selectV->resultIdx().value() : &missingCol;
 
         node->apiData = resultStruct;
     }

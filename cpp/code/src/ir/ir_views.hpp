@@ -1,81 +1,7 @@
 #pragma once
 
-#include <vector>
-#include <variant>
-#include <stdexcept>
-#include <optional>
-#include <type_traits>
-
-#include <ir/base_types.hpp>
-#include <ir/ir_base.hpp>
-struct GroupOp {
-    std::vector<bool> sortOrders;
-    std::optional<BaseType::TableColumn> aggCol;
-    std::optional<BaseType::TableColumn> aggResultCol;
-    bool storeExtends = true;
-};
-
-struct FetchOp {
-    bool wasTableBaseNode;
-};
-
-struct AggOp {
-    AggFunc aggFunc;
-};
-
-struct JoinOp {
-    BaseType::Join joinType;
-    CompType joinPredicate;
-    std::set<BaseType::Table> tablesBelow;
-};
-
-struct FilterOp {
-    CompType filterType;
-    std::vector<std::variant<uint64_t, float, std::string>> filterArgs;
-};
-
-struct SortOp {
-    std::vector<BaseType::OrderDescription> columnList;
-};
-
-// struct LimitOp currently not supported by system
-
-struct MapOp {
-    ArithOp operatorType;
-    std::variant<BaseType::TableColumn, uint64_t, float, std::string> partnerVal;
-};
-
-struct SetOp {
-    RelOp operation;
-};
-
-struct SelectOp {
-    bool star;
-    bool distinct;
-    std::optional<BaseType::TableColumn> resultIdx;
-    std::vector<std::string> resultHeaders;
-};
-
-struct MatOp {
-
-};
-
-// currently not supported by the system
-// struct BitmapOp {
-//     std::vector<bool> map;
-// };
-
-
-struct IrData {
-    std::vector<BaseType::TableColumn> inputColumns;
-    std::vector<BaseType::TableColumn> outputCols;
-
-    using OpInfo = std::variant<std::monostate, JoinOp, GroupOp, FetchOp, AggOp, FilterOp, SortOp, MapOp, SetOp, SelectOp, MatOp>;
-    OpInfo opInfo;
-
-    template<typename T> bool is() const { return std::holds_alternative<T>(opInfo);};
-    template<typename ViewT> std::optional<ViewT> get_view_if();
-};
+#include <ir/ir_types.hpp>
+#include <ir/plan_node.hpp>
 
 class JoinView {
     IrData& data;
@@ -91,11 +17,12 @@ public:
     static IrData create(const BaseType::TableColumn& inner, 
                          const BaseType::TableColumn& outer, 
                          const BaseType::TableColumn& out,
-                         JoinOp op = {}) {
+                         const BaseType::Join& joinType,
+                         const CompType& joinPredicate) {
         IrData irData;
         irData.inputColumns = {inner, outer};
         irData.outputCols = {out};
-        irData.opInfo = op;
+        irData.opInfo = JoinOp{joinType, joinPredicate};
         return irData;
     }
 
@@ -103,8 +30,8 @@ public:
     BaseType::TableColumn& inner() { return data.inputColumns[0]; }
     BaseType::TableColumn& outer() { return data.inputColumns[1]; }
     BaseType::TableColumn& output() { return data.outputCols[0]; }
-    
-    JoinOp& getDetails() { return op; }
+    BaseType::Join& joinType() { return op.joinType; }
+    CompType& joinPredicate() { return op.joinPredicate; }
 };
 
 class SelectView {
@@ -189,6 +116,8 @@ public:
     // Accessors
     BaseType::TableColumn& inputCol() { return data.inputColumns[0]; }
     BaseType::TableColumn& outputCol() { return data.outputCols[0]; }
+    bool& wasTableBaseNode() { return op.wasTableBaseNode; }
+
 
 };
 
@@ -212,6 +141,7 @@ public:
     ) {
         IrData irData;
         irData.inputColumns = {col1};
+        // TODO: should this be pushed as an input column??
         if(col2.has_value()){
             irData.inputColumns.push_back(col2.value());
         }
@@ -223,6 +153,7 @@ public:
     // Accessors
     BaseType::TableColumn& col1() { return data.inputColumns[0]; }
     BaseType::TableColumn* col2() { return data.inputColumns.size() > 1 ? &data.inputColumns[1] : nullptr; }
+    BaseType::TableColumn& outputCol() { return data.outputCols[0]; }
     CompType& filterType() { return op.filterType; }
     std::vector<std::variant<uint64_t, float, std::string>>& filterArgs() { return op.filterArgs; }
 
@@ -243,8 +174,12 @@ public:
     // Factory to create data (no aggregation)
     static IrData create(const std::vector<BaseType::TableColumn>& groupingCols, const BaseType::TableColumn& outputCol) {
         IrData irData;
-        irData.inputColumns = {groupingCols};
-        irData.outputCols = {outputCol};
+        irData.inputColumns = groupingCols;
+        BaseType::TableColumn outIdxExt = outputCol;
+        BaseType::TableColumn outCluster = outputCol;
+        outIdxExt.columnName += "_ext";
+        outCluster.columnName += "_clus";
+        irData.outputCols = {outputCol, outIdxExt, outCluster};
         std::vector<bool> sortOrders(groupingCols.size(), true);
         irData.opInfo = GroupOp{sortOrders};
         return irData;
@@ -254,7 +189,11 @@ public:
     static IrData create(const std::vector<BaseType::TableColumn>& groupingCols, const BaseType::TableColumn& outputCol, const BaseType::TableColumn& aggCol, const BaseType::TableColumn& aggResultCol) {
         IrData irData;
         irData.inputColumns = groupingCols;
-        irData.outputCols = {outputCol};
+        BaseType::TableColumn outIdxExt = outputCol;
+        BaseType::TableColumn outCluster = outputCol;
+        outIdxExt.columnName += "_ext";
+        outCluster.columnName += "_clus";
+        irData.outputCols = {outputCol, outIdxExt, outCluster};
         std::vector<bool> sortOrders(groupingCols.size(), true);
         irData.opInfo = GroupOp{sortOrders, aggCol, aggResultCol};
         return irData;
@@ -263,16 +202,8 @@ public:
     // Accessors
     std::vector<BaseType::TableColumn>& groupingCols() { return data.inputColumns; }
     BaseType::TableColumn& outputIdx() { return data.outputCols[0]; }
-    BaseType::TableColumn& outputIdxExt() {
-        BaseType::TableColumn outIdxExt = outputIdx();
-        outIdxExt.columnName += "_ext";
-        return outIdxExt;
-    }
-    BaseType::TableColumn& outputCluster() {     
-        BaseType::TableColumn outCluster = outputIdx();
-        outCluster.columnName += "_clus";
-        return outCluster;
-    }
+    BaseType::TableColumn& outputIdxExt() { return data.outputCols[1]; }
+    BaseType::TableColumn& outputCluster() { return data.outputCols[2]; }
     std::vector<bool>& sortOrders() { return op.sortOrders; }
     std::optional<BaseType::TableColumn>& aggCol() { return op.aggCol; }
     std::optional<BaseType::TableColumn>& aggResultCol() { return op.aggResultCol; }
@@ -291,18 +222,29 @@ public:
         : data(data), op(std::get<SortOp>(data.opInfo)) {}
 
     // Factory to create data
-    static IrData create(const std::vector<BaseType::OrderDescription>& orderDescriptions, const BaseType::TableColumn& idxOutput) {
+    static IrData create(const std::vector<BaseType::OrderDescription>& orderDescriptions, const BaseType::TableColumn& idxOutput, std::optional<BaseType::TableColumn> existingIdx = std::nullopt) {
         IrData irData;
 
-        irData.inputColumns = std::vector<BaseType::TableColumn>(orderDescriptions.size());
-        for (int i = 0; i < orderDescriptions.size(); ++i) {
-            irData.inputColumns[i] = orderDescriptions[i].column;
+        irData.inputColumns.reserve(orderDescriptions.size() + (existingIdx.has_value() ? 1 : 0));
+        
+        for (const auto& desc : orderDescriptions) {
+            irData.inputColumns.push_back(desc.column);
+        }
+        
+        if (existingIdx.has_value()) {
+            irData.inputColumns.push_back(existingIdx.value());
         }
 
         irData.outputCols = {idxOutput};
-        irData.opInfo = SortOp{orderDescriptions};
+        irData.opInfo = SortOp{orderDescriptions, existingIdx};
         return irData;
     }
+
+    // Accessors
+    std::vector<BaseType::OrderDescription>& orderDescriptions() { return op.columnList; }
+    BaseType::TableColumn& idxOutput() { return data.outputCols[0]; }
+    std::optional<BaseType::TableColumn>& existingIdx() { return op.existingIdx; }
+    
 };
 
 // class Limit - omitted !! (not supported by system)
@@ -333,9 +275,9 @@ public:
     }
 
     // Accessors
-    BaseType::TableColumn& inner() { return data.inputColumns[0]; }
-    BaseType::TableColumn& outer() { return data.inputColumns[1]; }
-    BaseType::TableColumn& output() { return data.outputCols[0]; }
+    BaseType::TableColumn& innerCol() { return data.inputColumns[0]; }
+    BaseType::TableColumn& outerCol() { return data.inputColumns[1]; }
+    BaseType::TableColumn& outputCol() { return data.outputCols[0]; }
     RelOp& operation() { return op.operation; }
     
 };
@@ -361,6 +303,8 @@ public:
     // Accessors
     BaseType::TableColumn& idxCol() { return data.inputColumns[0]; }
     BaseType::TableColumn& filterCol() { return data.inputColumns[1]; }
+    BaseType::TableColumn& outputCol() { return data.outputCols[0]; }
+
 };
 
 class MapView {
@@ -395,13 +339,3 @@ public:
     ArithOp& operatorType() { return op.operatorType; }
     std::variant<BaseType::TableColumn, uint64_t, float, std::string>& partnerVal() { return op.partnerVal; }  
 };
-
-
-template<typename ViewT>
-std::optional<ViewT> IrData::get_view_if() {
-    // Generic implementation: checks if the variant holds the OpType defined by the View
-    if (std::holds_alternative<typename ViewT::OpType>(opInfo)) {
-        return ViewT(*this);
-    }
-    return std::nullopt;
-}

@@ -9,7 +9,25 @@
 #include <jsoncpp/json/value.h> // Ensure you have this linked
 #include <ir/abstract_ir.hpp>
 #include <ir/ir_base.hpp>
+#include <ir/ir_types.hpp>
 #include <translation/item_builder.h>
+
+
+struct IrData {
+    std::vector<BaseType::TableColumn> inputColumns;
+    std::vector<BaseType::TableColumn> outputCols;
+
+    using OpInfo = std::variant<std::monostate, JoinOp, GroupOp, FetchOp, AggOp, FilterOp, SortOp, MapOp, SetOp, SelectOp, MatOp>;
+    OpInfo opInfo;
+
+    template<typename T> bool is() const { return std::holds_alternative<T>(opInfo);};
+    template<typename ViewT> std::optional<ViewT> get_view_if() {
+        if (std::holds_alternative<typename ViewT::OpType>(opInfo)) {
+            return ViewT(*this);
+        }
+        return std::nullopt;
+    }
+};
 
 class PlanNode {
 public:
@@ -21,29 +39,10 @@ public:
     AbstractData abstractData;
 
     // 3. State: IR Tree information
-    using IrData = std::variant<std::monostate,
-        IR::FetchNode,
-        IR::SelectNode,
-        IR::UpdateNode, // NYI
-        IR::InsertNode, // NYI
-        IR::DeleteNode, // NYI
-        IR::AggNode,
-        IR::JoinNode,
-        IR::FilterNode,
-        IR::GroupByNode,
-        IR::SortOrderNode,
-        IR::LimitNode,
-        IR::MapNode,
-        IR::SetOperationNode,
-        IR::ResultNode,
-        IR::MaterializeNode,
-        IR::PositionList,
-        IR::Bitmap
-    >;
     IrData irData;
 
 
-    // 3. State: API Item Tree information
+    // 4. State: API Item Tree information
     using ApiData = std::variant<std::monostate,
         ItemBuilder::FetchNode, // relates to Table
         ItemBuilder::FilterNode, // relates to Filter
@@ -64,38 +63,6 @@ public:
     // Constructors
     PlanNode() = default;
     explicit PlanNode(const Json::Value& queryPlan);
-
-    // IrData IrBaseNode getters
-    std::vector<BaseType::TableColumn>* getIrDataInputColumns() {
-        return std::visit([](auto& n) -> std::vector<BaseType::TableColumn>* {
-            if constexpr (requires { n.inputColumns; }) {
-                return &n.inputColumns;
-            } else {
-                return nullptr;
-            }
-        }, irData);
-    }
-
-    BaseType::TableColumn* getIrDataOutputColumn() {
-        return std::visit([](auto& n) -> BaseType::TableColumn* {
-            if constexpr (requires { n.outputColumn; }) {
-                return &n.outputColumn;
-            } else {
-                return nullptr;
-            }
-        }, irData);
-    }
-
-
-    std::vector<BaseType::TableColumn>* getIrDataInputColumnsC17() {
-        return std::visit([](auto& n) -> std::vector<BaseType::TableColumn>* {
-            if constexpr (!std::is_same_v<std::decay_t<decltype(n)>, std::monostate>) {
-                return &n.inputColumns;
-            } else {
-                return nullptr;
-            }
-        }, irData);
-    }
 
 private:
     // Parsing Helpers

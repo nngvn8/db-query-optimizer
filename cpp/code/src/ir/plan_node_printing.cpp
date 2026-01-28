@@ -3,6 +3,7 @@
 #include <iostream>
 #include <unordered_set>
 #include "plan_node.hpp"
+#include <ir/ir_views.hpp>
 
 // Forward declaration
 void printDebugSub(const PlanNode& planNode, std::unordered_set<const PlanNode*>& visited);
@@ -149,89 +150,100 @@ namespace {
         // Helper lambda to print inner variants (used in Filter/Map)
         auto printVal = [](const auto& val) { std::cout << val; };
 
-        if (const auto* n = std::get_if<IR::FetchNode>(&node.irData)) {
-            std::cout << "Fetch: " << n->column();
-            if (n->wasTableBaseNode) std::cout << " [TBN]";
-        }
-        else if (const auto* n = std::get_if<IR::SelectNode>(&node.irData)) {
-            std::cout << "Select " << (n->distinct ? "DISTINCT " : "") 
-                    << (n->star ? "*" : "") << n->column();
-        }
-        else if (const auto* n = std::get_if<IR::AggNode>(&node.irData)) {
-            // Use AggFunc_Name to print "AGG_SUM" instead of integer "1"
-            std::cout << "Agg " << AggFunc_Name(n->aggFunc) << "(" << n->column() << ")";
-        }
-        else if (const auto* n = std::get_if<IR::JoinNode>(&node.irData)) {
-            std::cout << "Join " << joinTypeToString(n->joinType) << " ON " 
-                    << n->leftTableColumn() << " " << CompType_Name(n->joinPredicate) 
-                    << " " << n->rightTableColumn();
-        }
-        else if (const auto* n = std::get_if<IR::FilterNode>(&node.irData)) {
-            std::cout << "Filter " << n->column1() << " " << CompType_Name(n->filterType) << " ";
+        // Helper to get non-const ref for views (views accessors are non-const but we only read)
+        IrData& mutableIr = const_cast<IrData&>(node.irData);
 
-            if (n->column2().has_value()) {
+        if (node.irData.is<FetchOp>()) {
+            FetchView view(mutableIr);
+            std::cout << "Fetch: " << view.inputCol();
+            if (view.wasTableBaseNode()) std::cout << " [TBN]";
+        }
+        else if (node.irData.is<SelectOp>()) {
+            SelectView view(mutableIr);
+            std::cout << "Select " << (view.distinct() ? "DISTINCT " : "") 
+                    << (view.star() ? "*" : "");
+            
+            for(const auto& col : view.resultCols()) {
+                std::cout << " " << col;
+            }
+        }
+        else if (node.irData.is<AggOp>()) {
+            AggView view(mutableIr);
+            // Use AggFunc_Name to print "AGG_SUM" instead of integer "1"
+            std::cout << "Agg " << AggFunc_Name(view.aggFunc()) << "(" << view.colToAgg() << ")";
+        }
+        else if (node.irData.is<JoinOp>()) {
+            JoinView view(mutableIr);
+            std::cout << "Join " << joinTypeToString(view.joinType()) << " ON " 
+                    << view.inner() << " " << CompType_Name(view.joinPredicate()) 
+                    << " " << view.outer();
+        }
+        else if (node.irData.is<FilterOp>()) {
+            FilterView view(mutableIr);
+            std::cout << "Filter " << view.col1() << " " << CompType_Name(view.filterType()) << " ";
+
+            if (view.col2() != nullptr) {
                 // Case 1: Column vs Column (e.g. colA = colB)
-                std::cout << n->column2().value();
+                std::cout << *view.col2();
             } 
-            else if (!n->filterArgs.empty()) {
+            else if (!view.filterArgs().empty()) {
                 // Case 2: BETWEEN (val1 AND val2)
-                if (n->filterType == CompType::COMP_BETWEEN && n->filterArgs.size() >= 2) {
-                    std::visit(printVal, n->filterArgs[0]);
+                if (view.filterType() == CompType::COMP_BETWEEN && view.filterArgs().size() >= 2) {
+                    std::visit(printVal, view.filterArgs()[0]);
                     std::cout << " AND ";
-                    std::visit(printVal, n->filterArgs[1]);
+                    std::visit(printVal, view.filterArgs()[1]);
                 }
                 // Case 3: IN (val1, val2, ...)
-                else if (n->filterType == CompType::COMP_IN) {
+                else if (view.filterType() == CompType::COMP_IN) {
                     std::cout << "(";
-                    for (size_t i = 0; i < n->filterArgs.size(); ++i) {
-                        std::visit(printVal, n->filterArgs[i]);
-                        if (i < n->filterArgs.size() - 1) std::cout << ", ";
+                    for (size_t i = 0; i < view.filterArgs().size(); ++i) {
+                        std::visit(printVal, view.filterArgs()[i]);
+                        if (i < view.filterArgs().size() - 1) std::cout << ", ";
                     }
                     std::cout << ")";
                 }
                 // Case 4: Standard Binary Op (val1)
                 else {
-                    std::visit(printVal, n->filterArgs[0]);
+                    std::visit(printVal, view.filterArgs()[0]);
                 }
             }
         }
-        else if (const auto* n = std::get_if<IR::GroupByNode>(&node.irData)) {
+        else if (node.irData.is<GroupOp>()) {
+            GroupView view(mutableIr);
             std::cout << "GroupBy (";
-            const auto& desc = n->description();
-            for (size_t i = 0; i < desc.size(); ++i) {
-                std::cout << desc[i] << (i < desc.size() - 1? " " : "");
+            const auto& cols = view.groupingCols();
+            for (size_t i = 0; i < cols.size(); ++i) {
+                std::cout << cols[i] << (i < cols.size() - 1? " " : "");
             }
             std::cout << ")";
+            if(view.aggCol().has_value()){
+                std::cout << " Agg: " << view.aggCol().value();
+            }
         }
-        else if (const auto* n = std::get_if<IR::SortOrderNode>(&node.irData)) {
+        else if (node.irData.is<SortOp>()) {
+            SortOrderView view(mutableIr);
             std::cout << "Sort (";
-            for (size_t i = 0; i < n->columnList.size(); ++i) {
-                std::cout << n->columnList[i].column << (i < n->columnList.size() - 1 ? " " : "");
+            const auto& descs = view.orderDescriptions();
+            for (size_t i = 0; i < descs.size(); ++i) {
+                std::cout << descs[i].column << (i < descs.size() - 1 ? " " : "");
             }
             std::cout << ")";
         }
-        else if (const auto* n = std::get_if<IR::MapNode>(&node.irData)) {
-            std::cout << "Map " << n->column() << " " << ArithOp_Name(n->operatorType) << " ";
-            std::visit(printVal, n->partnerVal);
+        else if (node.irData.is<MapOp>()) {
+            MapView view(mutableIr);
+            std::cout << "Map " << view.column() << " " << ArithOp_Name(view.operatorType()) << " ";
+            std::visit(printVal, view.partnerVal());
         }
-        else if (const auto* n = std::get_if<IR::LimitNode>(&node.irData)) {
-            std::cout << "Limit " << n->limit << " Offset " << n->offset;
+        else if (node.irData.is<SetOp>()) {
+            SetOpView view(mutableIr);
+            std::cout << "SetOp " << view.operation(); // Assuming RelOp is printable or needs conversion
         }
-        else if (const auto* n = std::get_if<IR::ResultNode>(&node.irData)) {
-            std::cout << "Result -> " << n->fileName;
-        }
-        // Handle specific statements (Removed unused 'n' variable to fix warnings)
-        else if (std::get_if<IR::UpdateNode>(&node.irData)) std::cout << "Update";
-        else if (std::get_if<IR::InsertNode>(&node.irData)) std::cout << "Insert";
-        else if (std::get_if<IR::DeleteNode>(&node.irData)) std::cout << "Delete";
-        
         // Handle Column Store nodes
-        else if (const auto* n = std::get_if<IR::MaterializeNode>(&node.irData)) {
+        else if (node.irData.is<MatOp>()) {
+            MaterializeView view(mutableIr);
             // Now works because we defined operator<< for TableColumn
-            std::cout << "Mat Idx: " << n->column() << " Filter: " << n->column2();
+            std::cout << "Mat Idx: " << view.idxCol() << " Filter: " << view.filterCol();
         }
-        else if (std::get_if<IR::PositionList>(&node.irData)) std::cout << "PosList";
-        else if (std::get_if<IR::Bitmap>(&node.irData)) std::cout << "Bitmap";
         else {
             std::cout << "[Empty/Unknown IR]";
         }
