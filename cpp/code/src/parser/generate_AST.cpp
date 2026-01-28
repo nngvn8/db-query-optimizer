@@ -291,6 +291,34 @@ void parseWhere(hsql::Expr* expr, std::queue<hsql::Expr*> &q){
     q.push(curr);
 }
 
+bool isTableInRef(hsql::TableRef* table, const std::string& tableName) {
+    if (!table) return false;
+
+    // 1. Base Table: Check Name and Alias
+    if (table->type == hsql::kTableName) {
+        std::string tName = table->name ? table->name : "";
+        std::string tAlias = std::string(table->alias->name).empty() ? table->alias->name : "";
+        return tName == tableName || tAlias == tableName;
+    }
+    
+    // 2. Join: Check Left and Right recursively
+    if (table->type == hsql::kTableJoin) {
+        return isTableInRef(table->join->left, tableName) || 
+               isTableInRef(table->join->right, tableName);
+    }
+    
+    // 3. Cross Product: Check list
+    if (table->type == hsql::kTableCrossProduct) {
+        if (table->list) {
+            for (auto* t : *table->list) {
+                if (isTableInRef(t, tableName)) return true;
+            }
+        }
+    }
+    
+    return false;
+}
+
 ASTNode* exploreTable(hsql::TableRef* table){
     if(!table->join){
         return makeTableNode(table);
@@ -298,7 +326,18 @@ ASTNode* exploreTable(hsql::TableRef* table){
     
     ASTNode* newRoot = makeTableNode(table); 
     newRoot->left = exploreTable(table->join->left);
-    newRoot->right = exploreTable(table->join->right);                      
+    newRoot->right = exploreTable(table->join->right);
+    
+    // Ensure that left children also contains left join column
+    if (auto joinNode = std::get_if<TableJoinNode>(&newRoot->val)) {     
+        // Check if children correctly assigned
+        if (!isTableInRef(table->join->left, joinNode->onLeftTable)) {
+            // Swap Tables
+            std::swap(joinNode->onLeftTable, joinNode->onRightTable);
+            // Swap Columns
+            std::swap(joinNode->onLeftTableColumn, joinNode->onRightTableColumn);
+        }
+    }
     
     return newRoot;
 }

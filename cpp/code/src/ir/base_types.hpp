@@ -50,6 +50,11 @@ namespace BaseType {
             // 4. Compare isVirtual (bool comparison: false < true)
             return isVirtual < other.isVirtual;
         }
+
+        bool operator==(const Table& other) const {
+            return name == other.name;
+        }
+
     };
 
     // Table column with table name, column name and datatype
@@ -83,6 +88,10 @@ namespace BaseType {
             }
             // 3. If both are same, compare Alias (optional, depending on your logic)
             return alias < other.alias;
+        }
+
+        bool operator==(const TableColumn& other) const {
+            return table == other.table && columnName == other.columnName;
         }
     };
 

@@ -8,8 +8,6 @@
 #include <ir/ir_types.hpp>
 #include <ir/ir_views.hpp>
 
-// #include <WorkItem.pb.h>
-
 namespace {
     const std::unordered_set<std::string> HASH = {"Hash"};
     const std::unordered_set<std::string> GATHER = {"Gather", "Gather Merge"};
@@ -410,13 +408,6 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
             filterArgs.push_back(parseValueByType(e->value, colType));
         }
 
-        // node->irData = IR::FilterNode(
-        //     inputCol,
-        //     opType,
-        //     col2,
-        //     filterArgs,
-        //     inputCol
-        // );
         node->irData = FilterView::create(
             inputCol,
             opType,
@@ -451,7 +442,6 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
     // 5. Group By
     else if (auto e = std::get_if<GroupByClauseNode>(&ast->val)) {
         std::vector<BaseType::TableColumn> groups;
-        // std::string groupingColString = "GROUP_";
         std::stringstream ss;
         ss << "GROUP_";
         int i = 0;
@@ -459,15 +449,11 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
             ColumnType type = Catalog::getSSBColumnType(desc.table, desc.column);
             groups.emplace_back(desc.table, desc.column, type);
             
-            // groupingColString += (desc.table.empty() ? "" : desc.table[0] + ".") + desc.column + (i < e->description.size() - 1 ? "_" : "");
-            char tablePrefix = desc.table.empty() ? '?' : desc.table[0];
-    
+            // Extend grouping string
+            char tablePrefix = desc.table.empty() ? '?' : desc.table[0];    
             ss << tablePrefix << "." << desc.column;
-    
-            // Add underscore only if it's not the last element
-            if (i < e->description.size() - 1) {
-                ss << "_";
-            }
+            if (i < e->description.size() - 1) ss << "_";
+
             i++;
         }
         std::string groupingColString = ss.str();
@@ -533,7 +519,49 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
 
     return node;
 }
+namespace {
 
+    int detFilterColIdx(const BaseType::TableColumn& idxCol, const std::shared_ptr<PlanNode>& node) {
+        
+        // Is not join
+        if (!node->irData.is<JoinOp>())
+            return 0;
+
+        // Is join and has column as output
+        if (node->irData.outputCols[0] == idxCol)
+            return 0;
+        else if (node->irData.outputCols[1] == idxCol)
+            return 1;
+
+        // BFS for usage of table that our column is based on
+        int idx; // to determine innerCol or outerCol - is inherited downwards
+        std::shared_ptr<PlanNode> cur_node;
+        std::deque<std::pair<int, const std::shared_ptr<PlanNode>&>> bfsQueue;
+        
+        
+        bfsQueue.push_back(std::pair<int, const std::shared_ptr<PlanNode>&>(0, node->children[0]));
+        bfsQueue.push_back(std::pair<int, const std::shared_ptr<PlanNode>&>(1, node->children[1]));
+
+        while (!bfsQueue.empty()) {
+            idx = bfsQueue.front().first;
+            cur_node = bfsQueue.front().second;
+            bfsQueue.pop_front();
+
+            // Need to find the the table of our column further down the tree
+            for (const auto& outCol : cur_node->irData.outputCols) {
+                if (outCol.table.name == idxCol.table.name) {
+                    return idx;
+                }            
+            }
+
+            // bfs
+            for (const auto& child : cur_node->children) {
+                bfsQueue.push_back(std::pair<int, const std::shared_ptr<PlanNode>&>(idx, child));
+            }
+        }
+    }
+
+}
 // Puts Materializes everywhere and also populates the columns to fetch in TableBaseNode
 MaterializationData fillMaterializes(PlanNode* node, std::set<BaseType::TableColumn> columnsToMaterializeOn, const std::set<BaseType::TableColumn>& inputOfParent) {
     if (!node) return MaterializationData();
@@ -568,7 +596,6 @@ MaterializationData fillMaterializes(PlanNode* node, std::set<BaseType::TableCol
             || node->children[i]->irData.is<GroupOp>()
             || node->children[i]->irData.is<SortOp>()
             || node->children[i]->irData.is<SetOp>()) {
-                filterCol = node->children[i]->irData.outputCols[0]; // except for Select/Result all nodes at the moment only have one output column
                 childIsPositionListNode = true;
             }
         
@@ -579,6 +606,9 @@ MaterializationData fillMaterializes(PlanNode* node, std::set<BaseType::TableCol
 
                 // Add a materialization to the materialization node if table below
                 if (tablesBelowChild.contains(BaseType::Table(idxCol.table.name))) {
+
+                    int idx = detFilterColIdx(idxCol, node->children[i]);
+                    filterCol = node->children[i]->irData.outputCols[idx]; // except for Select/Result all nodes at the moment only have one output column
                                                             
                     // Create materialization node
                     std::shared_ptr<PlanNode> matNode = std::make_shared<PlanNode>();
@@ -646,7 +676,6 @@ MaterializationData fillMaterializes(PlanNode* node, std::set<BaseType::TableCol
 
 }
 
-
 void irToApiData(PlanNode* node) {
     if (!node) return;
 
@@ -695,7 +724,6 @@ void irToApiData(PlanNode* node) {
         }
         groupStruct.outputIdx = &groupV->outputIdx();
         groupStruct.outputCluster = &groupV->outputCluster(); 
-        // TODO: how to set aggCol if not provided
         if (auto& aggCol = groupV->aggCol()) {
             if (auto& aggResultCol = groupV->aggResultCol()) {
                 groupStruct.aggColumn = &aggCol.value(); 
@@ -718,8 +746,7 @@ void irToApiData(PlanNode* node) {
         aggStruct.inputColumn = &aggV->colToAgg();
         aggStruct.outputColumn = &aggV->aggResultCol();
         aggStruct.aggFunc = aggV->aggFunc();
-        // groupColumns in IR::AggNode (vector<string>) matches ItemBuilder logic
-        // If IR vector is empty, it assumes purely scalar agg or handled by MultiGroup
+        // TODO: How to set group columns?
         aggStruct.groupColumns = {}; 
 
         node->apiData = aggStruct;
@@ -739,7 +766,7 @@ void irToApiData(PlanNode* node) {
         node->apiData = sortStruct;
     }
 
-    // 7. Set Operation (checked())
+    // 7. Set Operation
     else if (auto setOpV = node->irData.get_view_if<SetOpView>()) {
         ItemBuilder::SetOperationNode setStruct;
         setStruct.operation = setOpV->operation();
@@ -752,7 +779,7 @@ void irToApiData(PlanNode* node) {
         node->apiData = setStruct;
     }
 
-    // 8. Materialize (checked)
+    // 8. Materialize
     else if (auto matV = node->irData.get_view_if<MaterializeView>()) {
         
         ItemBuilder::MaterializeNode matStruct;
@@ -764,15 +791,13 @@ void irToApiData(PlanNode* node) {
         node->apiData = matStruct;
     }
 
-    // 9. Select (Result)
+    // 9. Select
     else if (auto selectV = node->irData.get_view_if<SelectView>()) {
         ItemBuilder::ResultNode resultStruct;
 
         // MISSING INFO: Filename is not in IR.
         resultStruct.filename = "result.csv"; 
 
-        // IR::SelectNode has 'outputColumn' (singular). 
-        // Builder expects a vector of result columns.
         for (auto& col : selectV->resultCols()) {
             resultStruct.resultColumns.push_back(&col);
         }

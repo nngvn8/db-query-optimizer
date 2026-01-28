@@ -2,6 +2,19 @@
 #include "optimizer_one.h"
 #include <iostream>
 #include <vector>
+#include <algorithm>
+#include <variant>
+
+bool isTableInAST(ASTNode* node, const std::string& tableName) {
+    if (!node) return false;
+    if (auto t = std::get_if<TableBaseNode>(&node->val)) {
+        return t->tableName == tableName;
+    }
+    if (auto j = std::get_if<TableJoinNode>(&node->val)) {
+        return isTableInAST(node->left, tableName) || isTableInAST(node->right, tableName);
+    }
+    return false;
+}
 
 void extractPredicate(ASTNode*& root, std::vector<ASTNode*>& predicate, std::vector<ASTNode*>& joinCond) {
     if (root == nullptr) return;
@@ -55,10 +68,20 @@ ASTNode* buildJoin(std::vector<ASTNode*> joinCond) {
     
     for (int i = 1; i < joinCond.size(); i++) {
         auto e = std::get_if<WhereClauseNode>(&joinCond[i]->val);
-        ASTNode* newJoin = new ASTNode(TableJoinNode("JOININNER", (*e).table, (*e).column, (*e).table2, (*e).column2));
+        
+        std::string t1 = (*e).table;
+        std::string c1 = (*e).column;
+        std::string t2 = (*e).table2;
+        std::string c2 = (*e).column2;
+
+        if (isTableInAST(curr, t2)) {
+            std::swap(t1, t2);
+            std::swap(c1, c2);
+        }
+        ASTNode* newJoin = new ASTNode(TableJoinNode("JOININNER", t1, c1, t2, c2));
         
         newJoin->left = curr;
-        newJoin->right = new ASTNode(TableBaseNode((*e).table2));
+        newJoin->right = new ASTNode(TableBaseNode(t2));
         
         curr = newJoin;
     }
