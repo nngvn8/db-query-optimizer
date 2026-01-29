@@ -29,7 +29,7 @@ public:
     // Accessors
     BaseType::TableColumn& inner() { return data.inputColumns[0]; }
     BaseType::TableColumn& outer() { return data.inputColumns[1]; }
-    BaseType::TableColumn& output() { return data.outputCols[0]; }
+    BaseType::TableColumn& output() { return op.outputCol; }
     BaseType::Join& joinType() { return op.joinType; }
     CompType& joinPredicate() { return op.joinPredicate; }
 };

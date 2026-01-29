@@ -6,6 +6,7 @@
 #include <translation/item_builder.h>
 #include <sequentializer/sequentializer.hpp>
 #include <ir/plan_node_to_dot.hpp>
+#include <util/unique_col_names.hpp>
 
 
 using namespace std;
@@ -46,9 +47,15 @@ int main() {
     printPlanTree(*ir_root, 2);
     // std::cout<<"\n\n";
 
+    // Rename columns
+    uniqueColNames(ir_root.get());
+    generatePlanDotFile(*ir_root, "ir_plan_mat_num.dot", DotContentType::IR_DATA);
+    printPlanTree(*ir_root, 2);
+    // std::cout<<"\n\n";
+
     // Map to Api (Physical) Data
     irToApiData(ir_root.get());
-    generatePlanDotFile(*ir_root, "api_plan.dot", DotContentType::IR_DATA);
+    generatePlanDotFile(*ir_root, "api_plan.dot", DotContentType::API_DATA);
     printPlanTree(*ir_root, 3);
 
     // Sequentialize 
