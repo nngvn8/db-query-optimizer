@@ -8,7 +8,7 @@
 #include <type_traits>
 
 #include <ir/base_types.hpp>
-#include <ir/ir_base.hpp>
+
 
 struct GroupOp {
     std::vector<bool> sortOrders;

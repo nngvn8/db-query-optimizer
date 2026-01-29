@@ -7,7 +7,7 @@ python/generated
 **/*.o
 **/*.d
 **/runner
-cpp/code/src/build/
+cpp/code/src/build
 *.png
 *.dot
 

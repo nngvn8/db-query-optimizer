@@ -8,7 +8,6 @@
 #include <variant>
 #include <jsoncpp/json/value.h> // Ensure you have this linked
 #include <ir/abstract_ir.hpp>
-#include <ir/ir_base.hpp>
 #include <ir/ir_types.hpp>
 #include <translation/item_builder.h>
 
