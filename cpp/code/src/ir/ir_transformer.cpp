@@ -676,8 +676,8 @@ MaterializationData fillMaterializes(PlanNode* node, std::set<BaseType::TableCol
 
 }
 
-void irToApiData(PlanNode* node) {
-    if (!node) return;
+void irToApiDataSub(PlanNode* node, std::set<const PlanNode*>& visited) {
+    if (!node || visited.contains(node)) return;
 
     static BaseType::TableColumn missingCol;
 
@@ -708,7 +708,7 @@ void irToApiData(PlanNode* node) {
     else if (auto fetchV = node->irData.get_view_if<FetchView>()) {
             ItemBuilder::FetchNode fetchStruct;
             
-            fetchStruct.inputColumn = &fetchV->inputCol();
+            fetchStruct.inputColumn = &fetchV->outputCol();
             fetchStruct.printToFile = false; // Defaulting to false
 
         node->apiData = fetchStruct;
@@ -810,4 +810,9 @@ void irToApiData(PlanNode* node) {
     for (const auto& child : node->children){
         irToApiData(child.get());
     }
+}
+
+void irToApiData(PlanNode* node) {
+    std::set<const PlanNode*> visited;
+    irToApiDataSub(node, visited);
 }

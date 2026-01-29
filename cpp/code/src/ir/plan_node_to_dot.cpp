@@ -63,13 +63,13 @@ namespace {
     std::string getIrLabel(const PlanNode& node) {
         std::stringstream ss;
 
-        // Input Columns
-        if (!node.irData.inputColumns.empty()) {
-             ss << "Input: ";
-             for(size_t i=0; i<node.irData.inputColumns.size(); ++i) {
-                ss << node.irData.inputColumns[i] << (i < node.irData.inputColumns.size() - 1 ? ", " : "");
-             }
-             ss << "\n----------------\n";
+        // Output Columns
+        if (!node.irData.outputCols.empty()) {
+            ss << "Output: ";
+            for(size_t i=0; i<node.irData.outputCols.size(); ++i) {
+                ss << node.irData.outputCols[i] << (i < node.irData.outputCols.size() - 1 ? ", " : "");
+            }
+            ss << "\n----------------\n";
         }
         
         // Visitor for variant values (used in Filter/Map)
@@ -166,12 +166,12 @@ namespace {
             ss << "[Empty/Unknown IR]";
         }
 
-        // Output Columns
-        if (!node.irData.outputCols.empty()) {
-             ss << "\n----------------\n";
-             ss << "Output: ";
-             for(size_t i=0; i<node.irData.outputCols.size(); ++i) {
-                ss << node.irData.outputCols[i] << (i < node.irData.outputCols.size() - 1 ? ", " : "");
+        // Input Columns
+        if (!node.irData.inputColumns.empty()) {
+            ss << "\n----------------\n";
+             ss << "Input: ";
+             for(size_t i=0; i<node.irData.inputColumns.size(); ++i) {
+                ss << node.irData.inputColumns[i] << (i < node.irData.inputColumns.size() - 1 ? ", " : "");
              }
         }
 
@@ -181,6 +181,16 @@ namespace {
     // --- API Label Generation ---
     std::string getApiLabel(const PlanNode& node) {
         std::stringstream ss;
+
+         // Output Columns
+        if (!node.irData.outputCols.empty()) {
+            ss << "Output: ";
+            for(size_t i=0; i<node.irData.outputCols.size(); ++i) {
+                ss << node.irData.outputCols[i] << (i < node.irData.outputCols.size() - 1 ? ", " : "");
+            }
+            ss << "\n----------------\n";
+        }
+
         auto streamVal = [&](const auto& val) { ss << val; };
 
         std::visit([&](auto&& data) {
@@ -253,6 +263,16 @@ namespace {
                 ss << "API Result\n-> " << data.filename;
             }
         }, node.apiData);
+
+
+        // Input Columns
+        if (!node.irData.inputColumns.empty()) {
+            ss << "\n----------------\n";
+             ss << "Input: ";
+             for(size_t i=0; i<node.irData.inputColumns.size(); ++i) {
+                ss << node.irData.inputColumns[i] << (i < node.irData.inputColumns.size() - 1 ? ", " : "");
+             }
+        }
 
         return escapeLabel(ss.str());
     }
