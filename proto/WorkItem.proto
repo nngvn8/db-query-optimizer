@@ -184,14 +184,15 @@ message WorkItem {
   oneof opData {
     FilterItem filterData = 6;
     JoinItem joinData = 7;
-    AggItem aggData = 8;
-    SortItem sortData = 9;
-    MapItem mapData = 10;
-    MaterializeItem materializeData = 11;
-    SetOperationItem setData = 12;
-    FetchItem fetchData = 13;
-    MultiGroupItem multiGroupData = 14;
-    ResultItem resultData = 15;
+    SemiJoinItem semiJoinData = 8;
+    AggItem aggData = 9;
+    SortItem sortData = 10;
+    MapItem mapData = 11;
+    MaterializeItem materializeData = 12;
+    SetOperationItem setData = 13;
+    FetchItem fetchData = 14;
+    MultiGroupItem multiGroupData = 15;
+    ResultItem resultData = 16;
   }
-  repeated uint32 dependsOn = 16;
+  repeated uint32 dependsOn = 17;
 }
