@@ -16,7 +16,7 @@ struct IrData {
     std::vector<BaseType::TableColumn> inputColumns;
     std::vector<BaseType::TableColumn> outputCols;
 
-    using OpInfo = std::variant<std::monostate, JoinOp, GroupOp, FetchOp, AggOp, FilterOp, SortOp, MapOp, SetOp, SelectOp, MatOp>;
+    using OpInfo = std::variant<std::monostate, JoinOp, SemiJoinOp, GroupOp, FetchOp, AggOp, FilterOp, SortOp, MapOp, SetOp, SelectOp, MatOp>;
     OpInfo opInfo;
 
     template<typename T> bool is() const { return std::holds_alternative<T>(opInfo);};
@@ -46,6 +46,7 @@ public:
         ItemBuilder::FetchNode, // relates to Table
         ItemBuilder::FilterNode, // relates to Filter
         ItemBuilder::JoinNode, // relates to Join
+        ItemBuilder::SemiJoinNode, // relates to SemiJoin
         ItemBuilder::MapNode, // currently missing in IrData
         ItemBuilder::MaterializeNode, // currently missing in IrData
         ItemBuilder::MultiGroupNode, // relates to Group
@@ -56,7 +57,7 @@ public:
     >;
     ApiData apiData;
 
-    // 4. Tree Structure
+    // Tree Structure
     std::vector<std::shared_ptr<PlanNode>> children {};
 
     // Constructors

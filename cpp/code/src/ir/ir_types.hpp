@@ -30,7 +30,12 @@ struct JoinOp {
     BaseType::Join joinType; // currently not processed by the system
     CompType joinPredicate;
     BaseType::TableColumn outputCol;
-    // std::set<BaseType::Table> tablesBelow; // TODO remove
+};
+
+struct SemiJoinOp {
+    BaseType::Join joinType; // currently not processed by the system
+    CompType joinPredicate;
+    BaseType::TableColumn outputCol;
 };
 
 struct FilterOp {

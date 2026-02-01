@@ -118,6 +118,14 @@ message JoinItem {
   optional CompType joinPredicate = 9;
 }
 
+message SemiJoinItem {
+  optional ColumnMessage innerColumn = 1;
+  optional ColumnMessage outerColumn = 2;
+  optional ColumnMessage iOutputColumn = 3;
+  optional ColumnMessage oOutputColumn = 4;
+  optional CompType joinPredicate = 9;
+}
+
 message AggItem {
   optional ColumnMessage inputColumn = 1;
   optional ColumnMessage outputColumn = 2;

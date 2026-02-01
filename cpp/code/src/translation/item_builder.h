@@ -33,6 +33,14 @@ class ItemBuilder {
             CompType* joinPredicate;
         };
 
+        struct SemiJoinNode {
+            BaseType::TableColumn* innerColumn;
+            BaseType::TableColumn* outerColumn;
+            BaseType::TableColumn* iOutputColumn;
+            BaseType::TableColumn* oOutputColumn;
+            CompType* joinPredicate;
+        };
+
         struct MapNode {
             BaseType::TableColumn* inputColumn;
             BaseType::TableColumn* outputColumn;

@@ -36,6 +36,39 @@ public:
     CompType& joinPredicate() { return op.joinPredicate; }
 };
 
+class SemiJoinView {
+    IrData& data;
+    JoinOp& op;
+
+public:
+    using OpType = SemiJoinOp;
+
+    explicit SemiJoinView(IrData& data) 
+        : data(data), op(std::get<JoinOp>(data.opInfo)) {}
+
+    // Factory to create data
+    static IrData create(const BaseType::TableColumn& inner, 
+                         const BaseType::TableColumn& outer, 
+                         const BaseType::TableColumn& out,
+                         const BaseType::Join& joinType,
+                         const CompType& joinPredicate) {
+        IrData irData;
+        irData.inputColumns = {inner, outer};
+        irData.outputCols = {inner, outer};
+        irData.opInfo = JoinOp{joinType, joinPredicate, out};
+        return irData;
+    }
+
+    // Accessors
+    BaseType::TableColumn& inner() { return data.inputColumns[0]; }
+    BaseType::TableColumn& outer() { return data.inputColumns[1]; }
+    BaseType::TableColumn& innerOut() { return data.outputCols[0]; }
+    BaseType::TableColumn& outerOut() { return data.outputCols[1]; }
+    BaseType::TableColumn& output() { return op.outputCol; }
+    BaseType::Join& joinType() { return op.joinType; }
+    CompType& joinPredicate() { return op.joinPredicate; }
+};
+
 class SelectView {
     IrData& data;
     SelectOp& op;
