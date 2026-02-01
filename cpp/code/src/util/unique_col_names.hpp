@@ -54,6 +54,14 @@ public:
             return nodeOutputRegistry[node];
         }
 
+        // Don't assign integers to FetchNodes as going to be deleted in IrData
+        if (node->irData.is<FetchOp>()) {
+            std::map<std::string, std::string> fetchRename;
+            std::string fetchColName(getRawKey(node->irData.inputColumns[0]));
+            fetchRename[fetchColName] = fetchColName;
+            return fetchRename;
+        }
+
         // Collect inputs from children preserving order
         // Map: "d_year" -> ["d_year_0", "d_year_1"]
         std::map<std::string, std::deque<std::string>> inputCandidates;

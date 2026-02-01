@@ -3,6 +3,7 @@
 #include <memory>
 #include <unordered_set>
 #include <regex>
+#include <algorithm>
 
 #include <ir/catalog.hpp>
 #include <ir/ir_types.hpp>
@@ -681,7 +682,7 @@ void irToApiDataSub(PlanNode* node, std::set<const PlanNode*>& visited) {
 
     static BaseType::TableColumn missingCol;
 
-    // 1. Filter Node (checked)
+    // Filter Node
     if (auto filterV = node->irData.get_view_if<FilterView>()) {
         ItemBuilder::FilterNode filterStruct;
         filterStruct.inputColumn = &filterV->col1();
@@ -692,7 +693,7 @@ void irToApiDataSub(PlanNode* node, std::set<const PlanNode*>& visited) {
         node->apiData = filterStruct;
     }
 
-    // 2. Join Node
+    // Join Node
     else if (auto joinV = node->irData.get_view_if<JoinView>()) {
         ItemBuilder::JoinNode joinStruct;
         
@@ -704,17 +705,7 @@ void irToApiDataSub(PlanNode* node, std::set<const PlanNode*>& visited) {
         node->apiData = joinStruct;
     }
 
-    // 3. Base Table (checked)
-    else if (auto fetchV = node->irData.get_view_if<FetchView>()) {
-            ItemBuilder::FetchNode fetchStruct;
-            
-            fetchStruct.inputColumn = &fetchV->outputCol();
-            fetchStruct.printToFile = false; // Defaulting to false
-
-        node->apiData = fetchStruct;
-    }
-
-    // 4. Group By (MultiGroup)
+    // Group
     else if (auto groupV = node->irData.get_view_if<GroupView>()) {
         ItemBuilder::MultiGroupNode groupStruct;
 
@@ -740,7 +731,7 @@ void irToApiDataSub(PlanNode* node, std::set<const PlanNode*>& visited) {
         node->apiData = groupStruct;
     }
 
-    // 5. Aggregation
+    // Aggregation
     else if (auto aggV = node->irData.get_view_if<AggView>()) {
         ItemBuilder::AggNode aggStruct;
         aggStruct.inputColumn = &aggV->colToAgg();
@@ -752,7 +743,7 @@ void irToApiDataSub(PlanNode* node, std::set<const PlanNode*>& visited) {
         node->apiData = aggStruct;
     }
 
-    // 6. Sort (checked())
+    // Sort
     else if (auto sortV = node->irData.get_view_if<SortOrderView>()) {
         ItemBuilder::SortNode sortStruct;
 
@@ -766,7 +757,7 @@ void irToApiDataSub(PlanNode* node, std::set<const PlanNode*>& visited) {
         node->apiData = sortStruct;
     }
 
-    // 7. Set Operation
+    // Set Operation
     else if (auto setOpV = node->irData.get_view_if<SetOpView>()) {
         ItemBuilder::SetOperationNode setStruct;
         setStruct.operation = setOpV->operation();
@@ -779,7 +770,7 @@ void irToApiDataSub(PlanNode* node, std::set<const PlanNode*>& visited) {
         node->apiData = setStruct;
     }
 
-    // 8. Materialize
+    // Materialize
     else if (auto matV = node->irData.get_view_if<MaterializeView>()) {
         
         ItemBuilder::MaterializeNode matStruct;
@@ -791,7 +782,7 @@ void irToApiDataSub(PlanNode* node, std::set<const PlanNode*>& visited) {
         node->apiData = matStruct;
     }
 
-    // 9. Select
+    // Select
     else if (auto selectV = node->irData.get_view_if<SelectView>()) {
         ItemBuilder::ResultNode resultStruct;
 
@@ -806,6 +797,13 @@ void irToApiDataSub(PlanNode* node, std::set<const PlanNode*>& visited) {
 
         node->apiData = resultStruct;
     }
+
+    // Erase FetchNodes
+    node->children.erase(std::remove_if(node->children.begin(), node->children.end(),
+                                        [](const std::shared_ptr<PlanNode>& child) {
+                                            return child->irData.is<FetchOp>();
+                                        }),
+                         node->children.end());
 
     for (const auto& child : node->children){
         irToApiData(child.get());
