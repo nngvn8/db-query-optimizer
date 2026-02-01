@@ -224,7 +224,8 @@ namespace {
             else if constexpr (std::is_same_v<T, ItemBuilder::JoinNode>) {
                 ss << "API Join\nInner: " << data.innerColumn << "\n";
                 ss << "Outer: " << data.outerColumn << "\n";
-                ss << "Out: " << data.outputColumn;
+                ss << "iOut: " << data.iOutputColumn << "\n";
+                ss << "oOut: " << data.oOutputColumn;
             }
             else if constexpr (std::is_same_v<T, ItemBuilder::MapNode>) {
                 ss << "API Map\n";
@@ -239,7 +240,8 @@ namespace {
                     ss << data.groupColumns[i];
                     if (i < data.groupColumns.size() - 1) ss << ", ";
                 }
-                ss << ")\nAgg: " << data.aggColumn;
+                ss << ")\nAgg: " << data.aggColumn << "\n";
+                ss << "SrtIdx: " << data.outputSortIndex;
             }
             else if constexpr (std::is_same_v<T, ItemBuilder::SetOperationNode>) {
                 ss << "API SetOp [" << (int)data.operation << "]";

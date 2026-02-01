@@ -102,17 +102,19 @@ message FilterItem {
 message MultiGroupItem {
   repeated ColumnMessage groupColumns = 1; // The columns are expected to be in the correct order
   optional ColumnMessage outputIndex = 2;
-  optional ColumnMessage outputClusters = 3;
-  optional ColumnMessage aggregationColumn = 4; // If we should do a SUM-aggregation with these clusters
-  optional ColumnMessage aggregationResultColumn = 5; 
-  optional bool storeExtends = 6 [default = false];
-  repeated bool sortOrders = 7; // true == Ascending, false == Descending
+  optional ColumnMessage outputSortIndex = 3;
+  optional ColumnMessage outputClusters = 4;
+  optional ColumnMessage aggregationColumn = 5; // If we should do a SUM-aggregation with these clusters
+  optional ColumnMessage aggregationResultColumn = 6; 
+  optional bool storeExtends = 7 [default = false];
+  repeated bool sortOrders = 8; // true == Ascending, false == Descending
 }
 
 message JoinItem {
   optional ColumnMessage innerColumn = 1;
   optional ColumnMessage outerColumn = 2;
-  optional ColumnMessage outputColumn = 3;
+  optional ColumnMessage iOutputColumn = 3;
+  optional ColumnMessage oOutputColumn = 4;
   optional CompType joinPredicate = 9;
 }
 

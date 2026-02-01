@@ -297,8 +297,10 @@ void printNodeApi(const PlanNode& node) {
             printCol(data.innerColumn);
             std::cout << " Outer=";
             printCol(data.outerColumn);
-            std::cout << " Out=";
-            printCol(data.outputColumn);
+            std::cout << " iOut=";
+            printCol(data.iOutputColumn);
+            std::cout << " oOut=";
+            printCol(data.oOutputColumn);
         }
         else if constexpr (std::is_same_v<T, ItemBuilder::MapNode>) {
             std::cout << "API Map: ";
@@ -320,6 +322,8 @@ void printNodeApi(const PlanNode& node) {
             }
             std::cout << ") Agg=";
             printCol(data.aggColumn);
+            std::cout << " SrtIdx=";
+            printCol(data.outputSortIndex);
         }
         else if constexpr (std::is_same_v<T, ItemBuilder::SetOperationNode>) {
             std::cout << "API SetOp [" << (int)data.operation << "]";

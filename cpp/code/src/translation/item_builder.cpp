@@ -96,22 +96,24 @@ WorkItem ItemBuilder::createFilterItem(const BaseType::TableColumn* inColumn, co
 // JOIN ITEM
 
 WorkItem ItemBuilder::createJoinItem(const JoinNode& node) {
-    return createJoinItem(node.innerColumn, node.outerColumn, node.outputColumn, node.joinPredicate);
+    return createJoinItem(node.innerColumn, node.outerColumn, node.iOutputColumn, node.oOutputColumn, node.joinPredicate);
 }
 
 WorkItem ItemBuilder::createJoinItem(const BaseType::TableColumn* innerColumn, const BaseType::TableColumn* outerColumn,
-    const BaseType::TableColumn* outColumn, const CompType* predicate)
+    const BaseType::TableColumn* iOutputColumn, const BaseType::TableColumn* oOutputColumn, const CompType* predicate)
 {
     WorkItem workItem = createWorkItem(OperatorType::OP_HASHJOIN); // TODO or MERGEJOIN
     JoinItem* joinItem = workItem.mutable_joindata();
 
     ColumnMessage* innerCol = joinItem->mutable_innercolumn();
     ColumnMessage* outerCol = joinItem->mutable_outercolumn();
-    ColumnMessage* outputCol = joinItem->mutable_outputcolumn();
+    ColumnMessage* iOutputCol = joinItem->mutable_ioutputcolumn();
+    ColumnMessage* oOutputCol = joinItem->mutable_ooutputcolumn();
 
     setTableColumnType(innerCol, innerColumn);
     setTableColumnType(outerCol, outerColumn);
-    setTableColumnType(outputCol, outColumn);
+    setTableColumnType(iOutputCol, iOutputColumn);
+    setTableColumnType(oOutputCol, oOutputColumn);
 
     if (predicate) {
         joinItem->set_joinpredicate(*predicate);
@@ -190,13 +192,13 @@ WorkItem ItemBuilder::createMaterializeItem(const BaseType::TableColumn* idxColu
 /// MULTI GROUP ITEM
 
 WorkItem ItemBuilder::createMultiGroupItem(const MultiGroupNode& node) {
-    return createMultiGroupItem(node.groupColumns, node.outputIdx, node.outputCluster, node.aggColumn,
+    return createMultiGroupItem(node.groupColumns, node.outputIdx, node.outputSortIndex, node.outputCluster, node.aggColumn,
         node.aggResultColumn, node.storeExtends, node.sortOrders);
 }
 
 WorkItem ItemBuilder::createMultiGroupItem(const std::vector<BaseType::TableColumn*>& groupColumns, const BaseType::TableColumn* outIdx,
-    const BaseType::TableColumn* outCluster, const BaseType::TableColumn* aggColumn, const BaseType::TableColumn* aggResultColumn,
-    const bool& storeExtends, const std::vector<bool>& sortOrders)
+    const BaseType::TableColumn* outputSortIndex, const BaseType::TableColumn* outCluster, const BaseType::TableColumn* aggColumn,
+    const BaseType::TableColumn* aggResultColumn, const bool& storeExtends, const std::vector<bool>& sortOrders)
 {
     WorkItem workItem = createWorkItem(OperatorType::OP_GROUPBY); // TODO correct?
     MultiGroupItem* multiGrpItem = workItem.mutable_multigroupdata();
@@ -210,11 +212,13 @@ WorkItem ItemBuilder::createMultiGroupItem(const std::vector<BaseType::TableColu
     }
 
     ColumnMessage* outputIdx = multiGrpItem->mutable_outputindex();
+    ColumnMessage* outSortIdxMsg = multiGrpItem->mutable_outputsortindex();
     ColumnMessage* outputClusters = multiGrpItem->mutable_outputclusters();
     ColumnMessage* aggCol = multiGrpItem->mutable_aggregationcolumn();
     ColumnMessage* aggResultCol = multiGrpItem->mutable_aggregationresultcolumn();
 
     setTableColumnType(outputIdx, outIdx);
+    setTableColumnType(outSortIdxMsg, outputSortIndex);
     setTableColumnType(outputClusters, outCluster);
     setTableColumnType(aggCol, aggColumn);
     setTableColumnType(aggResultCol, aggResultColumn);

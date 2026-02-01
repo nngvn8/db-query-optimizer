@@ -699,7 +699,8 @@ void irToApiDataSub(PlanNode* node, std::set<const PlanNode*>& visited) {
         
         joinStruct.innerColumn = &joinV->inner();
         joinStruct.outerColumn = &joinV->outer();
-        joinStruct.outputColumn = &joinV->output();
+        joinStruct.iOutputColumn = &joinV->innerOut();
+        joinStruct.oOutputColumn = &joinV->outerOut();
         joinStruct.joinPredicate = &joinV->joinPredicate(); 
 
         node->apiData = joinStruct;
@@ -714,6 +715,7 @@ void irToApiDataSub(PlanNode* node, std::set<const PlanNode*>& visited) {
             groupStruct.groupColumns.push_back(&col);
         }
         groupStruct.outputIdx = &groupV->outputIdx();
+        groupStruct.outputSortIndex = &groupV->outputSortIdx();
         groupStruct.outputCluster = &groupV->outputCluster(); 
         if (auto& aggCol = groupV->aggCol()) {
             if (auto& aggResultCol = groupV->aggResultCol()) {

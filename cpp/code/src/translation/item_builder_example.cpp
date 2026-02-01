@@ -82,7 +82,8 @@ void printJoinItem() {
 
     joinNode.innerColumn = tc1;
     joinNode.outerColumn = tc2;
-    joinNode.outputColumn = tc3;
+    joinNode.iOutputColumn = tc3;
+    joinNode.oOutputColumn = tc3;
     joinNode.joinPredicate = nullptr;
 
     WorkItem workItem = itemBuilder->createJoinItem(joinNode);
@@ -111,6 +112,7 @@ void printMultiGrpItem() {
     mgNode.groupColumns.push_back(tc4);
     mgNode.outputCluster = tc1;
     mgNode.outputIdx = tc2;
+    mgNode.outputSortIndex = tc2;
     mgNode.sortOrders.push_back(true);
     mgNode.sortOrders.push_back(false);
     mgNode.storeExtends = false;

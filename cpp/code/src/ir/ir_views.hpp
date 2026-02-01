@@ -29,6 +29,8 @@ public:
     // Accessors
     BaseType::TableColumn& inner() { return data.inputColumns[0]; }
     BaseType::TableColumn& outer() { return data.inputColumns[1]; }
+    BaseType::TableColumn& innerOut() { return data.outputCols[0]; }
+    BaseType::TableColumn& outerOut() { return data.outputCols[1]; }
     BaseType::TableColumn& output() { return op.outputCol; }
     BaseType::Join& joinType() { return op.joinType; }
     CompType& joinPredicate() { return op.joinPredicate; }
@@ -175,11 +177,11 @@ public:
     static IrData create(const std::vector<BaseType::TableColumn>& groupingCols, const BaseType::TableColumn& outputCol) {
         IrData irData;
         irData.inputColumns = groupingCols;
-        BaseType::TableColumn outIdxExt = outputCol;
+        BaseType::TableColumn outSrtIdx = outputCol;
         BaseType::TableColumn outCluster = outputCol;
-        outIdxExt.columnName += "_ext";
+        outSrtIdx.columnName += "_srt";
         outCluster.columnName += "_clus";
-        irData.outputCols = {outputCol, outIdxExt, outCluster};
+        irData.outputCols = {outputCol, outSrtIdx, outCluster};
         std::vector<bool> sortOrders(groupingCols.size(), true);
         irData.opInfo = GroupOp{sortOrders};
         return irData;
@@ -189,11 +191,11 @@ public:
     static IrData create(const std::vector<BaseType::TableColumn>& groupingCols, const BaseType::TableColumn& outputCol, const BaseType::TableColumn& aggCol, const BaseType::TableColumn& aggResultCol) {
         IrData irData;
         irData.inputColumns = groupingCols;
-        BaseType::TableColumn outIdxExt = outputCol;
+        BaseType::TableColumn outSrtIdx = outputCol;
         BaseType::TableColumn outCluster = outputCol;
-        outIdxExt.columnName += "_ext";
+        outSrtIdx.columnName += "_srt";
         outCluster.columnName += "_clus";
-        irData.outputCols = {outputCol, outIdxExt, outCluster};
+        irData.outputCols = {outputCol, outSrtIdx, outCluster};
         std::vector<bool> sortOrders(groupingCols.size(), true);
         irData.opInfo = GroupOp{sortOrders, aggCol, aggResultCol};
         return irData;
@@ -202,7 +204,7 @@ public:
     // Accessors
     std::vector<BaseType::TableColumn>& groupingCols() { return data.inputColumns; }
     BaseType::TableColumn& outputIdx() { return data.outputCols[0]; }
-    BaseType::TableColumn& outputIdxExt() { return data.outputCols[1]; }
+    BaseType::TableColumn& outputSortIdx() { return data.outputCols[1]; }
     BaseType::TableColumn& outputCluster() { return data.outputCols[2]; }
     std::vector<bool>& sortOrders() { return op.sortOrders; }
     std::optional<BaseType::TableColumn>& aggCol() { return op.aggCol; }

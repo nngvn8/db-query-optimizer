@@ -28,7 +28,8 @@ class ItemBuilder {
         struct JoinNode {
             BaseType::TableColumn* innerColumn;
             BaseType::TableColumn* outerColumn;
-            BaseType::TableColumn* outputColumn;
+            BaseType::TableColumn* iOutputColumn;
+            BaseType::TableColumn* oOutputColumn;
             CompType* joinPredicate;
         };
 
@@ -48,6 +49,7 @@ class ItemBuilder {
         struct MultiGroupNode {
             std::vector<BaseType::TableColumn*> groupColumns;
             BaseType::TableColumn* outputIdx; // sorted index (compressed _ext)
+            BaseType::TableColumn* outputSortIndex;
             BaseType::TableColumn* outputCluster; // cluster sizes (for several aggs with sorted index)
             BaseType::TableColumn* aggColumn; // column to be aggregated
             BaseType::TableColumn* aggResultColumn; // column containing the result of aggregations
@@ -108,7 +110,7 @@ class ItemBuilder {
             const std::vector<std::variant<uint64_t, float, std::string>>& filterArgVals);
 
         WorkItem createJoinItem(const BaseType::TableColumn* innerColumn, const BaseType::TableColumn* outerColumn,
-            const BaseType::TableColumn* outColumn, const CompType* predicate);
+            const BaseType::TableColumn* iOutputColumn, const BaseType::TableColumn* oOutputColumn, const CompType* predicate);
 
         WorkItem createMapItem(const BaseType::TableColumn* inColumn, const BaseType::TableColumn* outColumn, const ArithOp* operatorType,
             const std::variant<BaseType::TableColumn, uint64_t, float, std::string>& partnerVal);
@@ -117,8 +119,8 @@ class ItemBuilder {
             const BaseType::TableColumn* outColumn);
 
         WorkItem createMultiGroupItem(const std::vector<BaseType::TableColumn*>& groupColumns, const BaseType::TableColumn* outIdx,
-            const BaseType::TableColumn* outCluster, const BaseType::TableColumn* aggColumn, const BaseType::TableColumn* aggResultColumn,
-            const bool& storeExtends, const std::vector<bool>& sortOrders);
+            const BaseType::TableColumn* outputSortIndex, const BaseType::TableColumn* outCluster, const BaseType::TableColumn* aggColumn,
+            const BaseType::TableColumn* aggResultColumn, const bool& storeExtends, const std::vector<bool>& sortOrders);
 
         WorkItem createSetOperationItem(const RelOp& operation, const BaseType::TableColumn* innerColumn,
             const BaseType::TableColumn* outerColumn, const BaseType::TableColumn* outputColumn);
