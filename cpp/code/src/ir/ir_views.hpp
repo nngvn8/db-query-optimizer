@@ -38,13 +38,13 @@ public:
 
 class SemiJoinView {
     IrData& data;
-    JoinOp& op;
+    SemiJoinOp& op;
 
 public:
     using OpType = SemiJoinOp;
 
     explicit SemiJoinView(IrData& data) 
-        : data(data), op(std::get<JoinOp>(data.opInfo)) {}
+        : data(data), op(std::get<SemiJoinOp>(data.opInfo)) {}
 
     // Factory to create data
     static IrData create(const BaseType::TableColumn& inner, 
@@ -55,7 +55,17 @@ public:
         IrData irData;
         irData.inputColumns = {inner, outer};
         irData.outputCols = {inner, outer};
-        irData.opInfo = JoinOp{joinType, joinPredicate, out};
+        irData.opInfo = SemiJoinOp{joinType, joinPredicate, out};
+        return irData;
+    }
+
+    // Factory to create Semi Join data based on Join Data
+    static IrData create(IrData& data) {
+        IrData irData;
+        irData.inputColumns = data.inputColumns;
+        irData.outputCols = data.outputCols;
+        SemiJoinOp op = std::get<SemiJoinOp>(data.opInfo);
+        irData.opInfo = SemiJoinOp{op.joinType, op.joinPredicate, op.outputCol};
         return irData;
     }
 

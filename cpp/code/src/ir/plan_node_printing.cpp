@@ -178,6 +178,12 @@ namespace {
                     << view.inner() << " " << CompType_Name(view.joinPredicate()) 
                     << " " << view.outer();
         }
+        else if (node.irData.is<SemiJoinOp>()) {
+            SemiJoinView view(mutableIr);
+            std::cout << "SemiJoin " << joinTypeToString(view.joinType()) << " ON " 
+                    << view.inner() << " " << CompType_Name(view.joinPredicate()) 
+                    << " " << view.outer();
+        }
         else if (node.irData.is<FilterOp>()) {
             FilterView view(mutableIr);
             std::cout << "Filter " << view.col1() << " " << CompType_Name(view.filterType()) << " ";
@@ -294,6 +300,16 @@ void printNodeApi(const PlanNode& node) {
         }
         else if constexpr (std::is_same_v<T, ItemBuilder::JoinNode>) {
             std::cout << "API Join: Inner=";
+            printCol(data.innerColumn);
+            std::cout << " Outer=";
+            printCol(data.outerColumn);
+            std::cout << " iOut=";
+            printCol(data.iOutputColumn);
+            std::cout << " oOut=";
+            printCol(data.oOutputColumn);
+        }
+        else if constexpr (std::is_same_v<T, ItemBuilder::SemiJoinNode>) {
+            std::cout << "API SemiJoin: Inner=";
             printCol(data.innerColumn);
             std::cout << " Outer=";
             printCol(data.outerColumn);

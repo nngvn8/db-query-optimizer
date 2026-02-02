@@ -706,6 +706,19 @@ void irToApiDataSub(PlanNode* node, std::set<const PlanNode*>& visited) {
         node->apiData = joinStruct;
     }
 
+    // Semi Join Node
+    else if (auto joinV = node->irData.get_view_if<SemiJoinView>()) {
+        ItemBuilder::SemiJoinNode semiJoinStruct;
+        
+        semiJoinStruct.innerColumn = &joinV->inner();
+        semiJoinStruct.outerColumn = &joinV->outer();
+        semiJoinStruct.iOutputColumn = &joinV->innerOut();
+        semiJoinStruct.oOutputColumn = &joinV->outerOut();
+        semiJoinStruct.joinPredicate = &joinV->joinPredicate(); 
+
+        node->apiData = semiJoinStruct;
+    }
+
     // Group
     else if (auto groupV = node->irData.get_view_if<GroupView>()) {
         ItemBuilder::MultiGroupNode groupStruct;

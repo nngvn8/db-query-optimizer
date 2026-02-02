@@ -30,18 +30,20 @@ struct IrData {
 
 class PlanNode {
 public:
-    // 1. State: Raw JSON Data
+    // Stage 1 for JSON plan plan parsing
     std::optional<BaseType::JsonRawData> rawJson;
 
-    // 2. State: Abstract Tree information
+    // Stage 2 for JSON plan parsing
     using AbstractData = std::variant<std::monostate, AbstractSource, AbstractJoin, AbstractAgg, AbstractSort, AbstractResult>;
     AbstractData abstractData;
 
-    // 3. State: IR Tree information
+    // Representation for Optimization, translated into from:
+    // - AST or
+    // - Stage 2 of JSON Plan Parsing
     IrData irData;
 
 
-    // 4. State: API Item Tree information
+    // API Item Tree information: used to build workitems from
     using ApiData = std::variant<std::monostate,
         ItemBuilder::FetchNode, // relates to Table
         ItemBuilder::FilterNode, // relates to Filter
@@ -65,7 +67,7 @@ public:
     explicit PlanNode(const Json::Value& queryPlan);
 
 private:
-    // Parsing Helpers
+    // Parsing helpers for parsing of JSON plans
     static BaseType::PlanParams parsePlanParams(const Json::Value& json);
     static BaseType::Estimates parseEstimates(const Json::Value& json);
     static BaseType::Measures parseMeasures(const Json::Value& json);
