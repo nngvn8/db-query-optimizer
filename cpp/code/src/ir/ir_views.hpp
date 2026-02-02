@@ -64,7 +64,7 @@ public:
         IrData irData;
         irData.inputColumns = data.inputColumns;
         irData.outputCols = data.outputCols;
-        SemiJoinOp op = std::get<SemiJoinOp>(data.opInfo);
+        JoinOp op = std::get<JoinOp>(data.opInfo);
         irData.opInfo = SemiJoinOp{op.joinType, op.joinPredicate, op.outputCol};
         return irData;
     }

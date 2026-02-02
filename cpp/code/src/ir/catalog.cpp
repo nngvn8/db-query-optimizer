@@ -137,4 +137,20 @@ namespace Catalog {
             return "Default";
         }
     }
+
+    bool isUnique(std::string tableName, std::string columnName) {
+        // Normalize
+        std::transform(tableName.begin(), tableName.end(), tableName.begin(), ::tolower);
+        std::transform(columnName.begin(), columnName.end(), columnName.begin(), ::tolower);
+
+        if (tableName.empty()) tableName = getTableName(columnName);
+        if (tableName == "dates") tableName = "date";
+
+        if (tableName == "customer" || tableName == "c") return columnName == "c_custkey";
+        if (tableName == "part" || tableName == "p") return columnName == "p_partkey";
+        if (tableName == "supplier" || tableName == "s") return columnName == "s_suppkey";
+        if (tableName == "date" || tableName == "d") return columnName == "d_datekey";
+        
+        return false;
+    }
 }
