@@ -405,7 +405,7 @@ void printAST(ASTNode* root){
     }
     else if(auto e = std::get_if<Map>(&root->val)){
         cout<<"Map: ";
-        cout<<(*e).table1<<"."<<(*e).column1 <<" "<< (*e).operatorType << " "<< (*e).table1<<"."<<(*e).column1;
+        cout<<(*e).table1<<"."<<(*e).column1 <<" "<< (*e).operatorType << " "<< (*e).table2<<"."<<(*e).column2;
         cout<<std::endl;
     }
     else if(auto e = std::get_if<LimitClauseNode>(&root->val)){
