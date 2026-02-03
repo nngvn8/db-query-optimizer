@@ -1,13 +1,13 @@
 #pragma once
 
-#include "plan_node.hpp"
+#include "ir/plan_node.hpp"
 
 #include <iostream>
 #include <jsoncpp/json/json.h>
 #include <fstream>
 
-#include <ir/parse_query.hpp>
-#include <ir/abstract_ir.hpp>
+#include "ir/parse_query.hpp"
+#include "ir/abstract_ir.hpp"
 
 // --- Parsing Helpers ---
 
@@ -22,21 +22,21 @@ BaseType::PlanParams PlanNode::parsePlanParams(const Json::Value& json) {
         bt.alias = btJson.get("alias", "").asString();
         bt.isVirtual = btJson.get("virtual", false).asBool();
         bt.schema = btJson.get("schema", "").asString();
-        
+
         // Mismatch between table name in plan and in queries
         bt.name = bt.name == "dim_date" ? "dates" : bt.name;
-        
+
         params.baseTable = bt;
     }
 
     // 2. Simple Fields
-    if (!json["filter_predicate"].isNull()) 
+    if (!json["filter_predicate"].isNull())
         params.filterPredicate = json["filter_predicate"].asString();
-    
+
     params.parallelWorkers = json.get("parallel_workers", 0).asInt();
     params.index = json.get("index", "").asString();
-    
-    if (!json["lookup_key"].isNull()) 
+
+    if (!json["lookup_key"].isNull())
         params.lookupKey = json["lookup_key"].asString();
 
     if (!json["subplan_name"].isNull())
@@ -67,7 +67,7 @@ BaseType::Measures PlanNode::parseMeasures(const Json::Value& json) {
 
     if (!json["cache_hits"].isNull())
         mes.cacheHits = json["cache_hits"].asInt();
-    
+
     if (!json["cache_misses"].isNull())
         mes.cacheMisses = json["cache_misses"].asInt();
 
@@ -80,11 +80,11 @@ PlanNode::PlanNode(const Json::Value& queryPlan) {
     // 1. Parse Raw Data
     BaseType::JsonRawData data;
     data.nodeType = queryPlan.get("node_type", "Unknown").asString();
-    
+
     if (!queryPlan["operator"].isNull()) {
         data.nodeOperator = queryPlan["operator"].asString();
     }
-    
+
     if (!queryPlan["subplan"].isNull()) {
         data.subPlan = queryPlan["subplan"].asString();
     }

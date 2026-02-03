@@ -1,4 +1,4 @@
-#include "catalog.hpp"
+#include "ir/catalog.hpp"
 
 namespace Catalog {
 
@@ -20,29 +20,29 @@ namespace Catalog {
             if (columnName.find("key") != std::string::npos) return ColumnType::TYPE_INTEGER;
             if (columnName == "lo_linenumber") return ColumnType::TYPE_INTEGER;
             if (columnName == "lo_quantity") return ColumnType::TYPE_INTEGER;
-            // In SSB, prices/costs are often scaled integers. 
+            // In SSB, prices/costs are often scaled integers.
             // We use INTEGER here. If you support floats, change to TYPE_FLOAT.
-            if (columnName == "lo_extendedprice") return ColumnType::TYPE_INTEGER; 
-            if (columnName == "lo_ordtotalprice") return ColumnType::TYPE_INTEGER; 
-            if (columnName == "lo_discount") return ColumnType::TYPE_INTEGER; 
-            if (columnName == "lo_revenue") return ColumnType::TYPE_INTEGER; 
-            if (columnName == "lo_supplycost") return ColumnType::TYPE_INTEGER; 
-            if (columnName == "lo_tax") return ColumnType::TYPE_INTEGER; 
+            if (columnName == "lo_extendedprice") return ColumnType::TYPE_INTEGER;
+            if (columnName == "lo_ordtotalprice") return ColumnType::TYPE_INTEGER;
+            if (columnName == "lo_discount") return ColumnType::TYPE_INTEGER;
+            if (columnName == "lo_revenue") return ColumnType::TYPE_INTEGER;
+            if (columnName == "lo_supplycost") return ColumnType::TYPE_INTEGER;
+            if (columnName == "lo_tax") return ColumnType::TYPE_INTEGER;
             if (columnName == "lo_orderdate") return ColumnType::TYPE_INTEGER; // Date Key
             if (columnName == "lo_commitdate") return ColumnType::TYPE_INTEGER; // Date Key
-            
+
             // Strings
             if (columnName == "lo_orderpriority") return ColumnType::TYPE_STRING;
             if (columnName == "lo_shippriority") return ColumnType::TYPE_STRING;
             if (columnName == "lo_shipmode") return ColumnType::TYPE_STRING;
         }
-        
+
         // 2. PART
         if (tableName == "part" || tableName == "p") {
             if (columnName.find("key") != std::string::npos) return ColumnType::TYPE_INTEGER;
             if (columnName == "p_size") return ColumnType::TYPE_INTEGER;
             // Everything else in Part is string (name, mfgr, category, brand1, color, type, container)
-            return ColumnType::TYPE_STRING; 
+            return ColumnType::TYPE_STRING;
         }
 
         // 3. SUPPLIER
@@ -68,8 +68,8 @@ namespace Catalog {
             if (columnName.find("monthnum") != std::string::npos) return ColumnType::TYPE_INTEGER;
             if (columnName.find("weeknum") != std::string::npos) return ColumnType::TYPE_INTEGER;
             // flags are often 0/1 ints
-            if (columnName.find("fl") != std::string::npos) return ColumnType::TYPE_INTEGER; 
-            
+            if (columnName.find("fl") != std::string::npos) return ColumnType::TYPE_INTEGER;
+
             return ColumnType::TYPE_STRING;
         }
 
@@ -150,7 +150,7 @@ namespace Catalog {
         if (tableName == "part" || tableName == "p") return columnName == "p_partkey";
         if (tableName == "supplier" || tableName == "s") return columnName == "s_suppkey";
         if (tableName == "date" || tableName == "d") return columnName == "d_datekey";
-        
+
         return false;
     }
 }

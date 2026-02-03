@@ -2,8 +2,8 @@
 
 #include <iostream>
 #include <unordered_set>
-#include "plan_node.hpp"
-#include <ir/ir_views.hpp>
+#include "ir/plan_node.hpp"
+#include "ir/ir_views.hpp"
 
 // Forward declaration
 void printDebugSub(const PlanNode& planNode, std::unordered_set<const PlanNode*>& visited);
@@ -29,7 +29,7 @@ void printDebugSub(const PlanNode& planNode, std::unordered_set<const PlanNode*>
         // You could print abstract data here if implemented
     } else {
         const BaseType::JsonRawData& r = planNode.rawJson.value();
-        
+
         // Print Header
         std::cout << "Node: " << r.nodeType;
         if (r.nodeOperator) std::cout << " | Op: " << *r.nodeOperator;
@@ -41,10 +41,10 @@ void printDebugSub(const PlanNode& planNode, std::unordered_set<const PlanNode*>
             const auto& bt = *r.planParams.baseTable;
             std::cout << "[Table: " << bt.name << " (" << bt.alias.value_or("") << ")] ";
         }
-        
-        if (r.planParams.filterPredicate) 
+
+        if (r.planParams.filterPredicate)
             std::cout << "[Filter: " << *r.planParams.filterPredicate << "] ";
-            
+
         if (!r.planParams.sortKeys.empty()) {
             std::cout << "[Sort: ";
             for(const auto& k : r.planParams.sortKeys) std::cout << k << " ";
@@ -57,7 +57,7 @@ void printDebugSub(const PlanNode& planNode, std::unordered_set<const PlanNode*>
 
         // Print Stats
         std::cout << "  Est: Card=" << r.estimates.cardinality << " Cost=" << r.estimates.cost << std::endl;
-        
+
         std::cout << "  Mes: Card=" << r.measures.cardinality << " Time=" << r.measures.executionTime;
         if (r.measures.cacheHits) std::cout << " Hits=" << *r.measures.cacheHits;
         std::cout << std::endl;
@@ -71,7 +71,7 @@ void printDebugSub(const PlanNode& planNode, std::unordered_set<const PlanNode*>
     }
 }
 
-// --- Node printing --- 
+// --- Node printing ---
 namespace {
     void printNodeAbstract(const PlanNode& node){
         GetNodeName getNodeName;
@@ -89,7 +89,7 @@ namespace {
         }
         const AbstractJoin* join = std::get_if<AbstractJoin>(&node.abstractData);
         if (join) {
-            std::cout << " " << join->condition 
+            std::cout << " " << join->condition
                     << " [" << join->left_table << ", " << join->right_table << "]";
         }
 
@@ -102,12 +102,12 @@ namespace {
         if (sort) {
             std::cout << " [";
             for (size_t i = 0; i < sort->column_names.size(); ++i) {
-                std::cout << (i > 0 ? ", " : "") << sort->column_names[i] 
+                std::cout << (i > 0 ? ", " : "") << sort->column_names[i]
                         << (sort->asc[i] ? " ASC" : " DESC");
             }
             std::cout << "]";
         }
-        
+
         const AbstractResult* result = std::get_if<AbstractResult>(&node.abstractData);
         if (result) {
             std::cout << " [";
@@ -160,9 +160,9 @@ namespace {
         }
         else if (node.irData.is<SelectOp>()) {
             SelectView view(mutableIr);
-            std::cout << "Select " << (view.distinct() ? "DISTINCT " : "") 
+            std::cout << "Select " << (view.distinct() ? "DISTINCT " : "")
                     << (view.star() ? "*" : "");
-            
+
             for(const auto& col : view.resultCols()) {
                 std::cout << " " << col;
             }
@@ -174,14 +174,14 @@ namespace {
         }
         else if (node.irData.is<JoinOp>()) {
             JoinView view(mutableIr);
-            std::cout << "Join " << joinTypeToString(view.joinType()) << " ON " 
-                    << view.inner() << " " << CompType_Name(view.joinPredicate()) 
+            std::cout << "Join " << joinTypeToString(view.joinType()) << " ON "
+                    << view.inner() << " " << CompType_Name(view.joinPredicate())
                     << " " << view.outer();
         }
         else if (node.irData.is<SemiJoinOp>()) {
             SemiJoinView view(mutableIr);
-            std::cout << "SemiJoin " << joinTypeToString(view.joinType()) << " ON " 
-                    << view.inner() << " " << CompType_Name(view.joinPredicate()) 
+            std::cout << "SemiJoin " << joinTypeToString(view.joinType()) << " ON "
+                    << view.inner() << " " << CompType_Name(view.joinPredicate())
                     << " " << view.outer();
         }
         else if (node.irData.is<FilterOp>()) {
@@ -191,7 +191,7 @@ namespace {
             if (view.col2() != nullptr) {
                 // Case 1: Column vs Column (e.g. colA = colB)
                 std::cout << *view.col2();
-            } 
+            }
             else if (!view.filterArgs().empty()) {
                 // Case 2: BETWEEN (val1 AND val2)
                 if (view.filterType() == CompType::COMP_BETWEEN && view.filterArgs().size() >= 2) {
@@ -388,7 +388,7 @@ void printNode(const PlanNode& node, int mode){
 
 // Print the structure of the tree content of nodes depending on content type
 void printPlanTreeSub(const PlanNode& node, const std::string& prefix, bool isLast, int contentType, std::unordered_set<const PlanNode*>& visited) {
-    
+
     // 1. Determine the drawing character for the current node
     std::cout << prefix;
     std::cout << (isLast ? "└── " : "├── ");

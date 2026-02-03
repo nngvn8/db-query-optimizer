@@ -1,13 +1,13 @@
-#include "ir_transformer.hpp"
+#include "ir/ir_transformer.hpp"
 
 #include <memory>
 #include <unordered_set>
 #include <regex>
 #include <algorithm>
 
-#include <ir/catalog.hpp>
-#include <ir/ir_types.hpp>
-#include <ir/ir_views.hpp>
+#include "ir/catalog.hpp"
+#include "ir/ir_types.hpp"
+#include "ir/ir_views.hpp"
 
 namespace {
     const std::unordered_set<std::string> HASH = {"Hash"};
@@ -48,8 +48,8 @@ PlanNode::AbstractData convertToAbstract(const BaseType::JsonRawData& rawJson) {
     else if (SCAN.count(rawJson.nodeType) || BITMAP.count(rawJson.nodeType)) {
         AbstractSource source;
 
-        source.basetable = rawJson.planParams.baseTable.has_value() 
-                 ? rawJson.planParams.baseTable->name 
+        source.basetable = rawJson.planParams.baseTable.has_value()
+                 ? rawJson.planParams.baseTable->name
                  : "";
         abstract_data = source;
     }
@@ -66,7 +66,7 @@ void removeDeepAggregate(std::shared_ptr<PlanNode>& node) {
 
     // Find aggregate
     while (*currentPtr && !isNodeType(currentPtr->get(), AGG)) {
-        if ((*currentPtr)->children.empty()) return; 
+        if ((*currentPtr)->children.empty()) return;
         currentPtr = &((*currentPtr)->children[0]);
     }
 
@@ -84,7 +84,7 @@ std::shared_ptr<PlanNode> pruneTree(std::shared_ptr<PlanNode> node) {
     // 1. RECURSE FIRST: Process children bottom-up
     // We modify the vector in-place by assigning the result of the recursive call back to the slot.
     for (auto& child : node->children) {
-        child = pruneTree(child); 
+        child = pruneTree(child);
     }
 
     // Safety check: If node has no raw data (synthetic), return as is
@@ -110,12 +110,12 @@ std::shared_ptr<PlanNode> pruneTree(std::shared_ptr<PlanNode> node) {
         if (node->children.size() == 1) {
             // Remove corresponding aggregate
             removeDeepAggregate(node->children[0]);
-            
+
             // Delete the Gather itself by returning the fixed child
             return node->children[0];
         }
     }
-    
+
     // Collapse bitmap
     if (BITMAP.count(currentType) && node->children.size() == 1) {
         PlanNode* childPtr = node->children[0].get();
@@ -126,7 +126,7 @@ std::shared_ptr<PlanNode> pruneTree(std::shared_ptr<PlanNode> node) {
                 if (!node->rawJson->planParams.filterPredicate.has_value()) {
                         node->rawJson->planParams.filterPredicate = childPtr->rawJson->planParams.filterPredicate;
                 }
-                
+
                 // Also copy the index name if needed
                 if (node->rawJson->planParams.index.empty()) {
                     node->rawJson->planParams.index = childPtr->rawJson->planParams.index;
@@ -135,8 +135,8 @@ std::shared_ptr<PlanNode> pruneTree(std::shared_ptr<PlanNode> node) {
             node->children = childPtr->children;
         }
     }
-    
-    // Generate abstract representation and fill with needed raw data 
+
+    // Generate abstract representation and fill with needed raw data
     node->abstractData = convertToAbstract(node->rawJson.value());
 
     return node; // Return the modified (but same pointer) node
@@ -162,7 +162,7 @@ namespace {
 
         std::string left = condition.substr(0, eqPos);
         std::string right = condition.substr(eqPos + 1);
-        
+
         // minimal trim (you might already have a trim function)
         left.erase(0, left.find_first_not_of(" \t"));
         left.erase(left.find_last_not_of(" \t") + 1);
@@ -174,10 +174,10 @@ namespace {
 }
 
 std::set<std::string> enrichTreeSub(PlanNode* node, SqlQueryData& queryData){
-    
+
     // Sets of tables of each the children (should be no more than 2)
     std::vector<std::set<std::string>> childTableSets;
-    
+
     // Union of the tables of all children, therefore the tables that can be found in the whole subtree
     std::set<std::string> currentTables;
 
@@ -191,9 +191,9 @@ std::set<std::string> enrichTreeSub(PlanNode* node, SqlQueryData& queryData){
     // CASE source node
     if (AbstractSource* source = std::get_if<AbstractSource>(&node->abstractData)) {
         std::string basetable = source->basetable;
-        
+
         for (const std::string& cond : queryData.conditions) {
-            
+
             // Add all filters to the source node
             std::regex attrRegex(R"(\b[a-z]+_[a-z0-9]+\b)");
             auto begin = std::sregex_iterator(cond.begin(), cond.end(), attrRegex);
@@ -203,7 +203,7 @@ std::set<std::string> enrichTreeSub(PlanNode* node, SqlQueryData& queryData){
             for (std::sregex_iterator i = begin; i!= end; ++i) {
                 std::string attr = i->str();
                 std::string table = getTableFromColumn(attr);
-                tablesInCond.insert(table);                
+                tablesInCond.insert(table);
             }
             if (tablesInCond.size() == 1 && tablesInCond.count(basetable)) source->filters.push_back(cond);
         }
@@ -234,25 +234,25 @@ std::set<std::string> enrichTreeSub(PlanNode* node, SqlQueryData& queryData){
 
     // CASE join node
     if (AbstractJoin* join = std::get_if<AbstractJoin>(&node->abstractData)) {
-        
+
         // We only support joins of two tables. There should only be two tables in childTableSets
         if (childTableSets.size() == 2) {
             const std::set<std::string>& leftSet = childTableSets[0];
             const std::set<std::string>& rightSet =  childTableSets[1];
-        
+
             // Find the right condition
             for (const std::string& cond : queryData.conditions) {
-                auto [t1, t2] = parseConditionTables(cond);                
+                auto [t1, t2] = parseConditionTables(cond);
 
                 bool match = (leftSet.count(t1) && rightSet.count(t2)) ||
                              (leftSet.count(t2) && rightSet.count(t1));
-                             
+
                 if (match) {
                     join->condition = cond;
                     join->left_table = t1;
                     join->right_table = t2;
                     break; // don't process any other conditions, as we found the one for the join
-                } // additionally pop the condition?            
+                } // additionally pop the condition?
             }
         }
     }
@@ -261,20 +261,20 @@ std::set<std::string> enrichTreeSub(PlanNode* node, SqlQueryData& queryData){
 
 std::shared_ptr<PlanNode> enrichTree(std::shared_ptr<PlanNode> root, SqlQueryData& queryData) {
 
-    // Enrich all nodes of the tree with data from query 
+    // Enrich all nodes of the tree with data from query
     enrichTreeSub(root.get(), queryData);
 
     // Build result node as new root
     std::shared_ptr<PlanNode> resultNode = std::make_shared<PlanNode>();
-    
+
     AbstractResult result;
-    
+
     // Add data from query into the result
     std::vector<std::string> select_cols;
     for (const Selection& col : queryData.selections) {
         select_cols.push_back(col.content);
     }
-    
+
     // Fill result node and set it as new root of the tree
     result.output_cols = select_cols;
     resultNode->abstractData = result;
@@ -312,7 +312,7 @@ namespace {
         if (op == "INTERSECT") return REL_INTERSECTION;
         if (op == "EXCEPT") return REL_NEGATION;
         return REL_UNION;
-    
+
     }
     std::optional<AggFunc> mapStringToAggFunc(std::string func) {
         if (func.empty()) return std::nullopt;
@@ -328,11 +328,11 @@ namespace {
     // --- Value Parsing based on Known Type ---
     std::variant<uint64_t, float, std::string> parseValueByType(const std::string& val, ColumnType type) {
         if (type == ColumnType::TYPE_INTEGER) {
-            try { return static_cast<uint64_t>(std::stoull(val)); } 
+            try { return static_cast<uint64_t>(std::stoull(val)); }
             catch (...) { return static_cast<uint64_t>(0); }
         }
         if (type == ColumnType::TYPE_FLOAT) {
-            try { return std::stof(val); } 
+            try { return std::stof(val); }
             catch (...) { return 0.0f; }
         }
         // Fallback / String
@@ -351,15 +351,15 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
         // LOOKUP: Get real type from Catalog
         ColumnType type = Catalog::getSSBColumnType(e->table, e->column);
         BaseType::TableColumn col(e->table, e->column, type, e->alias);
-        
+
         auto aggType = mapStringToAggFunc(e->aggregateFunction);
 
         if (aggType.has_value()) {
             // Dismantle: Select -> Agg
             auto aggNode = std::make_shared<PlanNode>();
-            
+
             BaseType::TableColumn aggInputCol(e->table, e->column, type);
-            
+
             // aggNode->irData = IR::AggNode(aggInputCol, aggType.value(), aggInputCol);
             aggNode->irData = AggView::create(aggInputCol, aggInputCol, aggType.value());
 
@@ -367,7 +367,7 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
             // node->irData = IR::SelectNode(e->star, col, e->distinct, col);
             node->irData = SelectView::create({col},e->star,e->distinct);
 
-            childrenTarget = aggNode.get(); 
+            childrenTarget = aggNode.get();
             node->children.push_back(aggNode);
         } else {
             // node->irData = IR::SelectNode(e->star, col, e->distinct, col);
@@ -426,13 +426,13 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
         BaseType::TableColumn leftCol(e->onLeftTable, e->onLeftTableColumn, leftType);
         BaseType::TableColumn rightCol(e->onRightTable, e->onRightTableColumn, rightType);
         BaseType::TableColumn outCol(BaseType::Table(""), e->onLeftTableColumn + "=" + e->onRightTableColumn, ColumnType::TYPE_INTEGER);
-        
+
         node->irData = JoinView::create(
-            leftCol, 
+            leftCol,
             rightCol,
             outCol,
             mapStringToJoinType(e->joinType),
-            CompType::COMP_EQ 
+            CompType::COMP_EQ
         );
     }
     // 4. Base Table
@@ -449,9 +449,9 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
         for (const auto& desc : e->description) {
             ColumnType type = Catalog::getSSBColumnType(desc.table, desc.column);
             groups.emplace_back(desc.table, desc.column, type);
-            
+
             // Extend grouping string
-            char tablePrefix = desc.table.empty() ? '?' : desc.table[0];    
+            char tablePrefix = desc.table.empty() ? '?' : desc.table[0];
             ss << tablePrefix << "." << desc.column;
             if (i < e->description.size() - 1) ss << "_";
 
@@ -468,12 +468,12 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
         std::string orderColString = "ORDER_";
         for (const auto& desc : e->orderByList) {
             ColumnType type = Catalog::getSSBColumnType(desc.table, desc.column);
-            bool isAsc = (desc.ordertype != "DESC"); 
+            bool isAsc = (desc.ordertype != "DESC");
             bool isNullsFirst = (desc.nullordering == "FIRST");
-            
+
             orders.emplace_back(
-                BaseType::TableColumn(desc.table, desc.column, type), 
-                isAsc, 
+                BaseType::TableColumn(desc.table, desc.column, type),
+                isAsc,
                 isNullsFirst
             );
 
@@ -491,15 +491,15 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
     else if (auto e = std::get_if<SetOperationNode>(&ast->val)) {
         BaseType::TableColumn dummy; // Still dummy as AST has no columns here
         BaseType::TableColumn outCol(
-            BaseType::Table(""), 
-            e->setOperation, 
+            BaseType::Table(""),
+            e->setOperation,
             ColumnType::TYPE_INTEGER
         );
         node->irData = SetOpView::create(
-            dummy, 
-            dummy, 
+            dummy,
+            dummy,
             outCol,
-            mapStringToRelOp(e->setOperation) 
+            mapStringToRelOp(e->setOperation)
         );
     }
 
@@ -523,7 +523,7 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
 namespace {
 
     int detFilterColIdx(const BaseType::TableColumn& idxCol, const std::shared_ptr<PlanNode>& node) {
-        
+
         // Is not join
         if (!node->irData.is<JoinOp>())
             return 0;
@@ -538,8 +538,8 @@ namespace {
         int idx; // to determine innerCol or outerCol - is inherited downwards
         std::shared_ptr<PlanNode> cur_node;
         std::deque<std::pair<int, const std::shared_ptr<PlanNode>&>> bfsQueue;
-        
-        
+
+
         bfsQueue.push_back(std::pair<int, const std::shared_ptr<PlanNode>&>(0, node->children[0]));
         bfsQueue.push_back(std::pair<int, const std::shared_ptr<PlanNode>&>(1, node->children[1]));
 
@@ -552,7 +552,7 @@ namespace {
             for (const auto& outCol : cur_node->irData.outputCols) {
                 if (outCol.table.name == idxCol.table.name) {
                     return idx;
-                }            
+                }
             }
 
             // bfs
@@ -568,7 +568,7 @@ MaterializationData fillMaterializes(PlanNode* node, std::set<BaseType::TableCol
     if (!node) return MaterializationData();
 
     std::map<BaseType::TableColumn, std::shared_ptr<PlanNode>> pMat; // previous materializations
-    
+
     std::set<BaseType::Table> tablesBelow;
     std::set<BaseType::Table> allTablesBelow;
 
@@ -577,23 +577,23 @@ MaterializationData fillMaterializes(PlanNode* node, std::set<BaseType::TableCol
     // Fetch columns this node needs
     std::set<BaseType::TableColumn> columnsThisNode(node->irData.inputColumns.begin(), node->irData.inputColumns.end());
 
-    // Generate materialize nodes (bottom up)    
+    // Generate materialize nodes (bottom up)
     for (size_t i = 0; i < node->children.size(); ++i) {
 
         std::shared_ptr<PlanNode> originalChild = node->children[i];
-        
+
         // const auto& node->children[i] = node->children[i];
         // ##### RECURSION HERE ######
         MaterializationData matData = fillMaterializes(node->children[i].get(), columnsToMaterializeOn, columnsThisNode);
         std::set<BaseType::Table> tablesBelowChild = matData.tablesBelow;
         pMat.merge(matData.previousMaterializations);
-        
-        
+
+
         BaseType::TableColumn filterCol;
         bool childIsPositionListNode = false;
-        
+
         // TODO: store if outputs position list in irData
-        // Check if is position list node 
+        // Check if is position list node
         if (node->children[i]->irData.is<JoinOp>()
             || node->children[i]->irData.is<SemiJoinOp>()
             || node->children[i]->irData.is<FilterOp>()
@@ -602,10 +602,10 @@ MaterializationData fillMaterializes(PlanNode* node, std::set<BaseType::TableCol
             || node->children[i]->irData.is<SetOp>()) {
                 childIsPositionListNode = true;
             }
-        
+
         // Create or update materialization if child outputs position list
         if (childIsPositionListNode) {
-                             
+
             for (const auto& idxCol : columnsToMaterializeOn) {
 
                 // Add a materialization to the materialization node if table below
@@ -613,11 +613,11 @@ MaterializationData fillMaterializes(PlanNode* node, std::set<BaseType::TableCol
 
                     int idx = detFilterColIdx(idxCol, node->children[i]);
                     filterCol = node->children[i]->irData.outputCols[idx]; // except for Select/Result all nodes at the moment only have one output column
-                                                            
+
                     // Create materialization node
                     std::shared_ptr<PlanNode> matNode = std::make_shared<PlanNode>();
                     matNode->irData = MaterializeView::create(idxCol, filterCol, idxCol);
-                    
+
                     // Left child is Source/Data (Materialization or Fetch)
                     if (auto& mat = pMat[idxCol]){
                         // Use previous materialization if exists
@@ -629,10 +629,10 @@ MaterializationData fillMaterializes(PlanNode* node, std::set<BaseType::TableCol
                         fetchNode->irData = FetchView::create(idxCol);
                         matNode->children.push_back(fetchNode);
                     }
-                    
+
                     // Right child Filter
                     matNode->children.push_back(originalChild);
-                    
+
                     // Set this materialization as the most recent one
                     pMat[idxCol] = matNode;
                 }
@@ -699,12 +699,12 @@ void irToApiDataSub(PlanNode* node, std::set<const PlanNode*>& visited) {
     // Join Node
     else if (auto joinV = node->irData.get_view_if<JoinView>()) {
         ItemBuilder::JoinNode joinStruct;
-        
+
         joinStruct.innerColumn = &joinV->inner();
         joinStruct.outerColumn = &joinV->outer();
         joinStruct.iOutputColumn = &joinV->innerOut();
         joinStruct.oOutputColumn = &joinV->outerOut();
-        joinStruct.joinPredicate = &joinV->joinPredicate(); 
+        joinStruct.joinPredicate = &joinV->joinPredicate();
 
         node->apiData = joinStruct;
     }
@@ -712,12 +712,12 @@ void irToApiDataSub(PlanNode* node, std::set<const PlanNode*>& visited) {
     // Semi Join Node
     else if (auto joinV = node->irData.get_view_if<SemiJoinView>()) {
         ItemBuilder::SemiJoinNode semiJoinStruct;
-        
+
         semiJoinStruct.innerColumn = &joinV->inner();
         semiJoinStruct.outerColumn = &joinV->outer();
         semiJoinStruct.iOutputColumn = &joinV->innerOut();
         semiJoinStruct.oOutputColumn = &joinV->outerOut();
-        semiJoinStruct.joinPredicate = &joinV->joinPredicate(); 
+        semiJoinStruct.joinPredicate = &joinV->joinPredicate();
 
         node->apiData = semiJoinStruct;
     }
@@ -732,10 +732,10 @@ void irToApiDataSub(PlanNode* node, std::set<const PlanNode*>& visited) {
         }
         groupStruct.outputIdx = &groupV->outputIdx();
         groupStruct.outputSortIndex = &groupV->outputSortIdx();
-        groupStruct.outputCluster = &groupV->outputCluster(); 
+        groupStruct.outputCluster = &groupV->outputCluster();
         if (auto& aggCol = groupV->aggCol()) {
             if (auto& aggResultCol = groupV->aggResultCol()) {
-                groupStruct.aggColumn = &aggCol.value(); 
+                groupStruct.aggColumn = &aggCol.value();
                 groupStruct.aggResultColumn = &aggResultCol.value();
             }
         }
@@ -743,9 +743,9 @@ void irToApiDataSub(PlanNode* node, std::set<const PlanNode*>& visited) {
             groupStruct.aggColumn = &missingCol;
             groupStruct.aggResultColumn = &missingCol;
         }
-        groupStruct.storeExtends = false; 
+        groupStruct.storeExtends = false;
         groupStruct.sortOrders = groupV->sortOrders();
-        
+
         node->apiData = groupStruct;
     }
 
@@ -756,7 +756,7 @@ void irToApiDataSub(PlanNode* node, std::set<const PlanNode*>& visited) {
         aggStruct.outputColumn = &aggV->aggResultCol();
         aggStruct.aggFunc = aggV->aggFunc();
         // TODO: How to set group columns?
-        aggStruct.groupColumns = {}; 
+        aggStruct.groupColumns = {};
 
         node->apiData = aggStruct;
     }
@@ -779,7 +779,7 @@ void irToApiDataSub(PlanNode* node, std::set<const PlanNode*>& visited) {
     else if (auto setOpV = node->irData.get_view_if<SetOpView>()) {
         ItemBuilder::SetOperationNode setStruct;
         setStruct.operation = setOpV->operation();
-        
+
         // IR stores inputs in a vector, Builder wants explicit pointers
         setStruct.innerColumn = &setOpV->innerCol();
         setStruct.outerColumn = &setOpV->outerCol();
@@ -790,13 +790,13 @@ void irToApiDataSub(PlanNode* node, std::set<const PlanNode*>& visited) {
 
     // Materialize
     else if (auto matV = node->irData.get_view_if<MaterializeView>()) {
-        
+
         ItemBuilder::MaterializeNode matStruct;
 
         matStruct.idxColumn = &matV->idxCol();
         matStruct.filterColumn = &matV->filterCol();
         matStruct.outputColumn = &matV->outputCol();
-        
+
         node->apiData = matStruct;
     }
 
@@ -805,7 +805,7 @@ void irToApiDataSub(PlanNode* node, std::set<const PlanNode*>& visited) {
         ItemBuilder::ResultNode resultStruct;
 
         // MISSING INFO: Filename is not in IR.
-        resultStruct.filename = "result.csv"; 
+        resultStruct.filename = "result.csv";
 
         for (auto& col : selectV->resultCols()) {
             resultStruct.resultColumns.push_back(&col);

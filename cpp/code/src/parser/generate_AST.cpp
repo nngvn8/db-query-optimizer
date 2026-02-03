@@ -1,7 +1,7 @@
 #include <SQLParser.h>
-#include <ir/catalog.hpp>
-#include "generate_AST.h"
-#include "optimizer_one.h"
+#include "ir/catalog.hpp"
+#include "parser/generate_AST.hpp"
+#include "parser/optimizer_one.hpp"
 #include <iostream>
 #include <variant>
 #include <string>
@@ -30,11 +30,11 @@ ASTNode* makeSelectNode(hsql::Expr* expr){
 
     switch(expr->type){
         case hsql::kExprColumnRef: {
-            ASTNode* node = new ASTNode(SelectClauseNode(false,Catalog::getTableName(expr->name),expr->name,"",alias,expr->distinct)); 
+            ASTNode* node = new ASTNode(SelectClauseNode(false,Catalog::getTableName(expr->name),expr->name,"",alias,expr->distinct));
             return node;
         }
         case hsql::kExprStar: {
-            ASTNode* node = new ASTNode(SelectClauseNode(true)); 
+            ASTNode* node = new ASTNode(SelectClauseNode(true));
             return node;
         }
         case hsql::kExprFunctionRef: {
@@ -56,29 +56,29 @@ ASTNode* makeSelectNode(hsql::Expr* expr){
 
                     string a = Catalog::getTableName(expr->exprList->at(0)->expr->name)+"."+expr->exprList->at(0)->expr->name;
                     string b = Catalog::getTableName(expr->exprList->at(0)->expr2->name)+"."+expr->exprList->at(0)->expr2->name;
-                    
+
                     string column = a + " " + op + " " +b;
 
-                    ASTNode* node = new ASTNode(SelectClauseNode(false,"",column,toUpper(expr->name),alias,expr->distinct)); 
+                    ASTNode* node = new ASTNode(SelectClauseNode(false,"",column,toUpper(expr->name),alias,expr->distinct));
                     return node;
-                    
+
                 }
                 case hsql::kExprColumnRef : {
-                    ASTNode* node = new ASTNode(SelectClauseNode(false,Catalog::getTableName(expr->exprList->at(0)->name),expr->exprList->at(0)->name,toUpper(expr->name),alias,expr->distinct)); 
+                    ASTNode* node = new ASTNode(SelectClauseNode(false,Catalog::getTableName(expr->exprList->at(0)->name),expr->exprList->at(0)->name,toUpper(expr->name),alias,expr->distinct));
                     return node;
                 }
                 case hsql::kExprStar : {
-                        ASTNode* node = new ASTNode(SelectClauseNode(true,"","",expr->name,alias,expr->distinct)); 
+                        ASTNode* node = new ASTNode(SelectClauseNode(true,"","",expr->name,alias,expr->distinct));
                         return node;
                 }
             }
         }
-    
+
         default:{
             return nullptr;
         }
     }
-    return nullptr;  
+    return nullptr;
 }
 
 
@@ -123,14 +123,14 @@ ASTNode* makeWhereNode(hsql::Expr* expr){
 
     if(op == "BETWEEN"){
         std::string value1, value2, table, name;
-        
+
         if(expr->expr->name){
             name = expr->expr->name;
         }
         else{
             name = "";
-        }    
-        
+        }
+
         switch(expr->exprList->at(0)->type){
             case hsql::kExprLiteralInt:{
                 value1 = to_string(expr->exprList->at(0)->ival);
@@ -141,7 +141,7 @@ ASTNode* makeWhereNode(hsql::Expr* expr){
                 value1 = expr->exprList->at(0)->name;
                 break;
             }
-                    
+
             case hsql::kExprLiteralFloat:{
                 value1 = to_string(expr->exprList->at(0)->fval);
                 break;
@@ -163,7 +163,7 @@ ASTNode* makeWhereNode(hsql::Expr* expr){
                 value2 = expr->exprList->at(1)->name;
                 break;
             }
-                    
+
             case hsql::kExprLiteralFloat:{
                 value2 = to_string(expr->exprList->at(1)->fval);
                 break;
@@ -174,7 +174,7 @@ ASTNode* makeWhereNode(hsql::Expr* expr){
                 break;
             }
         }
-        
+
         ASTNode* node = new ASTNode(WhereClauseNode(Catalog::getTableName(name),name,op,"","",value1,value2));
         return node;
     }
@@ -193,10 +193,10 @@ ASTNode* makeWhereNode(hsql::Expr* expr){
                 value1 = expr->expr->expr2->name;
                 value2 = expr->expr2->expr2->name;
                 colname1 = expr->expr->expr->name;
-                colname2 = expr->expr2->expr->name; 
+                colname2 = expr->expr2->expr->name;
                 break;
             }
-        
+
         }
 
         ASTNode* node = new ASTNode(WhereClauseNode(Catalog::getTableName(colname1),colname1,op,Catalog::getTableName(colname2),colname2,value1,value2));
@@ -221,7 +221,7 @@ ASTNode* makeWhereNode(hsql::Expr* expr){
                 ASTNode* node = new ASTNode(WhereClauseNode(Catalog::getTableName(name),name,op,"","",expr->expr2->name));
                 return node;
             }
-                    
+
             case hsql::kExprLiteralFloat:{
                 ASTNode* node = new ASTNode(WhereClauseNode(Catalog::getTableName(name),name,op,"","",to_string(expr->expr2->fval)));
                 return node;
@@ -237,9 +237,9 @@ ASTNode* makeWhereNode(hsql::Expr* expr){
                 ASTNode* node = new ASTNode(WhereClauseNode(Catalog::getTableName(name),name,op,Catalog::getTableName(name2),name2,""));
                 return node;
             }
-        }        
+        }
     }
-    return nullptr;  
+    return nullptr;
 }
 
 
@@ -278,7 +278,7 @@ ASTNode* makeTableNode(hsql::TableRef* table){
             return node;
         }
     }
-    return nullptr;  
+    return nullptr;
 }
 
 void parseWhere(hsql::Expr* expr, std::queue<hsql::Expr*> &q){
@@ -300,13 +300,13 @@ bool isTableInRef(hsql::TableRef* table, const std::string& tableName) {
         std::string tAlias = std::string(table->alias->name).empty() ? table->alias->name : "";
         return tName == tableName || tAlias == tableName;
     }
-    
+
     // 2. Join: Check Left and Right recursively
     if (table->type == hsql::kTableJoin) {
-        return isTableInRef(table->join->left, tableName) || 
+        return isTableInRef(table->join->left, tableName) ||
                isTableInRef(table->join->right, tableName);
     }
-    
+
     // 3. Cross Product: Check list
     if (table->type == hsql::kTableCrossProduct) {
         if (table->list) {
@@ -315,7 +315,7 @@ bool isTableInRef(hsql::TableRef* table, const std::string& tableName) {
             }
         }
     }
-    
+
     return false;
 }
 
@@ -323,13 +323,13 @@ ASTNode* exploreTable(hsql::TableRef* table){
     if(!table->join){
         return makeTableNode(table);
     }
-    
-    ASTNode* newRoot = makeTableNode(table); 
+
+    ASTNode* newRoot = makeTableNode(table);
     newRoot->left = exploreTable(table->join->left);
     newRoot->right = exploreTable(table->join->right);
-    
+
     // Ensure that left children also contains left join column
-    if (auto joinNode = std::get_if<TableJoinNode>(&newRoot->val)) {     
+    if (auto joinNode = std::get_if<TableJoinNode>(&newRoot->val)) {
         // Check if children correctly assigned
         if (!isTableInRef(table->join->left, joinNode->onLeftTable)) {
             // Swap Tables
@@ -338,7 +338,7 @@ ASTNode* exploreTable(hsql::TableRef* table){
             std::swap(joinNode->onLeftTableColumn, joinNode->onRightTableColumn);
         }
     }
-    
+
     return newRoot;
 }
 
@@ -395,7 +395,7 @@ ASTNode* exploreCrossProduct(hsql::TableRef* table){
     for(int i=0;i<table->list->size();i++){
         tablenames.push_back(table->list->at(i)->name);
     }
-    
+
     ASTNode* root = new ASTNode(TableJoinNode("CROSSPRODUCT"));
     ASTNode* curr = root;
 
@@ -416,7 +416,7 @@ ASTNode* exploreCrossProduct(hsql::TableRef* table){
 
 void printAST(ASTNode* root){
     if(root == nullptr){return;}
-    
+
     if (auto e = std::get_if<SetOperationNode>(&root->val)) {
         std::cout<<"SetOperation: "<< (*e).setOperation<<std::endl;
     }
@@ -449,7 +449,7 @@ void printAST(ASTNode* root){
         std::string alias = "";
         std::string table = "";
         std::string col = "";
-        
+
         if((*e).star){
             star = "*";
         }
@@ -493,10 +493,10 @@ void printAST(ASTNode* root){
 }
 
 ASTNode* parseQueryExpressionForSet(const hsql::SelectStatement* selectStmt){
-    
+
     ASTNode* root = makeSelectNode(selectStmt->selectList->at(0));
-    ASTNode* current = root;  
-    
+    ASTNode* current = root;
+
     //logic to parse other select clauses
     if (selectStmt->selectList) {
         for (int i=1;i<selectStmt->selectList->size();i++) {
@@ -506,11 +506,11 @@ ASTNode* parseQueryExpressionForSet(const hsql::SelectStatement* selectStmt){
     }
 
     //add having
-    
+
     //logic to parse "Group By clause"
     if(selectStmt->groupBy){
         std::vector<GroupByDescription> groupByList;
-        
+
         for(int i=0;i<selectStmt->groupBy->columns->size();i++){
             groupByList.push_back(makeGroupByNode(selectStmt->groupBy->columns->at(i)));
         }
@@ -526,8 +526,8 @@ ASTNode* parseQueryExpressionForSet(const hsql::SelectStatement* selectStmt){
         hsql::Expr* curr = selectStmt->whereClause;
 
         while (curr->opType == hsql::kOpAnd) {
-            v.push_back(curr->expr2); 
-            curr = curr->expr;    
+            v.push_back(curr->expr2);
+            curr = curr->expr;
         }
         v.push_back(curr);
 
@@ -538,21 +538,21 @@ ASTNode* parseQueryExpressionForSet(const hsql::SelectStatement* selectStmt){
     }
 
     // Join
-    
+
     if(selectStmt->fromTable->type == hsql::kTableCrossProduct){
         current->left = exploreCrossProduct(selectStmt->fromTable);
     }
     else{
         current->left = exploreTable(selectStmt->fromTable);
     }
-    
+
     return root;
 }
 
 ASTNode* parseQueryExpression(const hsql::SelectStatement* selectStmt){
-    
+
     ASTNode* root = new ASTNode();
-    ASTNode* current = root;    
+    ASTNode* current = root;
 
     // logic to parse "Limit clause"
     if(selectStmt->limit){
@@ -591,11 +591,11 @@ ASTNode* parseQueryExpression(const hsql::SelectStatement* selectStmt){
     if(auto e = std::get_if<std::monostate>(&current->val)){
             delete root;
             root = makeSelectNode(selectStmt->selectList->at(0));
-            current = root; 
+            current = root;
     }
     else{
         current->left = makeSelectNode(selectStmt->selectList->at(0));
-        current = current->left; 
+        current = current->left;
     }
 
     //logic to parse other select clauses
@@ -611,7 +611,7 @@ ASTNode* parseQueryExpression(const hsql::SelectStatement* selectStmt){
     //logic to parse "Group By clause"
     if(selectStmt->groupBy){
         std::vector<GroupByDescription> groupByList;
-        
+
         for(int i=0;i<selectStmt->groupBy->columns->size();i++){
             groupByList.push_back(makeGroupByNode(selectStmt->groupBy->columns->at(i)));
         }
@@ -628,8 +628,8 @@ ASTNode* parseQueryExpression(const hsql::SelectStatement* selectStmt){
         hsql::Expr* curr = selectStmt->whereClause;
 
         while (curr->opType == hsql::kOpAnd) {
-            v.push_back(curr->expr2); 
-            curr = curr->expr;    
+            v.push_back(curr->expr2);
+            curr = curr->expr;
         }
         v.push_back(curr);
 
@@ -646,7 +646,7 @@ ASTNode* parseQueryExpression(const hsql::SelectStatement* selectStmt){
     else{
         current->left = exploreTable(selectStmt->fromTable);
     }
-    
+
     return root;
 }
 
@@ -661,14 +661,14 @@ ASTNode* generateASTNode(const std::string& query){
     else{
         std::cout<<"the result is invalid"<<"\n";
     }
-        
+
     ASTNode* root = new ASTNode();
-    
+
     for(int i=0;i<result.size();i++){
         const hsql::SQLStatement* stmt = result.getStatement(i);
 
-        if(stmt->type() == hsql::kStmtSelect){        
-        const hsql::SelectStatement* selectStmt = static_cast<const hsql::SelectStatement*>(stmt);    
+        if(stmt->type() == hsql::kStmtSelect){
+        const hsql::SelectStatement* selectStmt = static_cast<const hsql::SelectStatement*>(stmt);
 
             if(selectStmt->setOperations){
                 delete root;
@@ -680,21 +680,21 @@ ASTNode* generateASTNode(const std::string& query){
                             ASTNode* newNode = new ASTNode(SetOperationNode("UNION"));
                             newNode->left = root;
                             newNode->right = parseQueryExpressionForSet(selectStmt->setOperations->at(i)->nestedSelectStatement);
-                            root = newNode;   
+                            root = newNode;
                             break;
                         }
                         case hsql::kSetIntersect : {
                             ASTNode* newNode = new ASTNode(SetOperationNode("INTERSECT"));
                             newNode->left = root;
                             newNode->right = parseQueryExpressionForSet(selectStmt->setOperations->at(i)->nestedSelectStatement);
-                            root = newNode; 
+                            root = newNode;
                             break;
                         }
                         case hsql::kSetExcept : {
                             ASTNode* newNode = new ASTNode(SetOperationNode("EXCEPT"));
                             newNode->left = root;
                             newNode->right = parseQueryExpressionForSet(selectStmt->setOperations->at(i)->nestedSelectStatement);
-                            root = newNode; 
+                            root = newNode;
                             break;
                         }
                     }
@@ -708,7 +708,7 @@ ASTNode* generateASTNode(const std::string& query){
                             orderbynode->left = root;
                             root = orderbynode;
                         }
-                        
+
                         if(selectStmt->setOperations->at(i)->resultLimit){
                             if(selectStmt->setOperations->at(i)->resultLimit->offset){
                                 ASTNode* limitnode = new ASTNode(LimitClauseNode(to_string(selectStmt->setOperations->at(i)->resultLimit->limit->ival),to_string(selectStmt->setOperations->at(i)->resultLimit->offset->ival)));
@@ -718,7 +718,7 @@ ASTNode* generateASTNode(const std::string& query){
                             else{
                                 ASTNode* limitnode = new ASTNode(LimitClauseNode(to_string(selectStmt->setOperations->at(i)->resultLimit->limit->ival),""));
                                 limitnode->left = root;
-                                root = limitnode;  
+                                root = limitnode;
                             }
                         }
                     }
@@ -730,11 +730,11 @@ ASTNode* generateASTNode(const std::string& query){
                 root = parseQueryExpression(selectStmt);
             }
 
-        }   
+        }
     }
     cout<<"Parsed Successfully"<<endl<<endl;
-    
+
     root = optimizerOne(root);
-    
+
     return root;
 }
