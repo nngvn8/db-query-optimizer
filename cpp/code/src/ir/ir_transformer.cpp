@@ -592,7 +592,10 @@ MaterializationData fillMaterializes(PlanNode* node, std::set<BaseType::TableCol
         BaseType::TableColumn filterCol;
         bool childIsPositionListNode = false;
         
+        // TODO: store if outputs position list in irData
+        // Check if is position list node 
         if (node->children[i]->irData.is<JoinOp>()
+            || node->children[i]->irData.is<SemiJoinOp>()
             || node->children[i]->irData.is<FilterOp>()
             || node->children[i]->irData.is<GroupOp>()
             || node->children[i]->irData.is<SortOp>()
