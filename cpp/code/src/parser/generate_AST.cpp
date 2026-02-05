@@ -437,6 +437,48 @@ ASTNode* parseQueryExpression(const hsql::SelectStatement* selectStmt){
         current = root; 
     }
 
+    
+    // logic to parse "Limit clause"
+
+    if(selectStmt->limit){
+        if(selectStmt->limit->offset){
+            ASTNode* limitnode = new ASTNode(LimitClauseNode(to_string(selectStmt->limit->limit->ival),to_string(selectStmt->limit->offset->ival)));
+            current->left = limitnode;
+            current = current->left;
+        }
+        else{
+            ASTNode* limitnode = new ASTNode(LimitClauseNode(to_string(selectStmt->limit->limit->ival),""));
+            current->left = limitnode;
+            current = current->left;
+        }
+    }
+
+    // logic to parse order
+
+    if(selectStmt->order){
+        std::vector<OrderByDescription> orderByList;
+        for(int i=0;i<selectStmt->order->size();i++){
+            orderByList.push_back(makeOrderNode(selectStmt->order->at(i)));
+        }
+        ASTNode* orderbynode = new ASTNode(OrderByClauseNode(orderByList));
+        current->left = orderbynode;
+        current = current->left;
+    }
+
+    //logic to parse "Group By clause"
+    if(selectStmt->groupBy){
+        std::vector<GroupByDescription> groupByList;
+        
+        for(int i=0;i<selectStmt->groupBy->columns->size();i++){
+            groupByList.push_back(makeGroupByNode(selectStmt->groupBy->columns->at(i)));
+        }
+        ASTNode* groupBynode = new ASTNode(GroupByClauseNode(groupByList));
+        current->left = groupBynode;
+        current = current->left;
+    }
+
+    // logic for aggregate and map
+
     if (selectStmt->selectList) {
         std::vector<SelectClauseDescription> selectClauseDescriptionList;
         for (int i=0;i<selectStmt->selectList->size();i++) {
@@ -499,47 +541,6 @@ ASTNode* parseQueryExpression(const hsql::SelectStatement* selectStmt){
                 }
             }
         }
-    }
-
-    // logic to parse "Limit clause"
-
-    if(selectStmt->limit){
-        if(selectStmt->limit->offset){
-            ASTNode* limitnode = new ASTNode(LimitClauseNode(to_string(selectStmt->limit->limit->ival),to_string(selectStmt->limit->offset->ival)));
-            current->left = limitnode;
-            current = current->left;
-        }
-        else{
-            ASTNode* limitnode = new ASTNode(LimitClauseNode(to_string(selectStmt->limit->limit->ival),""));
-            current->left = limitnode;
-            current = current->left;
-        }
-    }
-
-    // logic to parse order
-
-    if(selectStmt->order){
-        std::vector<OrderByDescription> orderByList;
-        for(int i=0;i<selectStmt->order->size();i++){
-            orderByList.push_back(makeOrderNode(selectStmt->order->at(i)));
-        }
-        ASTNode* orderbynode = new ASTNode(OrderByClauseNode(orderByList));
-        current->left = orderbynode;
-        current = current->left;
-    }
-
-    //add having
-
-    //logic to parse "Group By clause"
-    if(selectStmt->groupBy){
-        std::vector<GroupByDescription> groupByList;
-        
-        for(int i=0;i<selectStmt->groupBy->columns->size();i++){
-            groupByList.push_back(makeGroupByNode(selectStmt->groupBy->columns->at(i)));
-        }
-        ASTNode* groupBynode = new ASTNode(GroupByClauseNode(groupByList));
-        current->left = groupBynode;
-        current = current->left;
     }
 
     //logic to parse "where clause"
