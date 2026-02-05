@@ -392,10 +392,6 @@ std::vector<WorkItem> ItemBuilder::createWorkItems(std::vector<const PlanNode*>&
             WorkItem w = ItemBuilder::createResultItem(*item);
             workItems.push_back(w);
         }
-
-        std::cout << " -- ";
-            printNode(*node, 2);
-            std::cout << std::endl;
     }
 
     return workItems;
