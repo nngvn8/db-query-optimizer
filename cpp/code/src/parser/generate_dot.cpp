@@ -3,7 +3,7 @@
 #include <iostream>
 #include <cstdint>
 #include <string>
-#include "generate_AST.h"  
+#include "parser/generate_AST.hpp"
 
 void writeDot(ASTNode* root, std::ofstream& file) {
     if (!root) return;
@@ -88,7 +88,7 @@ void writeDot(ASTNode* root, std::ofstream& file) {
          << " [shape=box, label=\"" << label << "\"];\n";
     
     if (root->left) {
-        std::ostringstream leftId;  
+        std::ostringstream leftId;
         leftId << reinterpret_cast<std::uintptr_t>(root->left);
         file << "    " << id.str() << " -> " << leftId.str() << ";\n";
         writeDot(root->left, file);

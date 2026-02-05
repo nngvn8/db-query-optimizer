@@ -1,11 +1,11 @@
-#include "plan_node_to_dot.hpp"
+#include "ir/plan_node_to_dot.hpp"
 #include <fstream>
 #include <sstream>
 #include <iostream>
 #include <cstdint>
 #include <algorithm>
 #include <unordered_set>
-#include <ir/ir_views.hpp>
+#include "ir/ir_views.hpp"
 
 // --- Helper Functions (Local) ---
 
@@ -71,7 +71,7 @@ namespace {
             }
             ss << "\n----------------\n";
         }
-        
+
         // Visitor for variant values (used in Filter/Map)
         auto streamVal = [&](const auto& val) { ss << val; };
 
@@ -85,9 +85,9 @@ namespace {
         }
         else if (node.irData.is<SelectOp>()) {
             SelectView view(mutableIr);
-            ss << "Select " << (view.distinct() ? "DISTINCT " : "") 
+            ss << "Select " << (view.distinct() ? "DISTINCT " : "")
                << (view.star() ? "*" : "") << "\n";
-            
+
             for(size_t i=0; i<view.resultCols().size(); ++i) {
                 ss << view.resultCols()[i] << (i < view.resultCols().size() - 1 ? ", " : "");
             }
@@ -98,8 +98,14 @@ namespace {
         }
         else if (node.irData.is<JoinOp>()) {
             JoinView view(mutableIr);
-            ss << "Join " << joinTypeToString(view.joinType()) << "\nON " 
-               << view.inner() << " " << CompType_Name(view.joinPredicate()) 
+            ss << "Join " << joinTypeToString(view.joinType()) << "\nON "
+               << view.inner() << " " << CompType_Name(view.joinPredicate())
+               << " " << view.outer();
+        }
+        else if (node.irData.is<SemiJoinOp>()) {
+            SemiJoinView view(mutableIr);
+            ss << "SemiJoin " << joinTypeToString(view.joinType()) << "\nON "
+               << view.inner() << " " << CompType_Name(view.joinPredicate())
                << " " << view.outer();
         }
         else if (node.irData.is<FilterOp>()) {
@@ -108,7 +114,7 @@ namespace {
 
             if (view.col2() != nullptr) {
                 ss << *view.col2();
-            } 
+            }
             else if (!view.filterArgs().empty()) {
                 if (view.filterType() == CompType::COMP_BETWEEN && view.filterArgs().size() >= 2) {
                     std::visit(streamVal, view.filterArgs()[0]);
@@ -156,7 +162,7 @@ namespace {
         }
         else if (node.irData.is<SetOp>()) {
             SetOpView view(mutableIr);
-            ss << "SetOp [" << (int)view.operation() << "]"; 
+            ss << "SetOp [" << (int)view.operation() << "]";
         }
         else if (node.irData.is<MatOp>()) {
             MaterializeView view(mutableIr);
@@ -227,6 +233,12 @@ namespace {
                 ss << "iOut: " << data.iOutputColumn << "\n";
                 ss << "oOut: " << data.oOutputColumn;
             }
+            else if constexpr (std::is_same_v<T, ItemBuilder::SemiJoinNode>) {
+                ss << "API SemiJoin\nInner: " << data.innerColumn << "\n";
+                ss << "Outer: " << data.outerColumn << "\n";
+                ss << "iOut: " << data.iOutputColumn << "\n";
+                ss << "oOut: " << data.oOutputColumn;
+            }
             else if constexpr (std::is_same_v<T, ItemBuilder::MapNode>) {
                 ss << "API Map\n";
                 ss << data.inputColumn << " -> " << data.outputColumn;
@@ -281,7 +293,7 @@ namespace {
 
     void writePlanNodeDot(const PlanNode* node, std::ofstream& file, DotContentType contentType, std::unordered_set<const PlanNode*>& visited) {
         if (!node) return;
-        
+
         // Handle DAG/Cycles: If already visited, stop.
         if (visited.count(node)) return;
         visited.insert(node);
@@ -302,10 +314,10 @@ namespace {
             if (child) {
                 std::ostringstream childId;
                 childId << reinterpret_cast<std::uintptr_t>(child.get());
-                
+
                 // Write Edge
                 file << "    " << id.str() << " -> " << childId.str() << ";\n";
-                
+
                 // Recurse
                 writePlanNodeDot(child.get(), file, contentType, visited);
             }
@@ -322,7 +334,7 @@ void generatePlanDotFile(const PlanNode& root, const std::string& filename, DotC
 
     file << "digraph PlanNode {\n";
     file << "    node [shape=box, fontname=\"Helvetica\"];\n";
-    
+
     std::unordered_set<const PlanNode*> visited;
     writePlanNodeDot(&root, file, contentType, visited);
 

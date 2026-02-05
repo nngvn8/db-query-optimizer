@@ -1,10 +1,10 @@
 #include <iostream>
 #include <string>
 
-#include "ArgParser.hpp"
-#include "TCPClient.hpp"
+#include "util/ArgParser.hpp"
+#include "client/TCPClient.hpp"
 #include "UnitDefinition.pb.h"
-#include "Utility.hpp"
+#include "util/Utility.hpp"
 #include "WorkItem.pb.h"
 #include "WorkResponse.pb.h"
 

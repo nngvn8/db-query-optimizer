@@ -1,5 +1,6 @@
 cpp/generated
 cpp/build/
+cpp/external/
 .vscode
 python/generated
 

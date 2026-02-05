@@ -40,6 +40,18 @@ file(GLOB_RECURSE PROJECT_HEADERS
      "${CMAKE_CURRENT_SOURCE_DIR}/generated/include/*.[hH]*"
 )
 
+# Hyrise SQL-Parser
+# add_library(sqlparser STATIC IMPORTED)
+# set_target_properties(sqlparser PROPERTIES
+#     IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/external/sql-parser/libsqlparser.a"
+#     INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/external/sql-parser/src"
+# )
+
+add_subdirectory(external/sql-parser)
+
+# JsonCpp
+add_subdirectory(external/jsoncpp)
+
 # ---- Single target only ----
 # Build a library (switch to add_executable if you actually have a main()).
 add_executable(optimizer-server "${CMAKE_CURRENT_SOURCE_DIR}/code/examples/tcp_server_example.cpp" ${PROJECT_SRC} ${PROJECT_HEADERS})
@@ -65,13 +77,13 @@ target_include_directories(optimizer-compute-unit
 
 # Link against Protobuf. Prefer full lib; fall back to lite if that's what is available.
 if(TARGET protobuf::libprotobuf)
-  target_link_libraries(optimizer-server PRIVATE protobuf::libprotobuf)
-  target_link_libraries(optimizer-client PRIVATE protobuf::libprotobuf)
-  target_link_libraries(optimizer-compute-unit PRIVATE protobuf::libprotobuf)
+  target_link_libraries(optimizer-server PRIVATE protobuf::libprotobuf PRIVATE sqlparser PRIVATE jsoncpp_lib)
+  target_link_libraries(optimizer-client PRIVATE protobuf::libprotobuf PRIVATE sqlparser PRIVATE jsoncpp_lib)
+  target_link_libraries(optimizer-compute-unit PRIVATE protobuf::libprotobuf PRIVATE sqlparser PRIVATE jsoncpp_lib)
 elseif(TARGET protobuf::libprotobuf-lite)
-  target_link_libraries(optimizer-server PRIVATE protobuf::libprotobuf-lite)
-  target_link_libraries(optimizer-client PRIVATE protobuf::libprotobuf-lite)
-  target_link_libraries(optimizer-compute-unit PRIVATE protobuf::libprotobuf-lite)
+  target_link_libraries(optimizer-server PRIVATE protobuf::libprotobuf-lite PRIVATE sqlparser PRIVATE jsoncpp_lib)
+  target_link_libraries(optimizer-client PRIVATE protobuf::libprotobuf-lite PRIVATE sqlparser PRIVATE jsoncpp_lib)
+  target_link_libraries(optimizer-compute-unit PRIVATE protobuf::libprotobuf-lite PRIVATE sqlparser PRIVATE jsoncpp_lib)
 else()
   message(FATAL_ERROR "Protobuf library target not found. Is Protobuf installed correctly?")
 endif()

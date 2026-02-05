@@ -4,10 +4,10 @@
 #include <WorkRequest.pb.h>
 #include <WorkResponse.pb.h>
 
-#include <ArgParser.hpp>
-#include <TCPClient.hpp>
-#include <TCPServer.hpp>
-#include <Utility.hpp>
+#include "util/ArgParser.hpp"
+#include "client/TCPClient.hpp"
+#include "server/TCPServer.hpp"
+#include "util/Utility.hpp"
 #include <bitset>
 #include <chrono>
 #include <functional>

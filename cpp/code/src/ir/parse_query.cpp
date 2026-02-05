@@ -1,4 +1,4 @@
-#include "parse_query.hpp"
+#include "ir/parse_query.hpp"
 #include <iostream>
 #include <regex>
 #include <sstream>
@@ -19,7 +19,7 @@ SqlQueryData parseQuery(std::string sql) {
     // --- 1. PARSE SELECT CLAUSE ---
     std::regex selectRegex(R"(SELECT\s+([\s\S]+?)\s+FROM)", std::regex::icase);
     std::smatch selectMatch;
-    
+
     if (std::regex_search(sql, selectMatch, selectRegex)) {
         std::string selectClause = selectMatch[1];
         std::replace(selectClause.begin(), selectClause.end(), '\n', ' ');
@@ -83,7 +83,7 @@ SqlQueryData parseQuery(std::string sql) {
     if (std::regex_search(sql, whereMatch, whereRegex)) {
         std::string whereClause = whereMatch[1];
         std::replace(whereClause.begin(), whereClause.end(), '\n', ' ');
-        
+
         // Mask BETWEEN
         std::regex betweenRegex(R"(BETWEEN\s+(\S+)\s+AND\s+(\S+))", std::regex::icase);
         whereClause = std::regex_replace(whereClause, betweenRegex, "BETWEEN $1 _AND_ $2");
@@ -98,11 +98,11 @@ SqlQueryData parseQuery(std::string sql) {
             if (cond.empty()) continue;
             size_t placeholder = cond.find(" _AND_ ");
             if (placeholder != std::string::npos) cond.replace(placeholder, 7, " AND ");
-            
+
             if (cond.size() > 1 && cond.front() == '(' && cond.back() == ')') {
                 cond = trim(cond.substr(1, cond.size() - 2));
             }
-            
+
             meta.conditions.push_back(cond);
         }
     }
@@ -141,7 +141,7 @@ SqlQueryData parseQuery(std::string sql) {
             if (s.size() >= 5 && s.substr(s.size() - 5) == " DESC") {
                 sf.asc = false;
                 s = s.substr(0, s.size() - 5);
-            } 
+            }
             // Check for ASC (explicit)
             else if (s.size() >= 4 && s.substr(s.size() - 4) == " ASC") {
                 sf.asc = true;
@@ -168,7 +168,7 @@ void print_query_data(const SqlQueryData& data) {
     std::cout << "\n--- AGGREGATIONS (Computed Subset) ---\n";
     if (data.aggregations.empty()) std::cout << " (None)\n";
     for (const auto& agg : data.aggregations) {
-        std::cout << " Func: " << agg.func 
+        std::cout << " Func: " << agg.func
                   << " | Map: " << agg.mapping;
         if (!agg.alias.empty()) std::cout << " | Alias: " << agg.alias;
         std::cout << "\n";
@@ -188,7 +188,7 @@ void print_query_data(const SqlQueryData& data) {
 
     std::cout << "\n--- ORDER BY ---\n";
     for (const auto& s : data.sorting) {
-        std::cout << " - " << s.field 
+        std::cout << " - " << s.field
                   << " [" << (s.asc ? "ASC" : "DESC") << "]\n";
     }
 }

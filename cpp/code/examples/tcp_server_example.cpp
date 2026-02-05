@@ -3,10 +3,10 @@
 #include <sstream>
 #include <string>
 
-#include "ArgParser.hpp"
+#include "util/ArgParser.hpp"
 #include "NetworkRequests.pb.h"
-#include "TCPServer.hpp"
-#include "Utility.hpp"
+#include "server/TCPServer.hpp"
+#include "util/Utility.hpp"
 #include "WorkItem.pb.h"
 #include "WorkResponse.pb.h"
 
@@ -56,7 +56,7 @@ int main(int argc, char* argv[]) {
 
     auto reroute_work_cb = [&server](TCPMetaInfo* meta, void* data, size_t len) -> void {
         std::cout << "[RerouteWork] I received a message to reroute a previously issued WorkRequest." << std::endl;
-        
+
         const size_t message_size = sizeof(TCPMetaInfo) + len;
         void* buf = malloc(message_size);
         TCPMetaInfo message_info;
@@ -154,7 +154,7 @@ int main(int argc, char* argv[]) {
             std::cout << "[TCPServer] ERROR - UUID<" << meta->tgt_uuid << "> not found. Could not send to destination." << std::endl;
         }
     };
-    
+
     // TODO: We need to be more adaptive to not repeat the same code everytime we just want to forward something
     auto connect_info_forward_cb = [&server](TCPMetaInfo* meta, void* data, size_t len) -> void {
         std::cout << "[ConfigurationAction] Received a ConnectActionInfo. Forwarding to a specific target." << std::endl;
