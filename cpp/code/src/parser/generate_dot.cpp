@@ -7,9 +7,8 @@
 
 void writeDot(ASTNode* root, std::ofstream& file) {
     if (!root) return;
-
+    
     std::string label;
-
     if (auto e = std::get_if<SetOperationNode>(&root->val)) {
         label = "SetOperation:\\n" + e->setOperation;
     }
@@ -34,43 +33,28 @@ void writeDot(ASTNode* root, std::ofstream& file) {
         label = "Where:\\n";
         if (e->operatorType == "OR") {
             label += e->table + "." + e->column + " = " + e->value;
-            label += "\\nOR\\n";
+            label += " " + e->operatorType + " ";
             label += e->table2 + "." + e->column2 + " = " + e->value2;
         }
         else if (e->operatorType == "BETWEEN") {
-            label += e->table + "." + e->column;
-            label += " BETWEEN " + e->value + " AND " + e->value2;
+            label += e->table + "." + e->column + " ";
+            label += e->operatorType + " " + e->value + " AND " + e->value2;
         }
         else {
             label += e->table + "." + e->column + " ";
             label += e->operatorType + " ";
-            label += e->value;
-            if (!e->table2.empty()) {
-                label += " " + e->table2 + "." + e->column2;
-            }
+            label += e->value + " " + e->table2 + "." + e->column2;
         }
     }
     else if (auto e = std::get_if<SelectClauseNode>(&root->val)) {
         label = "Select:\\n";
-
-        if (e->distinct) {
-            label += "DISTINCT ";
+        for (const auto& d : e->description) {
+            label += d.table + "." + d.column + "\\n";
         }
-
-        if (e->star) {
-            label += "*";
-        } else if (!e->aggregateFunction.empty()) {
-            label += e->aggregateFunction + "(" + e->column + ")";
-        } else {
-            if (!e->table.empty()) {
-                label += e->table + ".";
-            }
-            label += e->column;
-        }
-
-        if (!e->alias.empty()) {
-            label += "\\nAS " + e->alias;
-        }
+    }
+    else if (auto e = std::get_if<AggregateClauseNode>(&root->val)) {
+        label = "Aggregate Node:\\n";
+        label += e->aggregateFunction + " as " + e->alias;
     }
     else if (auto e = std::get_if<GroupByClauseNode>(&root->val)) {
         label = "Group By:\\n";
@@ -81,32 +65,34 @@ void writeDot(ASTNode* root, std::ofstream& file) {
     else if (auto e = std::get_if<OrderByClauseNode>(&root->val)) {
         label = "Order By:\\n";
         for (const auto& o : e->orderByList) {
-            label += o.table + "." + o.column + " " + o.ordertype + "\\n";
+            label += o.table + "." + o.column + " " + o.ordertype + " |\\n";
         }
+    }
+    else if (auto e = std::get_if<Map>(&root->val)) {
+        label = "Map:\\n";
+        label += e->table1 + "." + e->column1 + " ";
+        label += e->operatorType + " ";
+        label += e->table2 + "." + e->column2;
     }
     else if (auto e = std::get_if<LimitClauseNode>(&root->val)) {
         label = "Limit:\\n";
-        label += e->limit;
-        label += " OFFSET ";
-        label += e->offset;
+        label += e->limit + " " + e->offset;
     }
     else {
         label = "Unknown";
     }
-
+    
     std::ostringstream id;
     id << reinterpret_cast<std::uintptr_t>(root);
-
     file << "    " << id.str()
          << " [shape=box, label=\"" << label << "\"];\n";
-
+    
     if (root->left) {
         std::ostringstream leftId;
         leftId << reinterpret_cast<std::uintptr_t>(root->left);
         file << "    " << id.str() << " -> " << leftId.str() << ";\n";
         writeDot(root->left, file);
     }
-
     if (root->right) {
         std::ostringstream rightId;
         rightId << reinterpret_cast<std::uintptr_t>(root->right);
@@ -114,7 +100,6 @@ void writeDot(ASTNode* root, std::ofstream& file) {
         writeDot(root->right, file);
     }
 }
-
 
 void generateDotFile(ASTNode* root, const std::string& filename) {
     std::ofstream file(filename);

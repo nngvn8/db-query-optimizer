@@ -72,31 +72,62 @@ class WhereClauseNode {
                     {};
 };
 
+struct SelectClauseDescription {
+    SelectClauseDescription() = default;
+    SelectClauseDescription(const std::string tbl,const std::string col)
+        : column(col), table(tbl) {}
+    virtual ~SelectClauseDescription() = default;
+    std::string column;
+    std::string table;
+};
+
 class SelectClauseNode {
     public:
-        bool star;
-        std::string table;
-        std::string column;
+        std::vector<SelectClauseDescription> description; 
+
+        SelectClauseNode(std::vector<SelectClauseDescription>& description)
+            : description(description) {}; 
+};
+
+
+class Map {
+    public:
+        std::string table1;
+        std::string column1;
+        std::string table2;    
+        std::string column2;
+        std::string operatorType;
+        std::string value;
+
+        Map(
+            const std::string& table1 = "",
+            const std::string& column1 = "",
+            const std::string& table2 = "",
+            const std::string& column2 = "",
+            const std::string& operatorType = "",
+            const std::string& value = ""
+        )
+            : column1(column1),
+            table1(table1),
+            column2(column2),
+            table2(table2),
+            operatorType(operatorType),
+            value(value)
+        {}
+};
+
+class AggregateClauseNode {
+    public:
         std::string aggregateFunction;
         std::string alias;
-        bool distinct;
         
-        SelectClauseNode(
-                const bool star = false,
-                const std::string& table = "",
-                const std::string& column = "",
+        AggregateClauseNode(
                 const std::string& aggrFunc = "",
-                const std::string& alias = "",
-                const bool distinct = false)
-                    :
-                    star(star),
-                    table(table),
-                    column(column),
+                const std::string& alias = ""
+                ):
                     aggregateFunction(aggrFunc),
-                    alias(alias),
-                    distinct(distinct)
+                    alias(alias)
                     {};
-  
 };
 
 struct GroupByDescription {
@@ -178,7 +209,9 @@ public:
         SelectClauseNode,
         GroupByClauseNode,
         OrderByClauseNode,
-        LimitClauseNode
+        LimitClauseNode,
+        Map,
+        AggregateClauseNode
     > val;
 
     ASTNode* left;
@@ -187,6 +220,12 @@ public:
     ASTNode()
         : val(std::monostate{}), left(nullptr), right(nullptr) {}
 
+    explicit ASTNode(AggregateClauseNode node)
+        : val(std::move(node)), left(nullptr), right(nullptr) {}
+    
+    explicit ASTNode(Map node)
+        : val(std::move(node)), left(nullptr), right(nullptr) {}
+        
     explicit ASTNode(SetOperationNode node)
         : val(std::move(node)), left(nullptr), right(nullptr) {}
 
@@ -233,8 +272,6 @@ ASTNode* generateASTNode(const std::string& query);
 
 ASTNode* makeWhereNode(hsql::Expr* expr);
 
-ASTNode* makeSelectNode(hsql::Expr* expr);
-
 ASTNode* makeTableNode(hsql::TableRef* table);
 
 OrderByDescription makeOrderNode(hsql::OrderDescription* order);
@@ -242,7 +279,5 @@ OrderByDescription makeOrderNode(hsql::OrderDescription* order);
 GroupByDescription makeGroupByNode(hsql::Expr* column);
 
 ASTNode* parseQueryExpression(const hsql::SelectStatement* selectStmt);
-
-ASTNode* parseQueryExpressionForSet(const hsql::SelectStatement* selectStmt);
 
 #endif
