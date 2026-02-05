@@ -5,9 +5,9 @@ cpp/external/
 python/generated
 
 **/a.out
-**/*.o
-**/*.d
-**/runner
+*.o
+*.d
+runner
 cpp/code/src/build
 *.png
 *.dot

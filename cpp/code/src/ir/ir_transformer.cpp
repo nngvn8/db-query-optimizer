@@ -567,15 +567,17 @@ namespace {
 MaterializationData fillMaterializes(PlanNode* node, std::set<BaseType::TableColumn> columnsToMaterializeOn, const std::set<BaseType::TableColumn>& inputOfParent) {
     if (!node) return MaterializationData();
 
-    std::map<BaseType::TableColumn, std::shared_ptr<PlanNode>> pMat; // previous materializations
-
-    std::set<BaseType::Table> tablesBelow;
+    // Previous materializations available (collected from children, possibly updated here)
+    std::map<BaseType::TableColumn, std::shared_ptr<PlanNode>> pMat; 
+    
+    // Tables below this node (union of tables found below all children)
     std::set<BaseType::Table> allTablesBelow;
 
-    columnsToMaterializeOn.insert(node->irData.inputColumns.begin(), node->irData.inputColumns.end());
-
-    // Fetch columns this node needs
+     // Columns this node needs
     std::set<BaseType::TableColumn> columnsThisNode(node->irData.inputColumns.begin(), node->irData.inputColumns.end());
+    
+    // Add columns needed by this node to columns needed later
+    columnsToMaterializeOn.insert(columnsThisNode.begin(), columnsThisNode.end());
 
     // Generate materialize nodes (bottom up)
     for (size_t i = 0; i < node->children.size(); ++i) {
@@ -670,13 +672,14 @@ MaterializationData fillMaterializes(PlanNode* node, std::set<BaseType::TableCol
             // Set most recent materialization of children as column
             if (pMat.count(idxCol))
                 node->children.push_back(pMat[idxCol]);
+            // This should not happen (currently ocuring because no proper map nodes)
             else {
                 std::cout << "scream" << std::endl;
             }
         }
     }
 
-    return MaterializationData(allTablesBelow, pMat);
+    return MaterializationData{allTablesBelow, pMat};
 
 }
 

@@ -20,14 +20,6 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast);
 struct MaterializationData {
     std::set<BaseType::Table> tablesBelow;
     std::map<BaseType::TableColumn, std::shared_ptr<PlanNode>> previousMaterializations;
-    MaterializationData(
-        std::set<BaseType::Table> tablesBelow,
-        std::map<BaseType::TableColumn, std::shared_ptr<PlanNode>>previousMaterializations
-    ) :
-        tablesBelow(tablesBelow),
-        previousMaterializations(previousMaterializations)
-    {}
-    MaterializationData() = default;
 };
 
 MaterializationData fillMaterializes(PlanNode* node, std::set<BaseType::TableColumn> columnsToMaterializeOn = {}, const std::set<BaseType::TableColumn>& inputOfParent = {});

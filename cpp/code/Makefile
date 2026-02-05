@@ -5,12 +5,12 @@
 HSQL_HEADER_DIR = /home/martin/University/09_KDB/sql-parser/hsql/
 HSQL_BIN_DIR = /home/martin/University/09_KDB/sql-parser
 
-PROTO_SRC := ../../generated/src/WorkItem.pb.cc
+PROTO_SRC := $(shell find ../generated/src -name '*.pb.cc')
 
 # Compiler settings
 CXX      := g++																# Compiler
 CXXFLAGS := -std=c++23 -Wall -Wextra -MMD -MP -g							# Flags
-INCLUDES := -I. -I../../generated/include -I$(HSQL_HEADER_DIR)				# Header search paths
+INCLUDES := -I./include -I../generated/include -I$(HSQL_HEADER_DIR)					# Header search paths
 LDFLAGS  := -L$(HSQL_BIN_DIR) -Wl,-rpath,$(HSQL_BIN_DIR)					# Library directory(ies)
 LIBS     := -ljsoncpp -lsqlparser $(shell pkg-config --libs protobuf)		# Libraries to link
 
@@ -18,17 +18,18 @@ LIBS     := -ljsoncpp -lsqlparser $(shell pkg-config --libs protobuf)		# Librari
 BUILD_DIR := ./build
 
 # Source directories (.cpp files)
-SRC_DIRS := ./ir ./translation ./util ./parser 
+SRC_DIRS := ./src
+#./src/col_opt ./src/ir ./src/parser ./src/translation ./src/util
 
 # Files to exclude as sources
-EXCLUDES := %/item_builder_example.cpp \
+# EXCLUDES := %/item_builder_example.cpp \
             %/query_parse_test.cpp
 
 # Find sources and filter
 SOURCES := $(shell find $(SRC_DIRS) -name '*.cpp')
-SOURCES := $(filter-out $(EXCLUDES), $(SOURCES))
+# SOURCES := $(filter-out $(EXCLUDES), $(SOURCES))
 SOURCES += $(PROTO_SRC)
-SOURCES += ./main.cpp
+SOURCES += ./examples/main.cpp
 
 OBJECTS := $(SOURCES:%.cpp=$(BUILD_DIR)/%.o)
 OBJECTS := $(OBJECTS:%.cc=$(BUILD_DIR)/%.o)

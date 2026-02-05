@@ -52,7 +52,7 @@ namespace BaseType {
         }
 
         bool operator==(const Table& other) const {
-            return name == other.name;
+            return name == other.name && alias == other.alias;
         }
 
     };
