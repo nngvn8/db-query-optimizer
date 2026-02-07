@@ -405,22 +405,20 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
             i++;
         }
         std::string groupingColString = ss.str();
-        BaseType::TableColumn outCol(BaseType::Table(""), groupingColString, ColumnType::TYPE_INTEGER);
+        BaseType::TableColumn outCol(BaseType::Table("GROUP"), groupingColString, ColumnType::TYPE_INTEGER);
         node->irData = GroupView::create(groups, outCol);
     }
     // Aggregation
     else if (auto e = std::get_if<AggregateClauseNode>(&ast->val)) {
         std::optional<AggFunc> aggFunc = mapStringToAggFunc(e->aggregateFunction);
         if (aggFunc.has_value()) {
-            // TODO output column name should be provided
-            if (auto e = std::get_if<Map>(&ast->left->val)) {
-                std::string colName  = e->table1 + "." + e->column1 + e->operatorType + e->table2 + "." + e->column2;
-                BaseType::TableColumn aggCol(BaseType::Table("map_out"), colName, ColumnType::TYPE_INTEGER);
-                node->irData = AggView::create(aggCol, aggCol, aggFunc.value());
-                }
+                BaseType::TableColumn aggColIn(e->table, e->column, ColumnType::TYPE_INTEGER);
+                std::string aggColOutName = e->aggregateFunction + "(" + e->column + ")";
+                BaseType::TableColumn aggColOut(BaseType::Table("AGG"), aggColOutName, ColumnType::TYPE_INTEGER);
+                node->irData = AggView::create(aggColIn, aggColOut, aggFunc.value());
         }
         else {
-            std::cout << "Aggregation Function of AST tree not found!" << std::endl;
+            std::cout << "Aggregation Function of AST tree could not be parsed!" << std::endl;
         }
     }
     // Map
@@ -428,7 +426,7 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
         BaseType::TableColumn inputCol(e->table1, e->column1, Catalog::getSSBColumnType(e->table1, e->column1));
         BaseType::TableColumn partnerVal(e->table2, e->column2, Catalog::getSSBColumnType(e->table2, e->column2));
         ArithOp op = mapStringToArithOp(e->operatorType);
-        BaseType::TableColumn outCol(BaseType::Table("map_out"), e->table1 + "." + e->column1 + e->operatorType + e->table2 + "." + e->column2, ColumnType::TYPE_INTEGER);
+        BaseType::TableColumn outCol(BaseType::Table("MAP"), e->column1 + e->operatorType + e->column2, ColumnType::TYPE_INTEGER);
         node->irData = MapView::create(inputCol, op, partnerVal, outCol);
     }
     // WHERE / Filter Node
@@ -482,7 +480,7 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
 
         BaseType::TableColumn leftCol(e->onLeftTable, e->onLeftTableColumn, leftType);
         BaseType::TableColumn rightCol(e->onRightTable, e->onRightTableColumn, rightType);
-        BaseType::TableColumn outCol(BaseType::Table(""), e->onLeftTableColumn + "=" + e->onRightTableColumn, ColumnType::TYPE_INTEGER);
+        BaseType::TableColumn outCol(BaseType::Table("JOIN"), e->onLeftTableColumn + "=" + e->onRightTableColumn, ColumnType::TYPE_INTEGER);
 
         node->irData = JoinView::create(
             leftCol,
@@ -625,7 +623,7 @@ MaterializationData fillMaterializes(PlanNode* node, std::set<BaseType::TableCol
             for (const auto& idxCol : columnsToMaterializeOn) {
 
                 // Add a materialization to the materialization node if table below
-                if (tablesBelowChild.contains(BaseType::Table(idxCol.table.name))) {
+                if (tablesBelowChild.contains(idxCol.table)) {
 
                     int idx = detFilterColIdx(idxCol, node->children[i]);
                     filterCol = node->children[i]->irData.outputCols[idx]; // except for Select/Result all nodes at the moment only have one output column
@@ -655,9 +653,9 @@ MaterializationData fillMaterializes(PlanNode* node, std::set<BaseType::TableCol
             }
         }
         else {
-            BaseType::TableColumn outCol = node->irData.outputCols[0];
-            std::shared_ptr<PlanNode> physOutNode = std::make_shared<PlanNode>(*node);
-            // if (!outCol.columnName.empty()) pMat[outCol] = physOutNode;
+            BaseType::TableColumn outCol = originalChild->irData.outputCols[0];
+            std::shared_ptr<PlanNode> physOutNode = std::make_shared<PlanNode>(*originalChild);
+            pMat[outCol] = physOutNode;
         }
 
         allTablesBelow.merge(tablesBelowChild);
@@ -737,6 +735,19 @@ void irToApiDataSub(PlanNode* node, std::set<const PlanNode*>& visited) {
         semiJoinStruct.joinPredicate = &joinV->joinPredicate();
 
         node->apiData = semiJoinStruct;
+    }
+
+    // Map Node
+
+    else if (auto mapV = node->irData.get_view_if<MapView>()) {
+        ItemBuilder::MapNode mapStruct;
+
+        mapStruct.inputColumn = &mapV->inputCol();
+        mapStruct.outputColumn = &mapV->outputCol();
+        mapStruct.operatorType = &mapV->operatorType();
+        mapStruct.partnerVal = mapV->partnerVal();
+
+        node->apiData = mapStruct;
     }
 
     // Group

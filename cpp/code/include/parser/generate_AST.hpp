@@ -120,13 +120,19 @@ class AggregateClauseNode {
     public:
         std::string aggregateFunction;
         std::string alias;
+        std::string table; 
+        std::string column;
         
         AggregateClauseNode(
                 const std::string& aggrFunc = "",
-                const std::string& alias = ""
+                const std::string& alias = "",
+                const std::string& table = "",
+                const std::string& column = ""
                 ):
                     aggregateFunction(aggrFunc),
-                    alias(alias)
+                    alias(alias),
+                    table(table),
+                    column(column)
                     {};
 };
 

@@ -375,7 +375,7 @@ public:
     }
 
     // Accessors
-    BaseType::TableColumn& column() { return data.inputColumns[0]; }
+    BaseType::TableColumn& inputCol() { return data.inputColumns[0]; }
     BaseType::TableColumn& outputCol() { return data.outputCols[0]; }
     ArithOp& operatorType() { return op.operatorType; }
     std::variant<BaseType::TableColumn, uint64_t, float, std::string>& partnerVal() { return op.partnerVal; }

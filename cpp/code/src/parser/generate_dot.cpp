@@ -54,7 +54,7 @@ void writeDot(ASTNode* root, std::ofstream& file) {
     }
     else if (auto e = std::get_if<AggregateClauseNode>(&root->val)) {
         label = "Aggregate Node:\\n";
-        label += e->aggregateFunction + " as " + e->alias;
+        label += e->aggregateFunction + "(" + e->table + "." + e->column + ") as " + e->alias;
     }
     else if (auto e = std::get_if<GroupByClauseNode>(&root->val)) {
         label = "Group By:\\n";

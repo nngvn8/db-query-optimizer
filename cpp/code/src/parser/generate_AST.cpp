@@ -387,7 +387,7 @@ void printAST(ASTNode* root){
         cout<<std::endl; 
     }
     else if(auto e = std::get_if<AggregateClauseNode>(&root->val)){
-        cout<<"Aggregate Node: "<<(*e).aggregateFunction <<" as "<< (*e).alias<<std::endl; 
+        cout<<"Aggregate Node: "<<(*e).aggregateFunction <<"("<<(*e).table<<"."<<(*e).column<<") as "<< (*e).alias<<std::endl; 
     }
     else if(auto e = std::get_if<GroupByClauseNode>(&root->val)){
         cout<<"Group By: ";
@@ -428,6 +428,34 @@ ASTNode* parseQueryExpression(const hsql::SelectStatement* selectStmt){
             switch(selectStmt->selectList->at(i)->type){
                 case hsql::kExprColumnRef:{
                     selectClauseDescriptionList.push_back(SelectClauseDescription(Catalog::getTableName(selectStmt->selectList->at(i)->name),selectStmt->selectList->at(i)->name));
+                    break;
+                }
+                case hsql::kExprFunctionRef:{
+                    std::string funcName = toUpper(selectStmt->selectList->at(i)->name);
+                    std::string inner = "";
+                    if(selectStmt->selectList->at(i)->exprList && !selectStmt->selectList->at(i)->exprList->empty()){
+                        hsql::Expr* innerExpr = selectStmt->selectList->at(i)->exprList->at(0);
+                        if (innerExpr->type == hsql::kExprOperator) {
+                            std::string op = "";
+                            if(innerExpr->opType == hsql::kOpPlus) op = "+";
+                            else if(innerExpr->opType == hsql::kOpMinus) op = "-";
+                            else if(innerExpr->opType == hsql::kOpAsterisk) op = "*";
+                            else if(innerExpr->opType == hsql::kOpSlash) op = "/";
+
+                             // Assuming column refs in operator
+                            std::string left = innerExpr->expr->name ? innerExpr->expr->name : "";
+                            std::string right = innerExpr->expr2->name ? innerExpr->expr2->name : "";
+                            inner = left + op + right;
+                        } else if (innerExpr->type == hsql::kExprColumnRef) {
+                            inner = innerExpr->name;
+                        }
+                }
+                     // "Select should contain the arithmetic expression possibly expanded with the aggregation column"
+                     // "The alias should not be directly part of the column name."
+                    std::string colName = funcName + "(" + inner + ")";
+                    std::string tableName = !funcName.empty() ? "AGG" : "MAP";
+                    selectClauseDescriptionList.push_back(SelectClauseDescription(tableName, colName));
+                    break;
                 }
             }
         }
@@ -492,7 +520,28 @@ ASTNode* parseQueryExpression(const hsql::SelectStatement* selectStmt){
                         alias = "";
                     }
                     
-                    ASTNode* node = new ASTNode(AggregateClauseNode(toUpper(selectStmt->selectList->at(i)->name),alias));
+                    std::string inputTable = "";
+                    std::string inputColumn = "";
+                    hsql::Expr* arg0 = selectStmt->selectList->at(i)->exprList->at(0);
+
+                    if(arg0->type == hsql::kExprOperator){
+                            std::string op;
+                            if(arg0->opType == hsql::kOpPlus) op = "+";
+                            else if(arg0->opType == hsql::kOpMinus) op = "-";
+                            else if(arg0->opType == hsql::kOpAsterisk) op = "*";
+                            else if(arg0->opType == hsql::kOpSlash) op = "/";
+                            
+                            std::string left = arg0->expr->name ? arg0->expr->name : "";
+                            std::string right = arg0->expr2->name ? arg0->expr2->name : "";
+                            
+                            inputTable = "MAP";
+                            inputColumn = left + op + right;
+                    } else if (arg0->type == hsql::kExprColumnRef) {
+                        inputTable = Catalog::getTableName(arg0->name);
+                        inputColumn = arg0->name;
+                    }
+
+                    ASTNode* node = new ASTNode(AggregateClauseNode(toUpper(selectStmt->selectList->at(i)->name), alias, inputTable, inputColumn));
 
                     if(auto e = std::get_if<std::monostate>(&current->val)){
                         delete root;
@@ -504,26 +553,26 @@ ASTNode* parseQueryExpression(const hsql::SelectStatement* selectStmt){
                         current = current->left; 
                     }
 
-                    switch(selectStmt->selectList->at(i)->exprList->at(0)->type){
+                    switch(arg0->type){
                         case hsql::kExprOperator : {
                             std::string op;
-                            if(selectStmt->selectList->at(i)->exprList->at(0)->opType == hsql::kOpPlus){
+                            if(arg0->opType == hsql::kOpPlus){
                                 op = "+";
                             }
-                            else if(selectStmt->selectList->at(i)->exprList->at(0)->opType == hsql::kOpMinus){
+                            else if(arg0->opType == hsql::kOpMinus){
                                 op = "-";
                             }
-                            else if(selectStmt->selectList->at(i)->exprList->at(0)->opType == hsql::kOpAsterisk){
+                            else if(arg0->opType == hsql::kOpAsterisk){
                                 op = "*";
                             }
-                            else if(selectStmt->selectList->at(i)->exprList->at(0)->opType == hsql::kOpSlash){
-                                op = "*";
+                            else if(arg0->opType == hsql::kOpSlash){
+                                op = "/";
                             }
 
-                            ASTNode* node = new ASTNode(Map(Catalog::getTableName(selectStmt->selectList->at(i)->exprList->at(0)->expr->name),
-                                    selectStmt->selectList->at(i)->exprList->at(0)->expr->name,
-                                    Catalog::getTableName(selectStmt->selectList->at(i)->exprList->at(0)->expr2->name),
-                                    selectStmt->selectList->at(i)->exprList->at(0)->expr2->name,
+                            ASTNode* node = new ASTNode(Map(Catalog::getTableName(arg0->expr->name),
+                                    arg0->expr->name,
+                                    Catalog::getTableName(arg0->expr2->name),
+                                    arg0->expr2->name,
                                     op)
                                 );    
                             current->left = node;
@@ -531,8 +580,8 @@ ASTNode* parseQueryExpression(const hsql::SelectStatement* selectStmt){
                             continue; 
                         }
                         case hsql::kExprColumnRef : {
-                            ASTNode* node = new ASTNode(Map(Catalog::getTableName(selectStmt->selectList->at(i)->exprList->at(0)->name),
-                                                selectStmt->selectList->at(i)->exprList->at(0)->name)
+                            ASTNode* node = new ASTNode(Map(Catalog::getTableName(arg0->name),
+                                                arg0->name)
                             ); 
                             current->left = node;
                             current = current->left; 

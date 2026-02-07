@@ -244,7 +244,7 @@ namespace {
         }
         else if (node.irData.is<MapOp>()) {
             MapView view(mutableIr);
-            std::cout << "Map " << view.column() << " " << ArithOp_Name(view.operatorType()) << " ";
+            std::cout << "Map " << view.inputCol() << " " << ArithOp_Name(view.operatorType()) << " ";
             std::visit(printVal, view.partnerVal());
         }
         else if (node.irData.is<SetOp>()) {

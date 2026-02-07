@@ -164,7 +164,7 @@ namespace {
         }
         else if (node.irData.is<MapOp>()) {
             MapView view(mutableIr);
-            ss << "Map " << view.column() << " " << ArithOp_Name(view.operatorType()) << " ";
+            ss << "Map " << view.inputCol() << " " << ArithOp_Name(view.operatorType()) << " ";
             std::visit(streamVal, view.partnerVal());
         }
         else if (node.irData.is<SetOp>()) {
@@ -275,9 +275,7 @@ namespace {
             }
             else if constexpr (std::is_same_v<T, ItemBuilder::AggNode>) {
                 ss << "API Agg " << AggFunc_Name(data.aggFunc) << "\n(";
-                for (size_t i = 0; i < data.groupColumns.size(); ++i) {
-                    ss << data.groupColumns[i] << (i < data.groupColumns.size() - 1 ? ", " : "");
-                }
+                ss << data.inputColumn;
                 ss << ")";
             }
             else if constexpr (std::is_same_v<T, ItemBuilder::ResultNode>) {

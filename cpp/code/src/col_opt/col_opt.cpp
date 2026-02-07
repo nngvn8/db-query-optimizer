@@ -116,6 +116,8 @@ LateMaterializationData putLateMaterialization(PlanNode* node, std::set<BaseType
     // Container for materialized values provided by all direct children
     std::map<BaseType::TableColumn, std::shared_ptr<PlanNode>> matChildren;
 
+    std::map<BaseType::TableColumn, std::shared_ptr<PlanNode>> allPrevMat;
+
     // Generate materialize nodes (bottom up)
     for (size_t i = 0; i < node->children.size(); ++i) {
 
@@ -126,6 +128,7 @@ LateMaterializationData putLateMaterialization(PlanNode* node, std::set<BaseType
         LateMaterializationData matData = putLateMaterialization(node->children[i].get(), columnsNeededLater, columnsThisNode);
         std::set<BaseType::Table> tablesBelowChild = matData.tablesBelow;
         pPos.merge(matData.previousPositionlists);
+        allPrevMat.merge(matData.previousMaterialValues);
 
 
         BaseType::TableColumn filterCol;
@@ -194,6 +197,10 @@ LateMaterializationData putLateMaterialization(PlanNode* node, std::set<BaseType
         pPos[table] = posListNode;
     }
 
+    for (auto const& [col, matNode] : matChildren) {
+        allPrevMat[col] = matNode;
+    }
+
     // The node is a leafnode (a table node)
     if (auto fetchV = node->irData.get_view_if<FetchView>()) {
         if (fetchV->wasTableBaseNode()) {
@@ -232,6 +239,11 @@ LateMaterializationData putLateMaterialization(PlanNode* node, std::set<BaseType
                 
                 // Make this input for child
                 node->children.push_back(matNode);
+            } 
+            // TODO not clean! Possibly breaks. This has been introduced input aggregations from earlier
+            // Case where we need a previous Materialization
+            else if (const auto& prevMat = allPrevMat[idxCol]) {
+                node->children.push_back(prevMat);
             }
             // This should not happen
             else {
@@ -240,6 +252,6 @@ LateMaterializationData putLateMaterialization(PlanNode* node, std::set<BaseType
         }
     }
 
-    return LateMaterializationData{allTablesBelow, pPos};
+    return LateMaterializationData{allTablesBelow, pPos, allPrevMat};
 
 }

@@ -8,6 +8,8 @@ void placeSemiJoins(PlanNode* node, std::set<BaseType::Table> tablesNeededLater 
 struct LateMaterializationData {
     std::set<BaseType::Table> tablesBelow;
     std::map<BaseType::Table, std::shared_ptr<PlanNode>> previousPositionlists;
+    std::map<BaseType::TableColumn, std::shared_ptr<PlanNode>> previousMaterialValues;
+
 };
 
 LateMaterializationData putLateMaterialization(PlanNode* node, std::set<BaseType::TableColumn> columnsToMaterializeOn = {}, const std::set<BaseType::TableColumn>& inputOfParent = {});
