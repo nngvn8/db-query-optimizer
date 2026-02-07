@@ -91,23 +91,19 @@ public:
 
     // Factory to create data
     static IrData create(const std::vector<BaseType::TableColumn>& resultCols,
-                         bool star = false,
-                         bool distinct = false,
                          std::string fileName = "",
                          std::optional<BaseType::TableColumn> resultIdx = std::nullopt,
                          const std::vector<std::string>& resultHeaders = {}) {
         IrData irData;
         irData.inputColumns = resultCols;
         irData.outputCols = resultCols;
-        irData.opInfo = SelectOp{star, distinct, resultIdx, resultHeaders};
+        irData.opInfo = SelectOp{resultIdx, resultHeaders};
         return irData;
     }
 
     // Accessors
     std::vector<BaseType::TableColumn>& resultCols() { return data.inputColumns; }
     std::vector<std::string>& resultHeaders() { return op.resultHeaders; }
-    bool& star() { return op.star; }
-    bool& distinct() { return op.distinct; }
     std::optional<BaseType::TableColumn>& resultIdx() { return op.resultIdx; }
 };
 

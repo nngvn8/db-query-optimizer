@@ -60,8 +60,6 @@ struct SetOp {
 };
 
 struct SelectOp {
-    bool star;
-    bool distinct;
     std::optional<BaseType::TableColumn> resultIdx;
     std::vector<std::string> resultHeaders;
 };

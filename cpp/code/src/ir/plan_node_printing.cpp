@@ -160,11 +160,18 @@ namespace {
         }
         else if (node.irData.is<SelectOp>()) {
             SelectView view(mutableIr);
-            std::cout << "Select " << (view.distinct() ? "DISTINCT " : "")
-                    << (view.star() ? "*" : "");
+            std::cout << "Select";
+            if (view.resultIdx().has_value()){
+                std::cout << " [Idx: " << view.resultIdx().value() << "]";
+            }
+            std::cout << " ";
 
-            for(const auto& col : view.resultCols()) {
-                std::cout << " " << col;
+            for(size_t i = 0; i < view.resultCols().size(); ++i) {
+                std::cout << view.resultCols()[i];
+                if (i < view.resultHeaders().size()) {
+                    std::cout << " AS " << view.resultHeaders()[i];
+                }
+                std::cout << (i < view.resultCols().size() - 1 ? ", " : "");
             }
         }
         else if (node.irData.is<AggOp>()) {

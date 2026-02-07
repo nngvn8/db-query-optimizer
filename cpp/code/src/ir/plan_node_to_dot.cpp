@@ -85,11 +85,18 @@ namespace {
         }
         else if (node.irData.is<SelectOp>()) {
             SelectView view(mutableIr);
-            ss << "Select " << (view.distinct() ? "DISTINCT " : "")
-               << (view.star() ? "*" : "") << "\n";
+            ss << "Select"; 
+            if (view.resultIdx().has_value()){
+                ss << "\n[Idx: " << view.resultIdx().value() << "]";
+            }
+            ss << "\n";
 
             for(size_t i=0; i<view.resultCols().size(); ++i) {
-                ss << view.resultCols()[i] << (i < view.resultCols().size() - 1 ? ", " : "");
+                ss << view.resultCols()[i];
+                if (i < view.resultHeaders().size()) {
+                    ss << " AS " << view.resultHeaders()[i];
+                }
+                ss << (i < view.resultCols().size() - 1 ? ", " : "");
             }
         }
         else if (node.irData.is<AggOp>()) {

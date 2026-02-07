@@ -325,6 +325,15 @@ namespace {
         return std::nullopt;
     }
 
+    ArithOp mapStringToArithOp(const std::string& op) {
+        if (op == "+") return ARITH_ADD;
+        if (op == "-") return ARITH_SUB;
+        if (op == "*") return ARITH_MUL;
+        if (op == "/") return ARITH_DIV;
+        if (op == "%") return ARITH_MOD;
+        return ARITH_ADD;
+    }
+
     // --- Value Parsing based on Known Type ---
     std::variant<uint64_t, float, std::string> parseValueByType(const std::string& val, ColumnType type) {
         if (type == ColumnType::TYPE_INTEGER) {
@@ -346,35 +355,83 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
     auto node = std::make_shared<PlanNode>();
     PlanNode* childrenTarget = node.get();
 
-    // 1. SELECT Node
+    // SELECT Node
     if (auto e = std::get_if<SelectClauseNode>(&ast->val)) {
-        // LOOKUP: Get real type from Catalog
-        ColumnType type = Catalog::getSSBColumnType(e->table, e->column);
-        BaseType::TableColumn col(e->table, e->column, type, e->alias);
+        std::vector<BaseType::TableColumn> selectCols;
+        for (const auto& desc : e->description) {
+            ColumnType type = Catalog::getSSBColumnType(desc.table, desc.column);
+            BaseType::TableColumn col(desc.table, desc.column, type);
+            selectCols.push_back(col);
+        }
+        node->irData = SelectView::create(selectCols);
+    }
+    // Order By
+    else if (auto e = std::get_if<OrderByClauseNode>(&ast->val)) {
+        std::vector<BaseType::OrderDescription> orders;
+        int i = 0;
+        std::string orderColString = "ORDER_";
+        for (const auto& desc : e->orderByList) {
+            ColumnType type = Catalog::getSSBColumnType(desc.table, desc.column);
+            bool isAsc = (desc.ordertype != "DESC");
+            bool isNullsFirst = (desc.nullordering == "FIRST");
 
-        auto aggType = mapStringToAggFunc(e->aggregateFunction);
+            orders.emplace_back(
+                BaseType::TableColumn(desc.table, desc.column, type),
+                isAsc,
+                isNullsFirst
+            );
 
-        if (aggType.has_value()) {
-            // Dismantle: Select -> Agg
-            auto aggNode = std::make_shared<PlanNode>();
+            orderColString += std::string(1, desc.table[0]) + "." + desc.column + (i < e->orderByList.size() - 1 ? "_" : "");
+            i++;
+        }
+        BaseType::TableColumn outCol(BaseType::Table(""), orderColString, ColumnType::TYPE_INTEGER);
+        node->irData = SortOrderView::create(orders, outCol);
+    }
+    // Group By
+    else if (auto e = std::get_if<GroupByClauseNode>(&ast->val)) {
+        std::vector<BaseType::TableColumn> groups;
+        std::stringstream ss;
+        ss << "GROUP_";
+        int i = 0;
+        for (const auto& desc : e->description) {
+            ColumnType type = Catalog::getSSBColumnType(desc.table, desc.column);
+            groups.emplace_back(desc.table, desc.column, type);
 
-            BaseType::TableColumn aggInputCol(e->table, e->column, type);
+            // Extend grouping string
+            char tablePrefix = desc.table.empty() ? '?' : desc.table[0];
+            ss << tablePrefix << "." << desc.column;
+            if (i < e->description.size() - 1) ss << "_";
 
-            // aggNode->irData = IR::AggNode(aggInputCol, aggType.value(), aggInputCol);
-            aggNode->irData = AggView::create(aggInputCol, aggInputCol, aggType.value());
-
-            // Outer Select selects the Agg result
-            // node->irData = IR::SelectNode(e->star, col, e->distinct, col);
-            node->irData = SelectView::create({col},e->star,e->distinct);
-
-            childrenTarget = aggNode.get();
-            node->children.push_back(aggNode);
-        } else {
-            // node->irData = IR::SelectNode(e->star, col, e->distinct, col);
-            node->irData = SelectView::create({col},e->star,e->distinct);
+            i++;
+        }
+        std::string groupingColString = ss.str();
+        BaseType::TableColumn outCol(BaseType::Table(""), groupingColString, ColumnType::TYPE_INTEGER);
+        node->irData = GroupView::create(groups, outCol);
+    }
+    // Aggregation
+    else if (auto e = std::get_if<AggregateClauseNode>(&ast->val)) {
+        std::optional<AggFunc> aggFunc = mapStringToAggFunc(e->aggregateFunction);
+        if (aggFunc.has_value()) {
+            // TODO output column name should be provided
+            if (auto e = std::get_if<Map>(&ast->left->val)) {
+                std::string colName  = e->table1 + "." + e->column1 + e->operatorType + e->table2 + "." + e->column2;
+                BaseType::TableColumn aggCol(BaseType::Table("map_out"), colName, ColumnType::TYPE_INTEGER);
+                node->irData = AggView::create(aggCol, aggCol, aggFunc.value());
+                }
+        }
+        else {
+            std::cout << "Aggregation Function of AST tree not found!" << std::endl;
         }
     }
-    // 2. WHERE / Filter Node
+    // Map
+    else if (auto e = std::get_if<Map>(&ast->val)) {
+        BaseType::TableColumn inputCol(e->table1, e->column1, Catalog::getSSBColumnType(e->table1, e->column1));
+        BaseType::TableColumn partnerVal(e->table2, e->column2, Catalog::getSSBColumnType(e->table2, e->column2));
+        ArithOp op = mapStringToArithOp(e->operatorType);
+        BaseType::TableColumn outCol(BaseType::Table("map_out"), e->table1 + "." + e->column1 + e->operatorType + e->table2 + "." + e->column2, ColumnType::TYPE_INTEGER);
+        node->irData = MapView::create(inputCol, op, partnerVal, outCol);
+    }
+    // WHERE / Filter Node
     else if (auto e = std::get_if<WhereClauseNode>(&ast->val)) {
         // LOOKUP: Get type for the Input Column
         ColumnType colType = Catalog::getSSBColumnType(e->table, e->column);
@@ -418,7 +475,7 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
         );
 
     }
-    // 3. JOIN Node
+    // JOIN Node
     else if (auto e = std::get_if<TableJoinNode>(&ast->val)) {
         ColumnType leftType = Catalog::getSSBColumnType(e->onLeftTable, e->onLeftTableColumn);
         ColumnType rightType = Catalog::getSSBColumnType(e->onRightTable, e->onRightTableColumn);
@@ -435,59 +492,11 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
             CompType::COMP_EQ
         );
     }
-    // 4. Base Table
-    else if (auto e = std::get_if<TableBaseNode>(&ast->val)) {
-        BaseType::Table table(e->tableName, e->tableAlias);
-        node->irData = FetchView::create(BaseType::TableColumn(table, "", ColumnType::TYPE_INTEGER), true);
-    }
-    // 5. Group By
-    else if (auto e = std::get_if<GroupByClauseNode>(&ast->val)) {
-        std::vector<BaseType::TableColumn> groups;
-        std::stringstream ss;
-        ss << "GROUP_";
-        int i = 0;
-        for (const auto& desc : e->description) {
-            ColumnType type = Catalog::getSSBColumnType(desc.table, desc.column);
-            groups.emplace_back(desc.table, desc.column, type);
-
-            // Extend grouping string
-            char tablePrefix = desc.table.empty() ? '?' : desc.table[0];
-            ss << tablePrefix << "." << desc.column;
-            if (i < e->description.size() - 1) ss << "_";
-
-            i++;
-        }
-        std::string groupingColString = ss.str();
-        BaseType::TableColumn outCol(BaseType::Table(""), groupingColString, ColumnType::TYPE_INTEGER);
-        node->irData = GroupView::create(groups, outCol);
-    }
-    // 6. Order By
-    else if (auto e = std::get_if<OrderByClauseNode>(&ast->val)) {
-        std::vector<BaseType::OrderDescription> orders;
-        int i = 0;
-        std::string orderColString = "ORDER_";
-        for (const auto& desc : e->orderByList) {
-            ColumnType type = Catalog::getSSBColumnType(desc.table, desc.column);
-            bool isAsc = (desc.ordertype != "DESC");
-            bool isNullsFirst = (desc.nullordering == "FIRST");
-
-            orders.emplace_back(
-                BaseType::TableColumn(desc.table, desc.column, type),
-                isAsc,
-                isNullsFirst
-            );
-
-            orderColString += std::string(1, desc.table[0]) + "." + desc.column + (i < e->orderByList.size() - 1 ? "_" : "");
-            i++;
-        }
-        BaseType::TableColumn outCol(BaseType::Table(""), orderColString, ColumnType::TYPE_INTEGER);
-        node->irData = SortOrderView::create(orders, outCol);
-    }
-    // 7. Limit (don't support Limit for now)
+    // Limit (don't support Limit for now)
     // else if (auto e = std::get_if<LimitClauseNode>(&ast->val)) {
     //     node->irData = IR::LimitNode(e->limit, e->offset);
     // }
-    // 8. Set Ops
+    // Set Ops
     else if (auto e = std::get_if<SetOperationNode>(&ast->val)) {
         BaseType::TableColumn dummy; // Still dummy as AST has no columns here
         BaseType::TableColumn outCol(
@@ -501,6 +510,11 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
             outCol,
             mapStringToRelOp(e->setOperation)
         );
+    }
+    // Base Table
+    else if (auto e = std::get_if<TableBaseNode>(&ast->val)) {
+        BaseType::Table table(e->tableName, e->tableAlias);
+        node->irData = FetchView::create(BaseType::TableColumn(table, "", ColumnType::TYPE_INTEGER), true);
     }
 
     // Recursion
