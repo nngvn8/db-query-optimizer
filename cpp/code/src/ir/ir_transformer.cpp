@@ -412,10 +412,25 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
     else if (auto e = std::get_if<AggregateClauseNode>(&ast->val)) {
         std::optional<AggFunc> aggFunc = mapStringToAggFunc(e->aggregateFunction);
         if (aggFunc.has_value()) {
-                BaseType::TableColumn aggColIn(e->table, e->column, ColumnType::TYPE_INTEGER);
-                std::string aggColOutName = e->aggregateFunction + "(" + e->column + ")";
-                BaseType::TableColumn aggColOut(BaseType::Table("AGG"), aggColOutName, ColumnType::TYPE_INTEGER);
-                node->irData = AggView::create(aggColIn, aggColOut, aggFunc.value());
+            ColumnType inColType = Catalog::getSSBColumnType(e->table, e->column);            
+            ColumnType outColType;
+            switch (aggFunc.value()) {
+                case AGG_COUNT:
+                    outColType = ColumnType::TYPE_INTEGER;
+                    break;
+                case AGG_AVG:
+                    outColType = ColumnType::TYPE_FLOAT;
+                    break;
+                case AGG_MIN:
+                case AGG_MAX:
+                case AGG_SUM:
+                    outColType = inColType;
+                    break;
+            }
+            BaseType::TableColumn aggColIn(e->table, e->column, inColType);
+            std::string aggColOutName = e->aggregateFunction + "(" + e->column + ")";
+            BaseType::TableColumn aggColOut(BaseType::Table("AGG"), aggColOutName, outColType);
+            node->irData = AggView::create(aggColIn, aggColOut, aggFunc.value());
         }
         else {
             std::cout << "Aggregation Function of AST tree could not be parsed!" << std::endl;
@@ -423,9 +438,24 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
     }
     // Map
     else if (auto e = std::get_if<Map>(&ast->val)) {
-        BaseType::TableColumn inputCol(e->table1, e->column1, Catalog::getSSBColumnType(e->table1, e->column1));
-        BaseType::TableColumn partnerVal(e->table2, e->column2, Catalog::getSSBColumnType(e->table2, e->column2));
+        ColumnType colTypeInput1 = Catalog::getSSBColumnType(e->table1, e->column1);
+        ColumnType colTypeInput2 = Catalog::getSSBColumnType(e->table2, e->column2);
         ArithOp op = mapStringToArithOp(e->operatorType);
+        
+        ColumnType outColType;
+        if (colTypeInput1 == ColumnType::TYPE_STRING || colTypeInput2 == ColumnType::TYPE_STRING
+            || (op == ARITH_MOD && !(colTypeInput1 == ColumnType::TYPE_INTEGER && colTypeInput2 == ColumnType::TYPE_INTEGER))) {
+            throw std::runtime_error("Invalid types for arithmetic operation");
+        }
+        if (colTypeInput1 == ColumnType::TYPE_FLOAT || colTypeInput2 == ColumnType::TYPE_FLOAT) {
+            outColType = ColumnType::TYPE_FLOAT;
+        }
+        else {
+            outColType = ColumnType::TYPE_INTEGER;
+        }
+
+        BaseType::TableColumn inputCol(e->table1, e->column1, colTypeInput1);
+        BaseType::TableColumn partnerVal(e->table2, e->column2, colTypeInput2);
         BaseType::TableColumn outCol(BaseType::Table("MAP"), e->column1 + e->operatorType + e->column2, ColumnType::TYPE_INTEGER);
         node->irData = MapView::create(inputCol, op, partnerVal, outCol);
     }
@@ -476,6 +506,8 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
     // JOIN Node
     else if (auto e = std::get_if<TableJoinNode>(&ast->val)) {
         ColumnType leftType = Catalog::getSSBColumnType(e->onLeftTable, e->onLeftTableColumn);
+        
+        // TODO: proper type inference as right value might not be column
         ColumnType rightType = Catalog::getSSBColumnType(e->onRightTable, e->onRightTableColumn);
 
         BaseType::TableColumn leftCol(e->onLeftTable, e->onLeftTableColumn, leftType);
@@ -528,6 +560,9 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
         std::vector<BaseType::TableColumn>& inputColumns = node->irData.inputColumns;
         inputColumns[0] = node->children[0]->irData.outputCols[0];
         inputColumns[1] = node->children[1]->irData.outputCols[0];
+
+        // Propagate the type from the input to the output column (SetOps preserve type)
+        node->irData.outputCols[0].columnType = inputColumns[0].columnType;
     }
 
     return node;
@@ -647,7 +682,6 @@ MaterializationData fillMaterializes(PlanNode* node, std::set<BaseType::TableCol
             else {
                 outCol = originalChild->irData.outputCols[0];
             }
-            // std::shared_ptr<PlanNode> physOutNode = std::make_shared<PlanNode>(*originalChild);
             pMat[outCol] = originalChild;
         }
 
