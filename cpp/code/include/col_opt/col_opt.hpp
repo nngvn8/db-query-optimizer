@@ -15,4 +15,7 @@ struct LateMaterializationData {
 // Moves single sum aggregations into group, return value only used internally
 int moveAggIntoGroup(PlanNode* node);
 
+// Remove sort if subset group
+void removeSortIfSubsetGroup(std::shared_ptr<PlanNode>* node);
+
 LateMaterializationData putLateMaterialization(PlanNode* node, std::set<BaseType::TableColumn> columnsToMaterializeOn = {}, const std::set<BaseType::TableColumn>& inputOfParent = {});

@@ -326,6 +326,7 @@ public:
 
     // Accessors
     std::vector<BaseType::OrderDescription>& orderDescriptions() { return op.columnList; }
+    std::vector<BaseType::TableColumn>& sortCols() { return data.inputColumns; }
     BaseType::TableColumn& idxOutput() { return data.outputCols[0]; }
     std::optional<BaseType::TableColumn>& existingIdx() { return op.existingIdx; }
 

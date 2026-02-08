@@ -50,6 +50,44 @@ void placeSemiJoins(PlanNode* node, std::set<BaseType::Table> tablesNeededLater)
 
 }
 
+void removeSortIfSubsetGroup(std::shared_ptr<PlanNode>* node_ptr) {
+    if (!node_ptr || !*node_ptr) return;
+    std::shared_ptr<PlanNode> node = *node_ptr;
+
+    if (auto sortV = node->irData.get_view_if<SortOrderView>()) {
+        for (const auto& child : node->children) {
+            if (auto groupV = child->irData.get_view_if<GroupView>()) {
+                bool isSubset = true;
+                std::set<BaseType::TableColumn> groupInputsSet(child->irData.inputColumns.begin(), child->irData.inputColumns.end());
+                std::set<BaseType::TableColumn> sortInputsSet(node->irData.inputColumns.begin(), node->irData.inputColumns.end());
+                for (const auto& sortInput : sortV->sortCols()) {
+                    if (!groupInputsSet.contains(sortInput)) {
+                        isSubset = false;
+                        break;
+                    }
+                }
+                if (isSubset) {
+                    auto newGroupInputs = sortV->sortCols();
+                    for (const auto& groupInput : groupV->groupingCols()) {
+                        if (!sortInputsSet.contains(groupInput)) {
+                            newGroupInputs.push_back(groupInput);
+                        }
+                    }
+                    groupV->groupingCols() = newGroupInputs;
+                    groupV->sortOrders() = sortV->orderDescriptions() 
+                                            | std::views::transform([](const BaseType::OrderDescription& desc) { return desc.orderType; }) 
+                                            | std::ranges::to<std::vector>();
+                    *node_ptr = child;
+                }
+            }
+        }
+    }
+
+    for (auto& child : node->children) {
+        removeSortIfSubsetGroup(&child);
+    }
+}
+
 int moveAggIntoGroup(PlanNode* node) {
     if (!node) return 0;
 
