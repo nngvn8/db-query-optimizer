@@ -149,8 +149,8 @@ namespace {
                 ss << cols[i] << (i < cols.size() - 1? " " : "");
             }
             ss << ")";
-            if(view.aggCol().has_value()){
-                ss << "\nAgg: " << view.aggCol().value();
+            if(auto col = view.aggCol()){
+                ss << "\nAgg: " << *col;
             }
         }
         else if (node.irData.is<SortOp>()) {

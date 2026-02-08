@@ -50,6 +50,43 @@ void placeSemiJoins(PlanNode* node, std::set<BaseType::Table> tablesNeededLater)
 
 }
 
+int moveAggIntoGroup(PlanNode* node) {
+    if (!node) return 0;
+
+    int aggCount = 0;
+
+    for (const auto& child : node->children) {
+        aggCount += moveAggIntoGroup(child.get());
+    }
+
+    // Count aggregation
+    if (node->irData.is<AggOp>()) {
+        ++aggCount;
+    }
+    // Remove aggregation if it is a single one and it is a sum
+    // Assumes aggregation as child of grouping
+    else if (node->irData.is<GroupOp>() && aggCount == 1) {
+        GroupView groupV(node->irData);
+
+        for (auto& child : node->children) {
+            if (auto aggV = child->irData.get_view_if<AggView>()) {
+                if (aggV->aggFunc() == AggFunc::AGG_SUM) {
+                    groupV.setAgg(aggV->colToAgg(), aggV->aggResultCol());
+                    // auto grandChild = child->children[0];
+                    // child = grandChild;
+                    child = child->children[0];
+                }
+            }
+        }
+    }
+    // Handling subqueries (aggregations scoped to selection above)
+    else if (node->irData.is<SelectOp>()) {
+        aggCount = 0;
+    }
+
+    return aggCount;
+}
+
 namespace {
 
     int detFilterColIdx(const BaseType::TableColumn& idxCol, const std::shared_ptr<PlanNode>& node) {
@@ -130,22 +167,10 @@ LateMaterializationData putLateMaterialization(PlanNode* node, std::set<BaseType
         pPos.merge(matData.previousPositionlists);
         allPrevMat.merge(matData.previousMaterialValues);
 
-
         BaseType::TableColumn filterCol;
-        bool childIsPositionListNode = false;
-
-        // TODO: store if outputs position list in irData
-        // Check if is position list node
-        if (node->children[i]->irData.is<JoinOp>()
-            || node->children[i]->irData.is<SemiJoinOp>()
-            || node->children[i]->irData.is<FilterOp>()
-            || node->children[i]->irData.is<GroupOp>()
-            || node->children[i]->irData.is<SortOp>()
-            || node->children[i]->irData.is<SetOp>()) {
-                childIsPositionListNode = true;
-            }
+        
         // Create or update materialization if child outputs position list
-        if (childIsPositionListNode) {
+        if (originalChild->irData.outputsPosList) {
 
             for (const auto& laterCol : columnsNeededLater) {
 
@@ -186,8 +211,13 @@ LateMaterializationData putLateMaterialization(PlanNode* node, std::set<BaseType
             }
         }
         // Remember children of the node that provided value/materialized data
-        else {
-            matChildren[node->children[i]->irData.outputCols[0]] = originalChild;
+        if (originalChild->irData.outputsMatVals) {
+            if (auto groupV = originalChild->irData.get_view_if<GroupView>()) {
+                matChildren[*groupV->aggResultCol()] = originalChild;
+            }
+            else {
+                matChildren[node->children[i]->irData.outputCols[0]] = originalChild;
+            }
         }
         allTablesBelow.merge(tablesBelowChild);
     }

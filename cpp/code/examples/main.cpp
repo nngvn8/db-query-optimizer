@@ -45,6 +45,10 @@ int main() {
     placeSemiJoins(ir_root.get(), tablesNeededLater);
     generatePlanDotFile(*ir_root, "ir_plan_semi_j.dot", DotContentType::IR_DATA);
 
+    // Move single sum aggregations into group item
+    moveAggIntoGroup(ir_root.get());
+    generatePlanDotFile(*ir_root, "ir_plan_agg_opt.dot", DotContentType::IR_DATA);
+
     // Fill Materializes
     fillMaterializes(ir_root.get());
     generatePlanDotFile(*ir_root, "ir_plan_mat.dot", DotContentType::IR_DATA);
@@ -73,6 +77,10 @@ int main() {
     // Place semi joins
     placeSemiJoins(ir_root.get());
     generatePlanDotFile(*ir_root, "ir_plan_semi_j_l.dot", DotContentType::IR_DATA);
+
+    // Move single sum aggregations into group item
+    moveAggIntoGroup(ir_root.get());
+    generatePlanDotFile(*ir_root, "ir_plan_agg_opt_l.dot", DotContentType::IR_DATA);
 
     // Put Late Materialization
     putLateMaterialization(ir_root.get());

@@ -12,8 +12,7 @@
 
 struct GroupOp {
     std::vector<bool> sortOrders;
-    std::optional<BaseType::TableColumn> aggCol;
-    std::optional<BaseType::TableColumn> aggResultCol;
+    bool hasAgg = false;
     bool storeExtends = true;
 
 };

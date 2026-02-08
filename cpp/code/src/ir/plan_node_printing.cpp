@@ -229,8 +229,8 @@ namespace {
                 std::cout << cols[i] << (i < cols.size() - 1? " " : "");
             }
             std::cout << ")";
-            if(view.aggCol().has_value()){
-                std::cout << " Agg: " << view.aggCol().value();
+            if(auto col = view.aggCol()){
+                std::cout << " Agg: " << *col;
             }
         }
         else if (node.irData.is<SortOp>()) {

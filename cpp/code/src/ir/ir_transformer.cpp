@@ -602,23 +602,10 @@ MaterializationData fillMaterializes(PlanNode* node, std::set<BaseType::TableCol
         std::set<BaseType::Table> tablesBelowChild = matData.tablesBelow;
         pMat.merge(matData.previousMaterializations);
 
-
         BaseType::TableColumn filterCol;
-        bool childIsPositionListNode = false;
-
-        // TODO: store if outputs position list in irData
-        // Check if is position list node
-        if (node->children[i]->irData.is<JoinOp>()
-            || node->children[i]->irData.is<SemiJoinOp>()
-            || node->children[i]->irData.is<FilterOp>()
-            || node->children[i]->irData.is<GroupOp>()
-            || node->children[i]->irData.is<SortOp>()
-            || node->children[i]->irData.is<SetOp>()) {
-                childIsPositionListNode = true;
-            }
 
         // Create or update materialization if child outputs position list
-        if (childIsPositionListNode) {
+        if (originalChild->irData.outputsPosList) {
 
             for (const auto& idxCol : columnsToMaterializeOn) {
 
@@ -652,10 +639,16 @@ MaterializationData fillMaterializes(PlanNode* node, std::set<BaseType::TableCol
                 }
             }
         }
-        else {
-            BaseType::TableColumn outCol = originalChild->irData.outputCols[0];
-            std::shared_ptr<PlanNode> physOutNode = std::make_shared<PlanNode>(*originalChild);
-            pMat[outCol] = physOutNode;
+        if (originalChild->irData.outputsMatVals) {
+            BaseType::TableColumn outCol;
+            if (auto groupV = originalChild->irData.get_view_if<GroupView>()) {
+                outCol = *groupV->aggResultCol();
+            }
+            else {
+                outCol = originalChild->irData.outputCols[0];
+            }
+            // std::shared_ptr<PlanNode> physOutNode = std::make_shared<PlanNode>(*originalChild);
+            pMat[outCol] = originalChild;
         }
 
         allTablesBelow.merge(tablesBelowChild);
@@ -761,10 +754,10 @@ void irToApiDataSub(PlanNode* node, std::set<const PlanNode*>& visited) {
         groupStruct.outputIdx = &groupV->outputIdx();
         groupStruct.outputSortIndex = &groupV->outputSortIdx();
         groupStruct.outputCluster = &groupV->outputCluster();
-        if (auto& aggCol = groupV->aggCol()) {
-            if (auto& aggResultCol = groupV->aggResultCol()) {
-                groupStruct.aggColumn = &aggCol.value();
-                groupStruct.aggResultColumn = &aggResultCol.value();
+        if (auto aggCol = groupV->aggCol()) {
+            if (auto aggResultCol = groupV->aggResultCol()) {
+                groupStruct.aggColumn = aggCol;
+                groupStruct.aggResultColumn = aggResultCol;
             }
         }
         else {

@@ -15,6 +15,8 @@
 struct IrData {
     std::vector<BaseType::TableColumn> inputColumns;
     std::vector<BaseType::TableColumn> outputCols;
+    bool outputsPosList;
+    bool outputsMatVals;
 
     using OpInfo = std::variant<std::monostate, JoinOp, SemiJoinOp, GroupOp, FetchOp, AggOp, FilterOp, SortOp, MapOp, SetOp, SelectOp, MatOp>;
     OpInfo opInfo;

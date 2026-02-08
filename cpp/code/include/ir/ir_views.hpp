@@ -20,6 +20,8 @@ public:
                          const BaseType::Join& joinType,
                          const CompType& joinPredicate) {
         IrData irData;
+        irData.outputsPosList = true;
+        irData.outputsMatVals = false;
         irData.inputColumns = {inner, outer};
         irData.outputCols = {inner, outer};
         irData.opInfo = JoinOp{joinType, joinPredicate, out};
@@ -53,6 +55,8 @@ public:
                          const BaseType::Join& joinType,
                          const CompType& joinPredicate) {
         IrData irData;
+        irData.outputsPosList = true;
+        irData.outputsMatVals = false;
         irData.inputColumns = {inner, outer};
         irData.outputCols = {inner, outer};
         irData.opInfo = SemiJoinOp{joinType, joinPredicate, out};
@@ -62,6 +66,8 @@ public:
     // Factory to create Semi Join data based on Join Data
     static IrData create(IrData& data) {
         IrData irData;
+        irData.outputsPosList = true;
+        irData.outputsMatVals = false;
         irData.inputColumns = data.inputColumns;
         irData.outputCols = data.outputCols;
         JoinOp op = std::get<JoinOp>(data.opInfo);
@@ -95,6 +101,8 @@ public:
                          std::optional<BaseType::TableColumn> resultIdx = std::nullopt,
                          const std::vector<std::string>& resultHeaders = {}) {
         IrData irData;
+        irData.outputsPosList = false;
+        irData.outputsMatVals = true;
         irData.inputColumns = resultCols;
         irData.outputCols = resultCols;
         irData.opInfo = SelectOp{resultIdx, resultHeaders};
@@ -122,6 +130,8 @@ public:
                          const BaseType::TableColumn& outputCol,
                          AggFunc aggFunc) {
         IrData irData;
+        irData.outputsPosList = false;
+        irData.outputsMatVals = true;
         irData.inputColumns = {inputCol};
         irData.outputCols = {outputCol};
         irData.opInfo = AggOp{aggFunc};
@@ -148,6 +158,8 @@ public:
     // Factory to create data
     static IrData create(const BaseType::TableColumn& inputCol, bool wasTableBaseNode = false) {
         IrData irData;
+        irData.outputsPosList = false;
+        irData.outputsMatVals = true;
         irData.inputColumns = {inputCol};
         irData.outputCols = {inputCol};
         irData.opInfo = FetchOp{wasTableBaseNode};
@@ -181,6 +193,8 @@ public:
         const BaseType::TableColumn& outputCol
     ) {
         IrData irData;
+        irData.outputsPosList = true;
+        irData.outputsMatVals = false;
         irData.inputColumns = {col1};
         // TODO: should this be pushed as an input column??
         if(col2.has_value()){
@@ -215,6 +229,8 @@ public:
     // Factory to create data (no aggregation)
     static IrData create(const std::vector<BaseType::TableColumn>& groupingCols, const BaseType::TableColumn& outputCol) {
         IrData irData;
+        irData.outputsPosList = true;
+        irData.outputsMatVals = true;
         irData.inputColumns = groupingCols;
         BaseType::TableColumn outSrtIdx = outputCol;
         BaseType::TableColumn outCluster = outputCol;
@@ -222,21 +238,24 @@ public:
         outCluster.columnName += "_clus";
         irData.outputCols = {outputCol, outSrtIdx, outCluster};
         std::vector<bool> sortOrders(groupingCols.size(), true);
-        irData.opInfo = GroupOp{sortOrders};
+        irData.opInfo = GroupOp{sortOrders, false};
         return irData;
     }
 
     // Factory to create data (with aggregation)
     static IrData create(const std::vector<BaseType::TableColumn>& groupingCols, const BaseType::TableColumn& outputCol, const BaseType::TableColumn& aggCol, const BaseType::TableColumn& aggResultCol) {
         IrData irData;
+        irData.outputsPosList = true;
+        irData.outputsMatVals = true;
         irData.inputColumns = groupingCols;
+        irData.inputColumns.push_back(aggCol);
         BaseType::TableColumn outSrtIdx = outputCol;
         BaseType::TableColumn outCluster = outputCol;
         outSrtIdx.columnName += "_srt";
         outCluster.columnName += "_clus";
-        irData.outputCols = {outputCol, outSrtIdx, outCluster};
+        irData.outputCols = {outputCol, outSrtIdx, outCluster, aggResultCol};
         std::vector<bool> sortOrders(groupingCols.size(), true);
-        irData.opInfo = GroupOp{sortOrders, aggCol, aggResultCol};
+        irData.opInfo = GroupOp{sortOrders, true};
         return irData;
     }
 
@@ -246,9 +265,32 @@ public:
     BaseType::TableColumn& outputSortIdx() { return data.outputCols[1]; }
     BaseType::TableColumn& outputCluster() { return data.outputCols[2]; }
     std::vector<bool>& sortOrders() { return op.sortOrders; }
-    std::optional<BaseType::TableColumn>& aggCol() { return op.aggCol; }
-    std::optional<BaseType::TableColumn>& aggResultCol() { return op.aggResultCol; }
     bool& storeExtends() { return op.storeExtends; }
+    BaseType::TableColumn* aggCol() { 
+        if (op.hasAgg && !data.inputColumns.empty()) return &data.inputColumns.back();
+        return nullptr;
+    }
+    BaseType::TableColumn* aggResultCol() { 
+        if (op.hasAgg && !data.outputCols.empty()) return &data.outputCols.back();
+        return nullptr;
+    }
+    void setAgg(const BaseType::TableColumn& aggCol, const BaseType::TableColumn& aggResultCol) {
+        if (op.hasAgg) {
+            data.inputColumns.back() = aggCol;
+            data.outputCols.back() = aggResultCol;
+        } else {
+            op.hasAgg = true;
+            data.inputColumns.push_back(aggCol);
+            data.outputCols.push_back(aggResultCol);
+        }
+    }
+    void removeAgg() {
+        if (op.hasAgg) {
+            op.hasAgg = false;
+            data.inputColumns.pop_back();
+            data.outputCols.pop_back();
+        }
+    }
 
 };
 
@@ -265,7 +307,8 @@ public:
     // Factory to create data
     static IrData create(const std::vector<BaseType::OrderDescription>& orderDescriptions, const BaseType::TableColumn& idxOutput, std::optional<BaseType::TableColumn> existingIdx = std::nullopt) {
         IrData irData;
-
+        irData.outputsPosList = true;
+        irData.outputsMatVals = false;
         irData.inputColumns.reserve(orderDescriptions.size() + (existingIdx.has_value() ? 1 : 0));
 
         for (const auto& desc : orderDescriptions) {
@@ -309,6 +352,8 @@ public:
         const RelOp& operation
     ) {
         IrData irData;
+        irData.outputsPosList = true;
+        irData.outputsMatVals = false;
         irData.inputColumns = {inner, outer};
         irData.outputCols = {output};
         irData.opInfo = SetOp{operation};
@@ -335,6 +380,8 @@ public:
 
     static IrData create(const BaseType::TableColumn& idxCol, const BaseType::TableColumn& filterCol, const BaseType::TableColumn& outputCol) {
         IrData irData;
+        irData.outputsPosList = false;
+        irData.outputsMatVals = true;
         irData.inputColumns = {idxCol, filterCol};
         irData.outputCols = {outputCol};
         irData.opInfo = MatOp{};
@@ -365,6 +412,8 @@ public:
         const BaseType::TableColumn& outputCol
     ) {
         IrData irData;
+        irData.outputsPosList = false;
+        irData.outputsMatVals = true;
         irData.inputColumns = {column};
         if (std::holds_alternative<BaseType::TableColumn>(partnerVal)) {
             irData.inputColumns.push_back(std::get<BaseType::TableColumn>(partnerVal));

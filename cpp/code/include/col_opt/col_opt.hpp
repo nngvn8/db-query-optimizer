@@ -12,4 +12,7 @@ struct LateMaterializationData {
 
 };
 
+// Moves single sum aggregations into group, return value only used internally
+int moveAggIntoGroup(PlanNode* node);
+
 LateMaterializationData putLateMaterialization(PlanNode* node, std::set<BaseType::TableColumn> columnsToMaterializeOn = {}, const std::set<BaseType::TableColumn>& inputOfParent = {});
