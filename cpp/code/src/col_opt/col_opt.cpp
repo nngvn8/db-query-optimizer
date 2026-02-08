@@ -156,13 +156,10 @@ LateMaterializationData putLateMaterialization(PlanNode* node, std::set<BaseType
     std::map<BaseType::TableColumn, std::shared_ptr<PlanNode>> allPrevMat;
 
     // Generate materialize nodes (bottom up)
-    for (size_t i = 0; i < node->children.size(); ++i) {
+    for (const auto& child : node->children) {
 
-        std::shared_ptr<PlanNode> originalChild = node->children[i];
-
-        // const auto& node->children[i] = node->children[i];
         // ##### RECURSION HERE ######
-        LateMaterializationData matData = putLateMaterialization(node->children[i].get(), columnsNeededLater, columnsThisNode);
+        LateMaterializationData matData = putLateMaterialization(child.get(), columnsNeededLater, columnsThisNode);
         std::set<BaseType::Table> tablesBelowChild = matData.tablesBelow;
         pPos.merge(matData.previousPositionlists);
         allPrevMat.merge(matData.previousMaterialValues);
@@ -170,7 +167,7 @@ LateMaterializationData putLateMaterialization(PlanNode* node, std::set<BaseType
         BaseType::TableColumn filterCol;
         
         // Create or update materialization if child outputs position list
-        if (originalChild->irData.outputsPosList) {
+        if (child->irData.outputsPosList) {
 
             for (const auto& laterCol : columnsNeededLater) {
 
@@ -184,8 +181,8 @@ LateMaterializationData putLateMaterialization(PlanNode* node, std::set<BaseType
                         if (auto& prevPosListNode = pPos[laterCol.table]) {
                             
                             // Find filter col in current child (in case it has multiple outputs)
-                            int idx = detFilterColIdx(laterCol, originalChild);
-                            filterCol = node->children[i]->irData.outputCols[idx]; // except for Select/Result all nodes at the moment only have one output column
+                            int idx = detFilterColIdx(laterCol, child);
+                            filterCol = child->irData.outputCols[idx]; // except for Select/Result all nodes at the moment only have one output column
                             
                             // Find previous position list col
                             auto hasTable = [&laterCol] (BaseType::TableColumn col) { return col.table == laterCol.table; };
@@ -197,26 +194,26 @@ LateMaterializationData putLateMaterialization(PlanNode* node, std::set<BaseType
                             // Left child: Previous position list to be updated as left child (source/columnNeededLater)
                             matNode->children.push_back(prevPosListNode);
                             // PositionList output by child, updating the previous position list
-                            matNode->children.push_back(originalChild);
+                            matNode->children.push_back(child);
 
                             // Set this materialization as the most recent one
                             curPos[laterCol.table] = matNode;
                         }
                         else {
                             // Save position list
-                            curPos[laterCol.table] = originalChild;
+                            curPos[laterCol.table] = child;
                         }
                     }
                 }
             }
         }
         // Remember children of the node that provided value/materialized data
-        if (originalChild->irData.outputsMatVals) {
-            if (auto groupV = originalChild->irData.get_view_if<GroupView>()) {
-                matChildren[*groupV->aggResultCol()] = originalChild;
+        if (child->irData.outputsMatVals) {
+            if (auto groupV = child->irData.get_view_if<GroupView>()) {
+                matChildren[*groupV->aggResultCol()] = child;
             }
             else {
-                matChildren[node->children[i]->irData.outputCols[0]] = originalChild;
+                matChildren[child->irData.outputCols[0]] = child;
             }
         }
         allTablesBelow.merge(tablesBelowChild);

@@ -353,7 +353,6 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
     if (!ast) return nullptr;
 
     auto node = std::make_shared<PlanNode>();
-    PlanNode* childrenTarget = node.get();
 
     // SELECT Node
     if (auto e = std::get_if<SelectClauseNode>(&ast->val)) {
@@ -469,6 +468,7 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
         std::vector<std::variant<uint64_t, float, std::string>> filterArgs;
         CompType opType = mapStringToCompType(e->operatorType);
 
+        // TODO: Or capabilities limited by ast parsing: Always or of two equalities
         if (e->operatorType == "OR") {
             opType = CompType::COMP_IN;
 
@@ -549,10 +549,10 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
 
     // Recursion
     if (ast->left) {
-        childrenTarget->children.push_back(astToIr(ast->left));
+        node->children.push_back(astToIr(ast->left));
     }
     if (ast->right) {
-        childrenTarget->children.push_back(astToIr(ast->right));
+        node->children.push_back(astToIr(ast->right));
     }
 
     // Set Ops: set input columns;
@@ -627,28 +627,25 @@ MaterializationData fillMaterializes(PlanNode* node, std::set<BaseType::TableCol
     columnsToMaterializeOn.insert(columnsThisNode.begin(), columnsThisNode.end());
 
     // Generate materialize nodes (bottom up)
-    for (size_t i = 0; i < node->children.size(); ++i) {
+    for (const auto& child : node->children) {
 
-        std::shared_ptr<PlanNode> originalChild = node->children[i];
-
-        // const auto& node->children[i] = node->children[i];
         // ##### RECURSION HERE ######
-        MaterializationData matData = fillMaterializes(node->children[i].get(), columnsToMaterializeOn, columnsThisNode);
+        MaterializationData matData = fillMaterializes(child.get(), columnsToMaterializeOn, columnsThisNode);
         std::set<BaseType::Table> tablesBelowChild = matData.tablesBelow;
         pMat.merge(matData.previousMaterializations);
 
         BaseType::TableColumn filterCol;
 
         // Create or update materialization if child outputs position list
-        if (originalChild->irData.outputsPosList) {
+        if (child->irData.outputsPosList) {
 
             for (const auto& idxCol : columnsToMaterializeOn) {
 
                 // Add a materialization to the materialization node if table below
                 if (tablesBelowChild.contains(idxCol.table)) {
 
-                    int idx = detFilterColIdx(idxCol, node->children[i]);
-                    filterCol = node->children[i]->irData.outputCols[idx]; // except for Select/Result all nodes at the moment only have one output column
+                    int idx = detFilterColIdx(idxCol, child);
+                    filterCol = child->irData.outputCols[idx]; // except for Select/Result all nodes at the moment only have one output column
 
                     // Create materialization node
                     std::shared_ptr<PlanNode> matNode = std::make_shared<PlanNode>();
@@ -667,22 +664,22 @@ MaterializationData fillMaterializes(PlanNode* node, std::set<BaseType::TableCol
                     }
 
                     // Right child Filter
-                    matNode->children.push_back(originalChild);
+                    matNode->children.push_back(child);
 
                     // Set this materialization as the most recent one
                     pMat[idxCol] = matNode;
                 }
             }
         }
-        if (originalChild->irData.outputsMatVals) {
+        if (child->irData.outputsMatVals) {
             BaseType::TableColumn outCol;
-            if (auto groupV = originalChild->irData.get_view_if<GroupView>()) {
+            if (auto groupV = child->irData.get_view_if<GroupView>()) {
                 outCol = *groupV->aggResultCol();
             }
             else {
-                outCol = originalChild->irData.outputCols[0];
+                outCol = child->irData.outputCols[0];
             }
-            pMat[outCol] = originalChild;
+            pMat[outCol] = child;
         }
 
         allTablesBelow.merge(tablesBelowChild);
