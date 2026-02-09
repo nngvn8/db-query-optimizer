@@ -23,7 +23,7 @@ void placeSemiJoins(PlanNode* node, std::set<BaseType::Table> tablesNeededLater)
 
             const BaseType::TableColumn& colToDiscard = innerTableNeededLater ? joinV->outer() : joinV->inner();
 
-            // If column is unique - Continue only if it is and  therefore only severs as filter and does not multiply any rows
+            // If column is unique - Continue only if it is unique and therefore only severs as filter and does not multiply any rows
             if (Catalog::isUnique(colToDiscard.table.name, colToDiscard.columnName)) {
                 IrData semiJoinData = SemiJoinView::create(node->irData);
                 SemiJoinView semiJoinV(semiJoinData);
@@ -54,9 +54,11 @@ void removeSortIfSubsetGroup(std::shared_ptr<PlanNode>* node_ptr) {
     if (!node_ptr || !*node_ptr) return;
     std::shared_ptr<PlanNode> node = *node_ptr;
 
+    // If sort with group as child
     if (auto sortV = node->irData.get_view_if<SortOrderView>()) {
         for (const auto& child : node->children) {
             if (auto groupV = child->irData.get_view_if<GroupView>()) {
+                // Check if input sort subset input group
                 bool isSubset = true;
                 std::set<BaseType::TableColumn> groupInputsSet(child->irData.inputColumns.begin(), child->irData.inputColumns.end());
                 std::set<BaseType::TableColumn> sortInputsSet(node->irData.inputColumns.begin(), node->irData.inputColumns.end());
@@ -66,23 +68,31 @@ void removeSortIfSubsetGroup(std::shared_ptr<PlanNode>* node_ptr) {
                         break;
                     }
                 }
+                // Change order of input cols grouping and set sort orders
                 if (isSubset) {
+                    // Take input cols and sort orders of sort
                     auto newGroupInputs = sortV->sortCols();
+                    std::vector<bool> sortOrders = sortV->orderDescriptions() 
+                                                    | std::views::transform([](const BaseType::OrderDescription& desc) { return desc.orderType; }) 
+                                                    | std::ranges::to<std::vector>();
+                    // Add remaining cols from grouping
                     for (const auto& groupInput : groupV->groupingCols()) {
                         if (!sortInputsSet.contains(groupInput)) {
                             newGroupInputs.push_back(groupInput);
+                            sortOrders.push_back(true);
                         }
                     }
+                    // Update grouping
                     groupV->groupingCols() = newGroupInputs;
-                    groupV->sortOrders() = sortV->orderDescriptions() 
-                                            | std::views::transform([](const BaseType::OrderDescription& desc) { return desc.orderType; }) 
-                                            | std::ranges::to<std::vector>();
+                    groupV->sortOrders() = sortOrders;
+
+                    // Delete sort
                     *node_ptr = child;
                 }
             }
         }
     }
-
+    // ### RECURSE ###
     for (auto& child : node->children) {
         removeSortIfSubsetGroup(&child);
     }
@@ -93,6 +103,7 @@ int moveAggIntoGroup(PlanNode* node) {
 
     int aggCount = 0;
 
+    // ### RECURSE ###
     for (const auto& child : node->children) {
         aggCount += moveAggIntoGroup(child.get());
     }
@@ -106,12 +117,13 @@ int moveAggIntoGroup(PlanNode* node) {
     else if (node->irData.is<GroupOp>() && aggCount == 1) {
         GroupView groupV(node->irData);
 
+        // Find aggregation children of grouping
         for (auto& child : node->children) {
             if (auto aggV = child->irData.get_view_if<AggView>()) {
                 if (aggV->aggFunc() == AggFunc::AGG_SUM) {
+                    // Put aggregation info into group
                     groupV.setAgg(aggV->colToAgg(), aggV->aggResultCol());
-                    // auto grandChild = child->children[0];
-                    // child = grandChild;
+                    // Delete Aggregation
                     child = child->children[0];
                 }
             }
@@ -305,7 +317,7 @@ LateMaterializationData putLateMaterialization(PlanNode* node, std::set<BaseType
                 // Make this input for child
                 node->children.push_back(matNode);
             } 
-            // TODO not clean! Possibly breaks. This has been introduced input aggregations from earlier
+            // TODO not clean! Possibly breaks. This has been introduced to input aggregations from earlier
             // Case where we need a previous Materialization
             else if (const auto& prevMat = allPrevMat[idxCol]) {
                 node->children.push_back(prevMat);
