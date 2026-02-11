@@ -41,13 +41,11 @@ file(GLOB_RECURSE PROJECT_HEADERS
 )
 
 # Hyrise SQL-Parser
-# add_library(sqlparser STATIC IMPORTED)
-# set_target_properties(sqlparser PROPERTIES
-#     IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/external/sql-parser/libsqlparser.a"
-#     INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/external/sql-parser/src"
-# )
+file(GLOB_RECURSE SQLPARSER_SOURCES
+    external/sql-parser/src/*.cpp
+)
 
-add_subdirectory(external/sql-parser)
+add_library(sqlparser STATIC ${SQLPARSER_SOURCES})
 
 # JsonCpp
 add_subdirectory(external/jsoncpp)
