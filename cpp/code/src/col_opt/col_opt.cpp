@@ -3,6 +3,9 @@
 #include "ir/ir_views.hpp"
 #include "ir/catalog.hpp"
 
+#include <ranges>
+#include <deque>
+
 void placeSemiJoins(PlanNode* node, std::set<BaseType::Table> tablesNeededLater) {
     if (!node) return;
 
@@ -71,8 +74,8 @@ void removeSortIfSubsetGroup(std::shared_ptr<PlanNode>* node_ptr) {
                 if (isSubset) {
                     // Take input cols and sort orders of sort
                     auto newGroupInputs = sortV->sortCols();
-                    std::vector<bool> sortOrders = sortV->orderDescriptions() 
-                                                    | std::views::transform([](const BaseType::OrderDescription& desc) { return desc.orderType; }) 
+                    std::vector<bool> sortOrders = sortV->orderDescriptions()
+                                                    | std::views::transform([](const BaseType::OrderDescription& desc) { return desc.orderType; })
                                                     | std::ranges::to<std::vector>();
                     // Add remaining cols from grouping
                     for (const auto& groupInput : groupV->groupingCols()) {
@@ -188,14 +191,14 @@ LateMaterializationData putLateMaterialization(PlanNode* node, std::set<BaseType
     std::map<BaseType::Table, std::shared_ptr<PlanNode>> curPos;
 
     // Previous position lists available (collected from children, possibly updated here)
-    std::map<BaseType::Table, std::shared_ptr<PlanNode>> pPos; 
-    
+    std::map<BaseType::Table, std::shared_ptr<PlanNode>> pPos;
+
     // Tables below this node (union of tables found below all children)
-    std::set<BaseType::Table> allTablesBelow; 
-    
+    std::set<BaseType::Table> allTablesBelow;
+
     // Columns this node needs
     std::set<BaseType::TableColumn> columnsThisNode(node->irData.inputColumns.begin(), node->irData.inputColumns.end());
-    
+
     // Add columns needed by this node to columns needed later
     columnsNeededLater.insert(columnsThisNode.begin(), columnsThisNode.end());
 
@@ -214,7 +217,7 @@ LateMaterializationData putLateMaterialization(PlanNode* node, std::set<BaseType
         allPrevMat.merge(matData.previousMaterialValues);
 
         BaseType::TableColumn filterCol;
-        
+
         // Create or update materialization if child outputs position list
         if (child->irData.outputsPosList) {
 
@@ -222,21 +225,21 @@ LateMaterializationData putLateMaterialization(PlanNode* node, std::set<BaseType
 
                 // Update position lists of this table if node if table below
                 if (tablesBelowChild.contains(laterCol.table)) {
-                    
+
                     // If there was no position list update by any of the children (TODO several children want to update because same table at several leaves)
                     if (!curPos[laterCol.table]) {
-                    
-                        // If there is a position previous position list, that this child updates 
+
+                        // If there is a position previous position list, that this child updates
                         if (auto& prevPosListNode = pPos[laterCol.table]) {
-                            
+
                             // Find filter col in current child (in case it has multiple outputs)
                             int idx = detFilterColIdx(laterCol, child);
                             filterCol = child->irData.outputCols[idx]; // except for Select/Result all nodes at the moment only have one output column
-                            
+
                             // Find previous position list col
                             auto hasTable = [&laterCol] (BaseType::TableColumn col) { return col.table == laterCol.table; };
                             BaseType::TableColumn prevPosListCol = *(prevPosListNode->irData.outputCols | std::views::filter(hasTable)).begin();
-                            
+
                             std::shared_ptr<PlanNode> matNode = std::make_shared<PlanNode>();
                             matNode->irData = MaterializeView::create(prevPosListCol, filterCol, laterCol);
 
@@ -285,7 +288,7 @@ LateMaterializationData putLateMaterialization(PlanNode* node, std::set<BaseType
             for (auto& fetchCol : inputOfParent) {
                 if (fetchCol.table.name == fetchV->inputCol().table.name) {
                     fetchV->inputCol().columnName = fetchCol.columnName;
-                    fetchV->outputCol().columnName = fetchCol.columnName;                    
+                    fetchV->outputCol().columnName = fetchCol.columnName;
                 }
             }
             // Add the table of this node to tables below
@@ -295,28 +298,28 @@ LateMaterializationData putLateMaterialization(PlanNode* node, std::set<BaseType
     // Rewire children if not leaf node
     else {
         node->children = {};
-        
+
         // Provide all materializations needed
         for (auto& idxCol : node->irData.inputColumns) {
             // Set most recent materialization of children as column
             if (const auto& matChild = matChildren[idxCol])
                 node->children.push_back(matChild);
-            
-            // Check if there is a position list we materialized on 
+
+            // Check if there is a position list we materialized on
             else if (const auto& latestPosList = pPos[idxCol.table]) {
                 // Fetch Column needed
                 std::shared_ptr<PlanNode> fetchNode = std::make_shared<PlanNode>();
                 fetchNode->irData = FetchView::create(idxCol, false);
-                
+
                 // Materialize latest position list on it
                 std::shared_ptr<PlanNode> matNode = std::make_shared<PlanNode>();
                 matNode->irData = MaterializeView::create(idxCol, latestPosList->irData.outputCols[0], idxCol);
                 matNode->children.push_back(fetchNode);
                 matNode->children.push_back(latestPosList);
-                
+
                 // Make this input for child
                 node->children.push_back(matNode);
-            } 
+            }
             // TODO not clean! Possibly breaks. This has been introduced to input aggregations from earlier
             // Case where we need a previous Materialization
             else if (const auto& prevMat = allPrevMat[idxCol]) {

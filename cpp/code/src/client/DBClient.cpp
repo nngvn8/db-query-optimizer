@@ -1,3 +1,5 @@
+#include "client/DBClient.hpp"
+
 #include <iostream>
 #include <string>
 #include <unistd.h>
@@ -14,25 +16,14 @@
 #include <atomic>
 #include <cerrno>
 
-constexpr const char* EXIT_CMD = "exit";
-constexpr const char* QUIT_CMD = "quit";
-
-constexpr int PORT = 8080;
-
-constexpr int MAX_LENGTH = 4096;
-
-enum class ClientAction {
-    Continue,
-    SendQuery,
-    Exit
-};
-
-// client history global parameters
-constexpr const char* HISTORY_FILE = ".client_history";
-std::vector<std::string> history;
-int historyIndex = 0;
-std::ofstream historyFile;
-termios origTerm;
+#include "parser/generate_AST.hpp"
+#include "ir/ir_transformer.hpp"
+#include "parser/generate_dot.hpp"
+#include "translation/item_builder.hpp"
+#include "util/sequentializer.hpp"
+#include "ir/plan_node_to_dot.hpp"
+#include "util/unique_col_names.hpp"
+#include "col_opt/col_opt.hpp"
 
 // shutdown flags
 std::atomic<bool> g_shouldExit{false};
@@ -42,25 +33,25 @@ void handleSigInt(int) {
     g_shouldExit.store(true);
 }
 
-void enableRawMode() {
+void DBClient::enableRawMode() {
     tcgetattr(STDIN_FILENO, &origTerm);
     termios raw = origTerm;
     raw.c_lflag &= ~(ICANON | ECHO);
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
 }
 
-void disableRawMode() {
+void DBClient::disableRawMode() {
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &origTerm);
 }
 
-void saveHistory(const std::string& query) {
+void DBClient::saveHistory(const std::string& query) {
     history.push_back(query);
     historyIndex = history.size();
     historyFile << query << "\n";
     historyFile.flush();
 }
 
-void cleanup() {
+void DBClient::cleanup() {
     disableRawMode();
 
     if (g_serverSocket != -1) {
@@ -74,7 +65,7 @@ void cleanup() {
     std::remove(HISTORY_FILE);
 }
 
-std::string_view trim(std::string_view s) {
+std::string_view DBClient::trim(std::string_view s) {
     while (!s.empty() && std::isspace(static_cast<unsigned char>(s.front())))
         s.remove_prefix(1);
     while (!s.empty() && std::isspace(static_cast<unsigned char>(s.back())))
@@ -82,7 +73,7 @@ std::string_view trim(std::string_view s) {
     return s;
 }
 
-bool equalsIgnoreCase(std::string_view a, std::string_view b) {
+bool DBClient::equalsIgnoreCase(std::string_view a, std::string_view b) {
     if (a.size() != b.size()) return false;
     for (size_t i = 0; i < a.size(); ++i) {
         if (std::tolower(static_cast<unsigned char>(a[i])) !=
@@ -92,7 +83,7 @@ bool equalsIgnoreCase(std::string_view a, std::string_view b) {
     return true;
 }
 
-bool sendQueryToServer(int serverSocket, const std::string& query) {
+bool DBClient::sendQueryToServer(int serverSocket, const std::string& query) {
     size_t totalSent = 0;
     while (totalSent < query.size()) {
         ssize_t sent = send(serverSocket, query.data() + totalSent, query.size() - totalSent, 0);
@@ -105,7 +96,7 @@ bool sendQueryToServer(int serverSocket, const std::string& query) {
     return true;
 }
 
-ClientAction readQueryInput(std::string& outQuery) {
+ClientAction DBClient::readQueryInput(std::string& outQuery) {
     static std::string buffer;
     char c;
 
@@ -190,7 +181,7 @@ ClientAction readQueryInput(std::string& outQuery) {
     return ClientAction::Exit;
 }
 
-bool readServerResponse(int serverSocket, std::string& response) {
+bool DBClient::readServerResponse(int serverSocket, std::string& response) {
     response.clear();
     char buf[1024];
 
@@ -207,7 +198,90 @@ bool readServerResponse(int serverSocket, std::string& response) {
     }
 }
 
-int main(int argc, char* argv[]) {
+ASTNode* DBClient::createASTRootNode(const std::string& query) {
+    auto root = generateASTNode(query);
+    generateDotFile(root,"testpic12.dot");
+    return root;
+}
+
+// ############# STANDARD APPROACH ################################
+void DBClient::runStandardApproach(ASTNode* root) {
+    // Generate IR tree for second optimizer
+    std::shared_ptr<PlanNode> ir_root = astToIr(root);
+    generatePlanDotFile(*ir_root, "ir_plan.dot", DotContentType::IR_DATA);
+
+    // Place semi joins
+    std::set<BaseType::Table> tablesNeededLater;
+    placeSemiJoins(ir_root.get(), tablesNeededLater);
+    generatePlanDotFile(*ir_root, "ir_plan_semi_j.dot", DotContentType::IR_DATA);
+
+    removeSortIfSubsetGroup(&ir_root);
+    generatePlanDotFile(*ir_root, "ir_plan_remove_sort.dot", DotContentType::IR_DATA);
+
+    // Move single sum aggregations into group item
+    moveAggIntoGroup(ir_root.get());
+    generatePlanDotFile(*ir_root, "ir_plan_agg_opt.dot", DotContentType::IR_DATA);
+
+    // Fill Materializes
+    fillMaterializes(ir_root.get());
+    generatePlanDotFile(*ir_root, "ir_plan_mat.dot", DotContentType::IR_DATA);
+
+    // Rename columns
+    uniqueColNames(ir_root.get());
+    generatePlanDotFile(*ir_root, "ir_plan_mat_num.dot", DotContentType::IR_DATA);
+
+    // Map to Api (Physical) Data
+    irToApiData(ir_root.get());
+    generatePlanDotFile(*ir_root, "api_plan.dot", DotContentType::API_DATA);
+
+    // Sequentialize
+    std::vector<const PlanNode*> sequenced_plan = to_sequence_children_list<PlanNode>(ir_root.get());
+    // printSequencedPlan(sequenced_plan);
+
+    // Create WorkItems
+    ItemBuilder itemBuilder;
+    std::vector<WorkItem> workItems = itemBuilder.createWorkItems(sequenced_plan);
+}
+
+// ##################### LATE MATERIALIZATION APPROACH ###################
+void DBClient::runLateMaterializationApproach(ASTNode* root) {
+    // Generate IR tree for second optimizer
+    std::shared_ptr<PlanNode> ir_root = astToIr(root);
+    generatePlanDotFile(*ir_root, "ir_plan_l.dot", DotContentType::IR_DATA);
+
+    // Place semi joins
+    placeSemiJoins(ir_root.get());
+    generatePlanDotFile(*ir_root, "ir_plan_semi_j_l.dot", DotContentType::IR_DATA);
+
+    removeSortIfSubsetGroup(&ir_root);
+    generatePlanDotFile(*ir_root, "ir_plan_remove_sort.dot", DotContentType::IR_DATA);
+
+    // Move single sum aggregations into group item
+    moveAggIntoGroup(ir_root.get());
+    generatePlanDotFile(*ir_root, "ir_plan_agg_opt_l.dot", DotContentType::IR_DATA);
+
+    // Put Late Materialization
+    putLateMaterialization(ir_root.get());
+    generatePlanDotFile(*ir_root, "ir_plan_mat_l.dot", DotContentType::IR_DATA);
+
+    // Rename columns
+    uniqueColNames(ir_root.get());
+    generatePlanDotFile(*ir_root, "ir_plan_mat_num_l.dot", DotContentType::IR_DATA);
+
+    // Map to Api (Physical) Data
+    irToApiData(ir_root.get());
+    generatePlanDotFile(*ir_root, "api_plan_l.dot", DotContentType::API_DATA);
+
+    // Sequentialize
+    std::vector<const PlanNode*> sequenced_plan = to_sequence_children_list<PlanNode>(ir_root.get());
+    // printSequencedPlan(sequenced_plan);
+
+    // Create WorkItems
+    ItemBuilder itemBuilder;
+    std::vector<WorkItem> workItems = itemBuilder.createWorkItems(sequenced_plan);
+}
+
+int DBClient::run() {
     std::signal(SIGINT, handleSigInt);
 
     int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
@@ -243,6 +317,8 @@ int main(int argc, char* argv[]) {
             break;
 
         if (action == ClientAction::SendQuery) {
+            runStandardApproach(createASTRootNode(query));
+
             if (!sendQueryToServer(serverSocket, query)) {
                 std::cerr << "Send failed" << std::endl;
                 break;
