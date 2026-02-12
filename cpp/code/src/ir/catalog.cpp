@@ -81,41 +81,76 @@ namespace Catalog {
     std::string getTableName(std::string columnName){
 
         std::unordered_set<std::string> lineorder = {
-            "lo_orderdate",
-            "lo_discount",
-            "lo_quantity",
-            "lo_extendedprice",
-            "lo_revenue",
-            "lo_custkey",
-            "lo_suppkey",
-            "lo_supplycost",
-            "lo_partkey",
-            "lo_orderdate"
+        "lo_orderkey",
+        "lo_linenumber",
+        "lo_custkey",
+        "lo_partkey",
+        "lo_suppkey",
+        "lo_orderdate",
+        "lo_orderpriority",
+        "lo_shippriority",
+        "lo_quantity",
+        "lo_extendedprice",
+        "lo_ordtotalprice",
+        "lo_discount",
+        "lo_revenue",
+        "lo_supplycost",
+        "lo_tax",
+        "lo_commitdate",
+        "lo_shipmode"
         };
 
         std::unordered_set<std::string> dates = {
-            "d_year",
             "d_datekey",
+            "d_date",
+            "d_dayofweek",
+            "d_month",
+            "d_year",
+            "d_yearmonthnum",
             "d_yearmonth",
-            "d_weeknuminyear"
+            "d_daynuminweek",
+            "d_daynuminmonth",
+            "d_daynuminyear",
+            "d_monthnuminyear",
+            "d_weeknuminyear",
+            "d_sellingseason",
+            "d_lastdayinweekfl",
+            "d_lastdayinmonthfl",
+            "d_holidayfl",
+            "d_weekdayfl"
         };
 
         std::unordered_set<std::string> part = {
             "p_partkey",
+            "p_name",
+            "p_mfgr",
             "p_category",
-            "p_brand"
+            "p_brand",
+            "p_color",
+            "p_type",
+            "p_size",
+            "p_container"
         };
 
         std::unordered_set<std::string> supplier = {
-            "s_region",
             "s_suppkey",
+            "s_name",
+            "s_address",
+            "s_city",
             "s_nation",
-            "s_city"
+            "s_region",
+            "s_phone"
         };
 
         std::unordered_set<std::string> customer = {
-            "c_nation",
             "c_custkey",
+            "c_name",
+            "c_address",
+            "c_city",
+            "c_nation",
+            "c_region",
+            "c_phone",
+            "c_mktsegment"
         };
 
         if (lineorder.find(columnName) != lineorder.end()) {
