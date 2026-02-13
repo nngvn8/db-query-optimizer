@@ -3,7 +3,6 @@
 #include "ir/ir_views.hpp"
 #include "ir/catalog.hpp"
 
-
 void placeSemiJoins(PlanNode* node, std::set<BaseType::Table> tablesNeededLater) {
     if (!node) return;
 
@@ -146,9 +145,9 @@ namespace {
             return 0;
 
         // Is join and has column as output
-        if (node->irData.outputCols[0] == idxCol)
+        if (node->irData.outputCols[0].table == idxCol.table)
             return 0;
-        else if (node->irData.outputCols[1] == idxCol)
+        else if (node->irData.outputCols[1].table == idxCol.table)
             return 1;
 
         // BFS for usage of table that our column is based on
@@ -260,7 +259,8 @@ LateMaterializationData putLateMaterialization(PlanNode* node, std::set<BaseType
         // Remember children of the node that provided value/materialized data
         if (child->irData.outputsMatVals) {
             if (auto groupV = child->irData.get_view_if<GroupView>()) {
-                matChildren[*groupV->aggResultCol()] = child;
+                if (groupV->aggResultCol())
+                    matChildren[*groupV->aggResultCol()] = child;
             }
             else {
                 matChildren[child->irData.outputCols[0]] = child;
@@ -297,7 +297,7 @@ LateMaterializationData putLateMaterialization(PlanNode* node, std::set<BaseType
         node->children = {};
         
         // Provide all materializations needed
-        for (auto& idxCol : columnsThisNode) {
+        for (auto& idxCol : node->irData.inputColumns) {
             // Set most recent materialization of children as column
             if (const auto& matChild = matChildren[idxCol])
                 node->children.push_back(matChild);

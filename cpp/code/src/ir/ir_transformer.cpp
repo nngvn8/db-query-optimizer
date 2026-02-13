@@ -576,9 +576,9 @@ namespace {
             return 0;
 
         // Is join and has column as output
-        if (node->irData.outputCols[0] == idxCol)
+        if (node->irData.outputCols[0].table == idxCol.table)
             return 0;
-        else if (node->irData.outputCols[1] == idxCol)
+        else if (node->irData.outputCols[1].table == idxCol.table)
             return 1;
 
         // BFS for usage of table that our column is based on
@@ -597,7 +597,7 @@ namespace {
 
             // Need to find the the table of our column further down the tree
             for (const auto& outCol : cur_node->irData.outputCols) {
-                if (outCol.table.name == idxCol.table.name) {
+                if (outCol.table == idxCol.table) {
                     return idx;
                 }
             }
@@ -674,7 +674,9 @@ MaterializationData fillMaterializes(PlanNode* node, std::set<BaseType::TableCol
         if (child->irData.outputsMatVals) {
             BaseType::TableColumn outCol;
             if (auto groupV = child->irData.get_view_if<GroupView>()) {
-                outCol = *groupV->aggResultCol();
+                if (groupV->aggResultCol()) {
+                    outCol = *groupV->aggResultCol();
+                }
             }
             else {
                 outCol = child->irData.outputCols[0];
@@ -704,7 +706,7 @@ MaterializationData fillMaterializes(PlanNode* node, std::set<BaseType::TableCol
     // Rewire children if not leaf node
     else {
         node->children = {};
-        for (auto& idxCol : columnsThisNode) {
+        for (auto& idxCol : node->irData.inputColumns) {
             // Set most recent materialization of children as column
             if (pMat.count(idxCol))
                 node->children.push_back(pMat[idxCol]);
