@@ -26,6 +26,7 @@ class DBClient {
 public:
     ClientAction readQueryInput(std::string& outQuery);
     int run();
+    int runStandalone();
 
     bool sendQueryToServer(int serverSocket, const std::string& query);
     bool readServerResponse(int serverSocket, std::string& response);

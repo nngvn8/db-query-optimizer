@@ -2,6 +2,6 @@
 
 int main(int argc, char* argv[]) {
     DBClient db_client;
-    int ret = db_client.run();
+    int ret = db_client.runStandalone();
     return 0;
 }

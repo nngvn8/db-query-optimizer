@@ -99,6 +99,7 @@ bool DBClient::sendQueryToServer(int serverSocket, const std::string& query) {
 ClientAction DBClient::readQueryInput(std::string& outQuery) {
     static std::string buffer;
     char c;
+    bool query_end = false;
 
     // use read so we can use arrow keys for history
     // need to use flush to still write the output in raw mode
@@ -136,7 +137,7 @@ ClientAction DBClient::readQueryInput(std::string& outQuery) {
             continue;
         }
 
-        // ENTER → submit query
+        // ENTER -> submit query
         if (c == '\n') {
             std::cout << std::endl;
 
@@ -149,7 +150,10 @@ ClientAction DBClient::readQueryInput(std::string& outQuery) {
             }
 
             if (!trimmed.empty()) {
-                outQuery = std::string(trimmed) + ";";
+                if (trimmed.back() != ';')
+                    continue;
+
+                outQuery = std::string(trimmed);
                 buffer.clear();
                 return ClientAction::SendQuery;
             }
@@ -177,7 +181,6 @@ ClientAction DBClient::readQueryInput(std::string& outQuery) {
             return ClientAction::Continue;
         }
     }
-
     return ClientAction::Exit;
 }
 
@@ -279,6 +282,32 @@ void DBClient::runLateMaterializationApproach(ASTNode* root) {
     // Create WorkItems
     ItemBuilder itemBuilder;
     std::vector<WorkItem> workItems = itemBuilder.createWorkItems(sequenced_plan);
+}
+
+int DBClient::runStandalone() {
+    // std::string query1 = "SELECT SUM(lo_extendedprice * lo_discount) AS REVENUE FROM lineorder, dates WHERE lo_orderdate = d_datekey AND d_year = 1993 AND lo_discount BETWEEN 1 AND 3 AND lo_quantity < 25;";
+
+    historyFile.open(HISTORY_FILE, std::ios::out | std::ios::trunc);
+    enableRawMode();
+
+    while (!g_shouldExit.load()) {
+        std::string query;
+        ClientAction action = readQueryInput(query);
+
+        if (g_shouldExit.load())
+            break;
+
+        if (action == ClientAction::Exit)
+            break;
+
+        if (action == ClientAction::SendQuery) {
+            std::cout << query << std::endl;
+            runStandardApproach(createASTRootNode(query));
+            saveHistory(query.substr(0, query.size() - 1));
+        }
+    }
+    cleanup();
+    return 0;
 }
 
 int DBClient::run() {
