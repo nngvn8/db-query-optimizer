@@ -19,7 +19,8 @@
 enum class ClientAction {
     Continue,
     SendQuery,
-    Exit
+    Exit,
+    SqlFile
 };
 
 class DBClient {
@@ -27,6 +28,8 @@ public:
     ClientAction readQueryInput(std::string& outQuery);
     int run();
     int runStandalone();
+
+    void handleSqlFile(std::string_view& filePath);
 
     bool sendQueryToServer(int serverSocket, const std::string& query);
     bool readServerResponse(int serverSocket, std::string& response);
@@ -50,6 +53,8 @@ private:
 
     void enableRawMode();
     void disableRawMode();
+
+    std::vector<std::string> fileQueries;
 
     void saveHistory(const std::string& query);
     void cleanup();

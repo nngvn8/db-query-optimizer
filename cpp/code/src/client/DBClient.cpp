@@ -6,8 +6,9 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 
-// HISTORY
+// HISTORY AND FILEHANDLING
 #include <fstream>
+#include <sstream>
 #include <termios.h>
 #include <vector>
 
@@ -53,6 +54,7 @@ void DBClient::saveHistory(const std::string& query) {
 
 void DBClient::cleanup() {
     disableRawMode();
+    fileQueries.clear();
 
     if (g_serverSocket != -1) {
         close(g_serverSocket);
@@ -96,10 +98,48 @@ bool DBClient::sendQueryToServer(int serverSocket, const std::string& query) {
     return true;
 }
 
+// Helper function to trim whitespace when reading SQL Files
+std::string trimFileQuery(const std::string& str) {
+    size_t first = str.find_first_not_of(" \t\n\r");
+    if (first == std::string::npos) return "";
+    size_t last = str.find_last_not_of(" \t\n\r");
+    return str.substr(first, (last - first + 1));
+}
+
+void DBClient::handleSqlFile(std::string_view& filePath) {
+    std::string fileName = std::string(filePath);
+    std::cout << "Using SQL File: " << fileName << std::endl;
+
+    std::ifstream file(fileName);
+    fileQueries.clear();
+
+    if (!file) {
+        std::cerr << "Could not open file\n";
+    }
+
+    // Read whole file into a string
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+    std::string content = buffer.str();
+
+    std::string currentQuery;
+
+    for (char c : content) {
+        if (c == ';') {
+            std::string queryTrimmed = trimFileQuery(currentQuery);
+            if (!queryTrimmed.empty()) {
+                fileQueries.push_back(queryTrimmed);
+            }
+            currentQuery.clear();
+        } else {
+            currentQuery += c;
+        }
+    }
+}
+
 ClientAction DBClient::readQueryInput(std::string& outQuery) {
     static std::string buffer;
     char c;
-    bool query_end = false;
 
     // use read so we can use arrow keys for history
     // need to use flush to still write the output in raw mode
@@ -150,6 +190,15 @@ ClientAction DBClient::readQueryInput(std::string& outQuery) {
             }
 
             if (!trimmed.empty()) {
+                // Handle .sql files
+                if (trimmed.ends_with(".sql")) {
+                    handleSqlFile(trimmed);
+
+                    buffer.clear();
+                    return ClientAction::SqlFile;
+                }
+
+                // Handle end of query with ;
                 if (trimmed.back() != ';')
                     continue;
 
@@ -304,6 +353,13 @@ int DBClient::runStandalone() {
             std::cout << query << std::endl;
             runStandardApproach(createASTRootNode(query));
             saveHistory(query.substr(0, query.size() - 1));
+        }
+
+        if (action == ClientAction::SqlFile) {
+            for (std::string fileQuery : fileQueries) {
+                std::cout << fileQuery << std::endl;
+                runStandardApproach(createASTRootNode(fileQuery));
+            }
         }
     }
     cleanup();
