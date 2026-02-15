@@ -15,6 +15,7 @@
 #include <cerrno>
 
 #include "parser/generate_AST.hpp"
+#include "client/TCPClient.hpp"
 
 enum class ClientAction {
     Continue,
@@ -25,6 +26,24 @@ enum class ClientAction {
 
 class DBClient {
 public:
+    DBClient(const std::string& file = "")
+        : tcpClient(std::nullopt),
+        inputFile(file) {}
+
+    DBClient(const std::string& ip, const size_t port, const std::string& file = "")
+        : tcpClient(std::in_place, ip, port),
+        inputFile(file) {}
+
+    ~DBClient() {
+        disableRawMode();
+        fileQueries.clear();
+
+        if (historyFile.is_open())
+            historyFile.close();
+
+        std::remove(HISTORY_FILE);
+    }
+
     ClientAction readQueryInput(std::string& outQuery);
     int run();
     int runStandalone();
@@ -44,6 +63,8 @@ public:
     static constexpr int MAX_LENGTH = 4096;
 
 private:
+    std::optional<tuddbs::TCPClient> tcpClient;
+
     // client history global parameters
     static constexpr const char* HISTORY_FILE = ".client_history";
     std::vector<std::string> history;
@@ -55,9 +76,9 @@ private:
     void disableRawMode();
 
     std::vector<std::string> fileQueries;
+    std::string inputFile;
 
     void saveHistory(const std::string& query);
-    void cleanup();
     std::string_view trim(std::string_view s);
     bool equalsIgnoreCase(std::string_view a, std::string_view b);
 };

@@ -28,6 +28,12 @@ class ArgParser {
         return result;
     }
 
+    bool getFlagByValueAndRemove(const std::string &arg);
+    bool takeParseFlag(const std::string key) {
+        const bool &flag = getFlagByValueAndRemove(key);
+        return flag;
+    }
+
     bool hasArg(const std::string &arg) const;
     std::vector<std::string> getParameterVectorCopy() const;
 

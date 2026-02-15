@@ -52,21 +52,6 @@ void DBClient::saveHistory(const std::string& query) {
     historyFile.flush();
 }
 
-void DBClient::cleanup() {
-    disableRawMode();
-    fileQueries.clear();
-
-    if (g_serverSocket != -1) {
-        close(g_serverSocket);
-        g_serverSocket = -1;
-    }
-
-    if (historyFile.is_open())
-        historyFile.close();
-
-    std::remove(HISTORY_FILE);
-}
-
 std::string_view DBClient::trim(std::string_view s) {
     while (!s.empty() && std::isspace(static_cast<unsigned char>(s.front())))
         s.remove_prefix(1);
@@ -85,7 +70,7 @@ bool DBClient::equalsIgnoreCase(std::string_view a, std::string_view b) {
     return true;
 }
 
-bool DBClient::sendQueryToServer(int serverSocket, const std::string& query) {
+/* bool DBClient::sendQueryToServer(int serverSocket, const std::string& query) {
     size_t totalSent = 0;
     while (totalSent < query.size()) {
         ssize_t sent = send(serverSocket, query.data() + totalSent, query.size() - totalSent, 0);
@@ -96,7 +81,7 @@ bool DBClient::sendQueryToServer(int serverSocket, const std::string& query) {
         totalSent += sent;
     }
     return true;
-}
+} */
 
 // Helper function to trim whitespace when reading SQL Files
 std::string trimFileQuery(const std::string& str) {
@@ -233,7 +218,7 @@ ClientAction DBClient::readQueryInput(std::string& outQuery) {
     return ClientAction::Exit;
 }
 
-bool DBClient::readServerResponse(int serverSocket, std::string& response) {
+/* bool DBClient::readServerResponse(int serverSocket, std::string& response) {
     response.clear();
     char buf[1024];
 
@@ -248,7 +233,7 @@ bool DBClient::readServerResponse(int serverSocket, std::string& response) {
                 return true;
         }
     }
-}
+} */
 
 ASTNode* DBClient::createASTRootNode(const std::string& query) {
     auto root = generateASTNode(query);
@@ -288,11 +273,15 @@ void DBClient::runStandardApproach(ASTNode* root) {
 
     // Sequentialize
     std::vector<const PlanNode*> sequenced_plan = to_sequence_children_list<PlanNode>(ir_root.get());
-    // printSequencedPlan(sequenced_plan);
+    printSequencedPlan(sequenced_plan);
 
     // Create WorkItems
     ItemBuilder itemBuilder;
     std::vector<WorkItem> workItems = itemBuilder.createWorkItems(sequenced_plan);
+
+    for (WorkItem item : workItems) {
+        item.PrintDebugString();
+    }
 }
 
 // ##################### LATE MATERIALIZATION APPROACH ###################
@@ -326,11 +315,15 @@ void DBClient::runLateMaterializationApproach(ASTNode* root) {
 
     // Sequentialize
     std::vector<const PlanNode*> sequenced_plan = to_sequence_children_list<PlanNode>(ir_root.get());
-    // printSequencedPlan(sequenced_plan);
+    printSequencedPlan(sequenced_plan);
 
     // Create WorkItems
     ItemBuilder itemBuilder;
     std::vector<WorkItem> workItems = itemBuilder.createWorkItems(sequenced_plan);
+
+    for (WorkItem item : workItems) {
+        item.PrintDebugString();
+    }
 }
 
 int DBClient::runStandalone() {
@@ -362,14 +355,15 @@ int DBClient::runStandalone() {
             }
         }
     }
-    cleanup();
     return 0;
 }
 
 int DBClient::run() {
-    std::signal(SIGINT, handleSigInt);
+    tcpClient->start();
 
-    int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
+    /* std::signal(SIGINT, handleSigInt);
+
+    serverSocket = socket(AF_INET, SOCK_STREAM, 0);
     if (serverSocket < 0) {
         perror("socket");
         return -1;
@@ -378,17 +372,21 @@ int DBClient::run() {
     sockaddr_in server_addr{};
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(PORT);
-    inet_pton(AF_INET, "127.0.0.1", &server_addr.sin_addr);
+    inet_pton(AF_INET, "127.0.0.1", &server_addr.sin_addr); */
 
-    if (connect(serverSocket, (sockaddr*)& server_addr, sizeof(server_addr)) < 0) {
+    /* if (connect(serverSocket, (sockaddr*)& server_addr, sizeof(server_addr)) < 0) {
         perror("connect");
         return -1;
-    }
+    } */
 
     std::cout << "Connected to server. Ready to read queries." << std::endl;
 
     historyFile.open(HISTORY_FILE, std::ios::out | std::ios::trunc);
     enableRawMode();
+
+    if (!inputFile.empty()) {
+        // TODO input file
+    }
 
     // main loop with sigint handling if aborted
     while (!g_shouldExit.load()) {
@@ -404,22 +402,20 @@ int DBClient::run() {
         if (action == ClientAction::SendQuery) {
             runStandardApproach(createASTRootNode(query));
 
-            if (!sendQueryToServer(serverSocket, query)) {
+            /* if (!sendQueryToServer(serverSocket, query)) {
                 std::cerr << "Send failed" << std::endl;
                 break;
-            }
+            } */
             saveHistory(query.substr(0, query.size() - 1));
 
-            std::string response;
+            /* std::string response;
             if (!readServerResponse(serverSocket, response)) {
                 std::cerr << "Server disconnected" << std::endl;
                 break;
             }
 
-            std::cout << "Server response: " << response << std::endl;
+            std::cout << "Server response: " << response << std::endl; */
         }
     }
-    cleanup();
-    close(serverSocket);
     return 0;
 }
