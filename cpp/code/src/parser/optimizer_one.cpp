@@ -90,6 +90,8 @@ ASTNode* buildJoin(std::vector<ASTNode*> joinCond) {
 }
 
 void optimizeCrossProduct(ASTNode*& root, ASTNode* joinroot) {
+    if (root == nullptr) return;
+    
     if (auto e = std::get_if<TableJoinNode>(&root->val)) {
         delete root;
         root = joinroot;
