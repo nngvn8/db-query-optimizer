@@ -580,11 +580,7 @@ ASTNode* parseQueryExpression(const hsql::SelectStatement* selectStmt){
                             continue; 
                         }
                         case hsql::kExprColumnRef : {
-                            ASTNode* node = new ASTNode(Map(Catalog::getTableName(arg0->name),
-                                                arg0->name)
-                            ); 
-                            current->left = node;
-                            current = current->left; 
+                            continue; 
                         }
                     }
                 }
