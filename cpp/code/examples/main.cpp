@@ -89,7 +89,7 @@ int main() {
     generatePlanDotFile(*ir_root, "ir_plan_agg_opt_l.dot", DotContentType::IR_DATA);
 
     // Put Late Materialization
-    putLateMaterialization(ir_root.get());
+    putLateMaterializationHybrid(ir_root.get());
     generatePlanDotFile(*ir_root, "ir_plan_mat_l.dot", DotContentType::IR_DATA);
 
     // Rename columns

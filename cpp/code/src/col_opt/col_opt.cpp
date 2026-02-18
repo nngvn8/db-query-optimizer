@@ -332,3 +332,173 @@ LateMaterializationData putLateMaterialization(PlanNode* node, std::set<BaseType
     return LateMaterializationData{allTablesBelow, pPos, allPrevMat};
 
 }
+
+
+LateMaterializationData putLateMaterializationHybrid(PlanNode* node, std::set<BaseType::TableColumn> columnsNeededLater, const std::vector<BaseType::TableColumn>& inputOfParent) {
+    if (!node) return LateMaterializationData();
+
+    // Latest position lists generated/updated at this node. NOTE: At the moment the parent will update a table position list only ONCE for all children
+    std::map<BaseType::Table, std::shared_ptr<PlanNode>> curPos;
+
+    // Previous position lists available (collected from children, possibly updated here)
+    std::map<BaseType::Table, std::shared_ptr<PlanNode>> pPos; 
+    
+    // Tables below this node (union of tables found below all children)
+    std::set<BaseType::Table> allTablesBelow; 
+    
+    // Columns this node needs
+    const std::vector<BaseType::TableColumn>& columnsThisNode(node->irData.inputColumns);
+    
+    // Add columns needed by this node to columns needed later
+    columnsNeededLater.insert(columnsThisNode.begin(), columnsThisNode.end());
+
+    // Container for materialized values provided by all direct children
+    std::map<BaseType::TableColumn, std::shared_ptr<PlanNode>> curMat;
+
+    std::map<BaseType::TableColumn, std::shared_ptr<PlanNode>> prevMat;
+    // Generate materialize nodes (bottom up)
+    for (const auto& child : node->children) {
+
+        // ##### RECURSION HERE ######
+        LateMaterializationData matData = putLateMaterializationHybrid(child.get(), columnsNeededLater, columnsThisNode);
+        std::set<BaseType::Table> tablesBelowChild = matData.tablesBelow;
+        
+        // REMOVING MERGES REMOVES CRASHES???
+        pPos = matData.previousPositionlists;
+        prevMat = matData.previousMaterialValues;
+
+        BaseType::TableColumn filterCol;
+        
+        // Create or update materialization if child outputs position list
+        if (child->irData.outputsPosList) {
+
+            for (const auto& laterCol : columnsNeededLater) {
+
+                // Update position lists of this table if node if table below
+                if (tablesBelowChild.contains(laterCol.table)) {
+
+                    // Find filter col in current child (in case it has multiple outputs)
+                    int idx = detFilterColIdx(laterCol, child);
+                    filterCol = child->irData.outputCols[idx]; 
+
+                    // If there is a previous materialization and this is the only column of that table that is needed later
+                    // -> update materialization 
+                    bool isOnlyColumnOfTableNeededLater = std::ranges::count(columnsNeededLater, laterCol.table, &BaseType::TableColumn::table) == 1;
+                    if (prevMat[laterCol] && isOnlyColumnOfTableNeededLater) {
+                        
+                        // Create Materialize Node updating materialization
+                        std::shared_ptr<PlanNode> matNode = std::make_shared<PlanNode>();
+                        bool matNodeOutputsPosList = false;
+                        matNode->irData = MaterializeView::create(laterCol, filterCol, laterCol, matNodeOutputsPosList);
+
+                        // Left child: Previous Materialization to be updated as left child (source/columnNeededLater)
+                        matNode->children.push_back(prevMat[laterCol]);
+                        // PositionList output by child, updating the previous position list
+                        matNode->children.push_back(child);
+                        
+                        curMat[laterCol] = matNode;
+                    }
+
+                    // Update postion list if there was no position list update by any of the children yet (TODO several children want to update because same table at several leaves)
+                    else if (!curPos[laterCol.table]) {
+
+                        // If there is an existing position list, that this child updates 
+                        if (auto& prevPosListNode = pPos[laterCol.table]) {
+                            
+                            // Find previous position list col
+                            auto hasTable = [&laterCol] (BaseType::TableColumn col) { return col.table == laterCol.table; };
+                            BaseType::TableColumn prevPosListCol = *(prevPosListNode->irData.outputCols | std::views::filter(hasTable)).begin();
+                            
+                            // Create Materialize Node
+                            std::shared_ptr<PlanNode> matNode = std::make_shared<PlanNode>();
+                            bool matNodeOutputsPosList = true;
+                            matNode->irData = MaterializeView::create(prevPosListCol, filterCol, laterCol, matNodeOutputsPosList);
+
+                            // Left child: Previous position list to be updated as left child (source/columnNeededLater)
+                            matNode->children.push_back(prevPosListNode);
+                            // PositionList output by child, updating the previous position list
+                            matNode->children.push_back(child);
+
+                            // Set this materialization as the most recent one
+                            curPos[laterCol.table] = matNode;
+                        }
+
+                        // If this is the first position list on that table
+                        else {
+                            // Save position list
+                            curPos[laterCol.table] = child;
+                        }
+                    }
+                }
+            }
+        }
+        // Remember children of the node that provided value/materialized data
+        if (child->irData.outputsMatVals) {
+            if (auto groupV = child->irData.get_view_if<GroupView>()) {
+                if (groupV->aggResultCol())
+                    curMat[*groupV->aggResultCol()] = child;
+            }
+            else {
+                curMat[child->irData.outputCols[0]] = child;
+            }
+
+            // Still maintain the whole of the position
+            curPos.merge(matData.previousPositionlists);
+            prevMat.merge(matData.previousMaterialValues);
+        }
+        allTablesBelow.merge(tablesBelowChild);
+    }
+
+    // The node is a leafnode (a table node)
+    if (auto fetchV = node->irData.get_view_if<FetchView>()) {
+        if (fetchV->wasTableBaseNode()) {
+            // Set column names (TableBaseNode did not have any)
+            for (auto& fetchCol : inputOfParent) {
+                if (fetchCol.table.name == fetchV->inputCol().table.name) {
+                    fetchV->inputCol().columnName = fetchCol.columnName;
+                    fetchV->outputCol().columnName = fetchCol.columnName;                    
+                }
+            }
+            // Add the table of this node to tables below
+            allTablesBelow.insert(fetchV->inputCol().table);
+        }
+    }
+    // Rewire children if not leaf node
+    else {
+        node->children = {};
+        
+        // Provide all materializations needed
+        for (auto& idxCol : node->irData.inputColumns) {
+            // Set most recent materialization of children as column
+            if (const auto& matChild = curMat[idxCol])
+                node->children.push_back(matChild);
+            
+            // Check if there is a position list we materialized on 
+            else if (const auto& latestPosList = curPos[idxCol.table]) {
+                // Fetch Column needed
+                std::shared_ptr<PlanNode> fetchNode = std::make_shared<PlanNode>();
+                fetchNode->irData = FetchView::create(idxCol, false);
+                
+                // Materialize latest position list on it
+                std::shared_ptr<PlanNode> matNode = std::make_shared<PlanNode>();
+                bool matNodeOutputsPosList = false;
+                matNode->irData = MaterializeView::create(idxCol, latestPosList->irData.outputCols[0], idxCol, matNodeOutputsPosList);
+                matNode->children.push_back(fetchNode);
+                matNode->children.push_back(latestPosList);
+                
+                // Make this input for child
+                node->children.push_back(matNode);
+
+                // Register as Materialization
+                curMat[idxCol] = matNode;
+            } 
+
+            else {
+                std::cout << "scream" << std::endl;
+            }
+        }
+    }
+
+    return LateMaterializationData{allTablesBelow, curPos, curMat};
+
+}

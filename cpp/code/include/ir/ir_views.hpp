@@ -379,10 +379,10 @@ public:
     explicit MaterializeView(IrData& data)
         : data(data), op(std::get<MatOp>(data.opInfo)) {}
 
-    static IrData create(const BaseType::TableColumn& idxCol, const BaseType::TableColumn& filterCol, const BaseType::TableColumn& outputCol) {
+    static IrData create(const BaseType::TableColumn& idxCol, const BaseType::TableColumn& filterCol, const BaseType::TableColumn& outputCol, bool outputsPosList = true) {
         IrData irData;
-        irData.outputsPosList = false;
-        irData.outputsMatVals = true;
+        irData.outputsPosList = outputsPosList;
+        irData.outputsMatVals = !outputsPosList;
         irData.inputColumns = {idxCol, filterCol};
         irData.outputCols = {outputCol};
         irData.opInfo = MatOp{};

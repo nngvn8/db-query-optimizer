@@ -19,3 +19,5 @@ int moveAggIntoGroup(PlanNode* node);
 void removeSortIfSubsetGroup(std::shared_ptr<PlanNode>* node);
 
 LateMaterializationData putLateMaterialization(PlanNode* node, std::set<BaseType::TableColumn> columnsToMaterializeOn = {}, const std::set<BaseType::TableColumn>& inputOfParent = {});
+
+LateMaterializationData putLateMaterializationHybrid(PlanNode* node, std::set<BaseType::TableColumn> columnsToMaterializeOn = {}, const std::vector<BaseType::TableColumn>& inputOfParent = {});
