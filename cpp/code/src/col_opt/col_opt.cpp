@@ -434,6 +434,14 @@ LateMaterializationData putLateMaterializationHybrid(PlanNode* node, std::set<Ba
         }
         // Remember children of the node that provided value/materialized data
         if (child->irData.outputsMatVals) {
+            
+            // Still maintain pos list and mats if not affected by this node 
+            // (There are nodes that output both matVals and posList)
+            if (!child->irData.outputsPosList) {
+                curPos.merge(matData.previousPositionlists);
+                prevMat.merge(matData.previousMaterialValues);
+            }
+
             if (auto groupV = child->irData.get_view_if<GroupView>()) {
                 if (groupV->aggResultCol())
                     curMat[*groupV->aggResultCol()] = child;
@@ -441,10 +449,6 @@ LateMaterializationData putLateMaterializationHybrid(PlanNode* node, std::set<Ba
             else {
                 curMat[child->irData.outputCols[0]] = child;
             }
-
-            // Still maintain the whole of the position
-            curPos.merge(matData.previousPositionlists);
-            prevMat.merge(matData.previousMaterialValues);
         }
         allTablesBelow.merge(tablesBelowChild);
     }
