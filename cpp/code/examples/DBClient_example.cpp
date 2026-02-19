@@ -1,5 +1,10 @@
 #include "client/DBClient.hpp"
 #include "util/ArgParser.hpp"
+#include "util/Utility.hpp"
+#include "client/TCPClient.hpp"
+#include "server/TCPServer.hpp"
+#include "WorkItem.pb.h"
+#include "WorkResponse.pb.h"
 
 void showHelpInstructions() {
     std::cout
@@ -30,7 +35,6 @@ int main(int argc, char* argv[]) {
     const bool help = parser.takeParseFlag("-help");
     const bool debug = parser.takeParseFlag("-debug");
 
-    // Debug
     if (debug) {
         showDebug(ip, port, inputFile, standalone);
     }
@@ -40,12 +44,14 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 
+    int ret;
     if (standalone) {
         DBClient db_client(inputFile);
-        int ret = db_client.runStandalone();
+        ret = db_client.runStandalone();
     } else {
         DBClient db_client(ip, port, inputFile);
-        int ret = db_client.run();
+        db_client.initCallbacks();
+        ret = db_client.run();
     }
-    return 0;
+    return ret;
 }

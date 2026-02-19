@@ -28,11 +28,13 @@ class DBClient {
 public:
     DBClient(const std::string& file = "")
         : tcpClient(std::nullopt),
-        inputFile(file) {}
+        inputFile(file),
+        standalone(true) {}
 
     DBClient(const std::string& ip, const size_t port, const std::string& file = "")
         : tcpClient(std::in_place, ip, port),
-        inputFile(file) {}
+        inputFile(file),
+        standalone(false) {}
 
     ~DBClient() {
         disableRawMode();
@@ -43,6 +45,10 @@ public:
 
         std::remove(HISTORY_FILE);
     }
+
+    void initCallbacks();
+
+    bool standalone;
 
     ClientAction readQueryInput(std::string& outQuery);
     int run();

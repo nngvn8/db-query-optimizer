@@ -25,6 +25,9 @@
 #include "ir/plan_node_to_dot.hpp"
 #include "util/unique_col_names.hpp"
 #include "col_opt/col_opt.hpp"
+#include "WorkResponse.pb.h"
+#include "util/Utility.hpp"
+#include <UnitDefinition.pb.h>
 
 // shutdown flags
 std::atomic<bool> g_shouldExit{false};
@@ -358,27 +361,68 @@ int DBClient::runStandalone() {
     return 0;
 }
 
+void DBClient::initCallbacks() {
+    auto work_cb = [this](tuddbs::TCPMetaInfo* meta, void* data, size_t len) -> void {
+        std::cout << "[Work Callback] Invoked." << std::endl;
+        WorkItem item;
+        item.ParseFromArray(data, len);
+
+        switch (item.opData_case()) {
+            case WorkItem::OpDataCase::kJoinData: {
+                std::cout << "Item contains a Join Operator." << std::endl;
+            } break;
+            case WorkItem::OpDataCase::kFilterData: {
+                std::cout << "Item contains a Filter Operator." << std::endl;
+            } break;
+            default: {
+                std::cout << "An unkown entity is packed in this WorkItem." << std::endl;
+            }
+        }
+
+        WorkResponse response;
+        response.set_planid(item.planid());
+        response.set_itemid(item.itemid());
+        response.set_info("Your intermediates are ready!");
+
+        tuddbs::TCPMetaInfo info;
+        info.package_type = tuddbs::TCPPackageType::TaskFinished;
+        info.payload_size = response.ByteSizeLong();
+        void* out_mem = malloc(sizeof(tuddbs::TCPMetaInfo) + info.payload_size);
+
+        const size_t message_size = tuddbs::Utility::serializeItemToMemory(out_mem, response, info);
+
+        tcpClient->notifyHost(out_mem, message_size);
+        free(out_mem);
+    };
+
+    auto updateUnitInfo_cb = [this](tuddbs::TCPMetaInfo* meta, void* data, size_t len) -> void {
+        std::cout << "[UpdateUnitInfo Callback] Invoked." << std::endl;
+        UnitDefinition unit;
+        unit.set_unit_type(static_cast<uint32_t>(tuddbs::UnitType::ComputeUnit));
+
+        tuddbs::TCPMetaInfo info;
+        info.package_type = tuddbs::TCPPackageType::UpdateUnitType;
+        info.payload_size = unit.ByteSizeLong();
+        void* out_mem = malloc(sizeof(tuddbs::TCPMetaInfo) + info.payload_size);
+
+        const size_t message_size = tuddbs::Utility::serializeItemToMemory(out_mem, unit, info);
+
+        tcpClient->notifyHost(out_mem, message_size);
+        free(out_mem);
+    };
+
+    auto text_cb = [this](tuddbs::TCPMetaInfo* meta, void* data, size_t len) -> void {
+        std::string str(reinterpret_cast<char*>(data), len);
+        std::cout << "Text Received: " << str << std::endl;
+    };
+
+    tcpClient->addCallback(tuddbs::TCPPackageType::Work, work_cb);
+    tcpClient->addCallback(tuddbs::TCPPackageType::UpdateUnitType, updateUnitInfo_cb);
+    tcpClient->addCallback(tuddbs::TCPPackageType::Text, text_cb);
+}
+
 int DBClient::run() {
     tcpClient->start();
-
-    /* std::signal(SIGINT, handleSigInt);
-
-    serverSocket = socket(AF_INET, SOCK_STREAM, 0);
-    if (serverSocket < 0) {
-        perror("socket");
-        return -1;
-    }
-
-    sockaddr_in server_addr{};
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(PORT);
-    inet_pton(AF_INET, "127.0.0.1", &server_addr.sin_addr); */
-
-    /* if (connect(serverSocket, (sockaddr*)& server_addr, sizeof(server_addr)) < 0) {
-        perror("connect");
-        return -1;
-    } */
-
     std::cout << "Connected to server. Ready to read queries." << std::endl;
 
     historyFile.open(HISTORY_FILE, std::ios::out | std::ios::trunc);
@@ -401,20 +445,11 @@ int DBClient::run() {
 
         if (action == ClientAction::SendQuery) {
             runStandardApproach(createASTRootNode(query));
+            if (!standalone) {
 
-            /* if (!sendQueryToServer(serverSocket, query)) {
-                std::cerr << "Send failed" << std::endl;
-                break;
-            } */
-            saveHistory(query.substr(0, query.size() - 1));
-
-            /* std::string response;
-            if (!readServerResponse(serverSocket, response)) {
-                std::cerr << "Server disconnected" << std::endl;
-                break;
             }
 
-            std::cout << "Server response: " << response << std::endl; */
+            saveHistory(query.substr(0, query.size() - 1));
         }
     }
     return 0;
