@@ -336,38 +336,39 @@ LateMaterializationData putLateMaterialization(PlanNode* node, std::set<BaseType
 
 LateMaterializationData putLateMaterializationHybrid(PlanNode* node, std::set<BaseType::TableColumn> columnsNeededLater, const std::vector<BaseType::TableColumn>& inputOfParent) {
     if (!node) return LateMaterializationData();
-
-    // Latest position lists generated/updated at this node. NOTE: At the moment the parent will update a table position list only ONCE for all children
-    std::map<BaseType::Table, std::shared_ptr<PlanNode>> curPos;
-
-    // Previous position lists available (collected from children, possibly updated here)
-    std::map<BaseType::Table, std::shared_ptr<PlanNode>> pPos; 
     
     // Tables below this node (union of tables found below all children)
     std::set<BaseType::Table> allTablesBelow; 
-    
-    // Columns this node needs
-    const std::vector<BaseType::TableColumn>& columnsThisNode(node->irData.inputColumns);
-    
+
     // Add columns needed by this node to columns needed later
-    columnsNeededLater.insert(columnsThisNode.begin(), columnsThisNode.end());
+    columnsNeededLater.insert(node->irData.inputColumns.begin(), node->irData.inputColumns.end());
 
     // Container for materialized values provided by all direct children
     std::map<BaseType::TableColumn, std::shared_ptr<PlanNode>> curMat;
 
-    std::map<BaseType::TableColumn, std::shared_ptr<PlanNode>> prevMat;
+    // Latest position lists generated/updated at this node. NOTE: At the moment the parent will update a table position list only ONCE for all children
+    std::map<BaseType::Table, std::shared_ptr<PlanNode>> curPos;
+
     // Generate materialize nodes (bottom up)
     for (const auto& child : node->children) {
 
         // ##### RECURSION HERE ######
-        LateMaterializationData matData = putLateMaterializationHybrid(child.get(), columnsNeededLater, columnsThisNode);
+        LateMaterializationData matData = putLateMaterializationHybrid(child.get(), columnsNeededLater, node->irData.inputColumns);
         std::set<BaseType::Table> tablesBelowChild = matData.tablesBelow;
         
         // REMOVING MERGES REMOVES CRASHES???
-        pPos = matData.previousPositionlists;
-        prevMat = matData.previousMaterialValues;
+        // Previous position lists available (collected from children, possibly updated here)
+        std::map<BaseType::Table, std::shared_ptr<PlanNode>> pPos = matData.previousPositionlists;
+        std::map<BaseType::TableColumn, std::shared_ptr<PlanNode>> prevMat = matData.previousMaterialValues;
 
         BaseType::TableColumn filterCol;
+
+        // Still maintain pos list and mats if not affected by this node 
+        // (There are nodes that output both matVals and posList)
+        if (!child->irData.outputsPosList) {
+            curPos.merge(pPos);
+            prevMat.merge(prevMat);
+        }
         
         // Create or update materialization if child outputs position list
         if (child->irData.outputsPosList) {
@@ -433,15 +434,7 @@ LateMaterializationData putLateMaterializationHybrid(PlanNode* node, std::set<Ba
             }
         }
         // Remember children of the node that provided value/materialized data
-        if (child->irData.outputsMatVals) {
-            
-            // Still maintain pos list and mats if not affected by this node 
-            // (There are nodes that output both matVals and posList)
-            if (!child->irData.outputsPosList) {
-                curPos.merge(matData.previousPositionlists);
-                prevMat.merge(matData.previousMaterialValues);
-            }
-
+        if (child->irData.outputsMatVals) {            
             if (auto groupV = child->irData.get_view_if<GroupView>()) {
                 if (groupV->aggResultCol())
                     curMat[*groupV->aggResultCol()] = child;
