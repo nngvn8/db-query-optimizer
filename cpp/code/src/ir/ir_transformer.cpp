@@ -359,7 +359,7 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
         std::vector<BaseType::TableColumn> selectCols;
         for (const auto& desc : e->description) {
             ColumnType type = Catalog::getSSBColumnType(desc.table, desc.column);
-            BaseType::TableColumn col(desc.table, desc.column, type);
+            BaseType::TableColumn col(desc.table, desc.column, type, desc.alias);
             selectCols.push_back(col);
         }
         node->irData = SelectView::create(selectCols);

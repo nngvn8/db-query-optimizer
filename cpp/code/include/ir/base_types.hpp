@@ -75,7 +75,12 @@ namespace BaseType {
             columnName(columnName),
             columnType(columnType),
             alias((alias.has_value() && alias->empty()) ? std::nullopt : alias)
-        {};
+        {
+            // if (columnName.empty()) {
+            //     throw std::runtime_error("Column name cannot be empty when creating a column");
+            // }
+
+        };
 
         bool operator<(const TableColumn& other) const {
             // 1. Compare Table Name
@@ -87,7 +92,8 @@ namespace BaseType {
                 return columnName < other.columnName;
             }
             // 3. If both are same, compare Alias (optional, depending on your logic)
-            return alias < other.alias;
+            // return alias < other.alias;
+            return false;
         }
 
         bool operator==(const TableColumn& other) const {
