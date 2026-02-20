@@ -14,17 +14,17 @@ using namespace std;
 
 int main() {
     const std::string query = R"SQL(
-            SELECT d_year, c_nation, SUM(lo_revenue - lo_supplycost) AS PROFIT
-            FROM dates, customer, supplier, part, lineorder
+            SELECT c_nation, s_nation, d_year, SUM(lo_revenue) AS REVENUE
+            FROM customer, lineorder, supplier, dates
             WHERE lo_custkey = c_custkey
             AND lo_suppkey = s_suppkey
-            AND lo_partkey = p_partkey
             AND lo_orderdate = d_datekey
-            AND c_region = 'AMERICA'
-            AND s_region = 'AMERICA'
-            AND (p_mfgr = 'MFGR#1' OR p_mfgr = 'MFGR#2')
-            GROUP BY d_year, c_nation
-            ORDER BY d_year, c_nation;
+            AND c_region = 'ASIA'
+            AND s_region = 'ASIA'
+            AND d_year >= 1992
+            AND d_year <= 1997
+            GROUP BY c_nation, s_nation, d_year
+            ORDER BY d_year ASC, REVENUE DESC;
         )SQL";
 
     // Generate png files for *.dot files using cli: dot -Tpng <file_name>.dot -o <name_for_img>.png

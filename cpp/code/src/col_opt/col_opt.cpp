@@ -369,42 +369,49 @@ LateMaterializationData putLateMaterializationHybrid(PlanNode* node, std::set<Ba
             curPos.merge(pPos);
             prevMat.merge(prevMat);
         }
+
+        if (child->irData.is<SortOp>()) {
+            std::cout << "sort" << std::endl;
+        }
         
         // Create or update materialization if child outputs position list
         if (child->irData.outputsPosList) {
 
             for (const auto& laterCol : columnsNeededLater) {
 
-                // Update position lists of this table if node if table below
-                if (tablesBelowChild.contains(laterCol.table)) {
-
-                    // Find filter col in current child (in case it has multiple outputs)
+                // If there is a previous materialization and this is the only column of that table that is needed later
+                // -> update materialization 
+                bool isOnlyColumnOfTableNeededLater = std::ranges::count(columnsNeededLater, laterCol.table, &BaseType::TableColumn::table) == 1;
+                if (prevMat[laterCol] && isOnlyColumnOfTableNeededLater) {
+                     // Find filter col in current child (in case it has multiple outputs)
                     int idx = detFilterColIdx(laterCol, child);
-                    filterCol = child->irData.outputCols[idx]; 
+                    filterCol = child->irData.outputCols[idx];
+                    
+                    // Create Materialize Node updating materialization
+                    std::shared_ptr<PlanNode> matNode = std::make_shared<PlanNode>();
+                    bool matNodeOutputsPosList = false;
+                    matNode->irData = MaterializeView::create(laterCol, filterCol, laterCol, matNodeOutputsPosList);
 
-                    // If there is a previous materialization and this is the only column of that table that is needed later
-                    // -> update materialization 
-                    bool isOnlyColumnOfTableNeededLater = std::ranges::count(columnsNeededLater, laterCol.table, &BaseType::TableColumn::table) == 1;
-                    if (prevMat[laterCol] && isOnlyColumnOfTableNeededLater) {
-                        
-                        // Create Materialize Node updating materialization
-                        std::shared_ptr<PlanNode> matNode = std::make_shared<PlanNode>();
-                        bool matNodeOutputsPosList = false;
-                        matNode->irData = MaterializeView::create(laterCol, filterCol, laterCol, matNodeOutputsPosList);
+                    // Left child: Previous Materialization to be updated as left child (source/columnNeededLater)
+                    matNode->children.push_back(prevMat[laterCol]);
+                    // PositionList output by child, updating the previous position list
+                    matNode->children.push_back(child);
+                    
+                    curMat[laterCol] = matNode;
+                }
 
-                        // Left child: Previous Materialization to be updated as left child (source/columnNeededLater)
-                        matNode->children.push_back(prevMat[laterCol]);
-                        // PositionList output by child, updating the previous position list
-                        matNode->children.push_back(child);
-                        
-                        curMat[laterCol] = matNode;
-                    }
+                // Update position lists of this table if node if table below
+                else if (tablesBelowChild.contains(laterCol.table)) {
 
                     // Update postion list if there was no position list update by any of the children yet (TODO several children want to update because same table at several leaves)
-                    else if (!curPos[laterCol.table]) {
+                    if (!curPos[laterCol.table]) {
 
                         // If there is an existing position list, that this child updates 
                         if (auto& prevPosListNode = pPos[laterCol.table]) {
+
+                            // Find filter col in current child (in case it has multiple outputs)
+                            int idx = detFilterColIdx(laterCol, child);
+                            filterCol = child->irData.outputCols[idx]; 
                             
                             // Find previous position list col
                             auto hasTable = [&laterCol] (BaseType::TableColumn col) { return col.table == laterCol.table; };

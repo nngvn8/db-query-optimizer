@@ -92,7 +92,8 @@ namespace BaseType {
                 return columnName < other.columnName;
             }
             // 3. If both are same, compare Alias (optional, depending on your logic)
-            return alias < other.alias;
+            // return alias < other.alias;
+            return false;
         }
 
         bool operator==(const TableColumn& other) const {

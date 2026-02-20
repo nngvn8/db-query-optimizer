@@ -74,11 +74,12 @@ class WhereClauseNode {
 
 struct SelectClauseDescription {
     SelectClauseDescription() = default;
-    SelectClauseDescription(const std::string tbl,const std::string col)
-        : column(col), table(tbl) {}
+    SelectClauseDescription(const std::string tbl,const std::string col, const std::string alias = "")
+        : column(col), table(tbl), alias(alias) {}
     virtual ~SelectClauseDescription() = default;
     std::string column;
     std::string table;
+    std::string alias;
 };
 
 class SelectClauseNode {

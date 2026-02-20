@@ -279,40 +279,68 @@ ASTNode* exploreTable(hsql::TableRef* table){
     return newRoot;
 }
 
-OrderByDescription makeOrderNode(hsql::OrderDescription* order){
+OrderByDescription makeOrderNode(hsql::OrderDescription* order, const std::vector<hsql::Expr*>* selectList = nullptr){
     std::string table = "";
     if(order->expr->table){
         table = order->expr->table;
     }
+    
+    std::string columnName = order->expr->name ? order->expr->name : "";
+
+    if (table.empty() && selectList) {
+        for (hsql::Expr* expr : *selectList) {
+            if (expr->alias && std::string(expr->alias) == columnName) {
+                if (expr->type == hsql::kExprFunctionRef) {
+                    std::string funcName = toUpper(expr->name);
+                    std::string inner = "";
+                    if (expr->exprList && !expr->exprList->empty()) {
+                        hsql::Expr* innerExpr = expr->exprList->at(0);
+                        if (innerExpr->type == hsql::kExprOperator) {
+                            std::string op = "";
+                            if(innerExpr->opType == hsql::kOpPlus) op = "+";
+                            else if(innerExpr->opType == hsql::kOpMinus) op = "-";
+                            else if(innerExpr->opType == hsql::kOpAsterisk) op = "*";
+                            else if(innerExpr->opType == hsql::kOpSlash) op = "/";
+
+                            std::string left = innerExpr->expr->name ? innerExpr->expr->name : "";
+                            std::string right = innerExpr->expr2->name ? innerExpr->expr2->name : "";
+                            inner = left + op + right;
+                        } else if (innerExpr->type == hsql::kExprColumnRef) {
+                            inner = innerExpr->name;
+                        }
+                    }
+                    columnName = funcName + "(" + inner + ")";
+                    table = !funcName.empty() ? "AGG" : "MAP";
+                } else if (expr->type == hsql::kExprColumnRef) {
+                    columnName = expr->name;
+                    table = Catalog::getTableName(columnName);
+                }
+                break;
+            }
+        }
+    }
+
+    if (table.empty()) {
+        table = Catalog::getTableName(columnName);
+    }
+
     switch(order->type){
         case hsql::kOrderAsc:{
             switch (order->null_ordering){
-                case hsql::Undefined : {
-                    return OrderByDescription(Catalog::getTableName(order->expr->name),order->expr->name,"ASC","UNDEFINED");
-                }
-                case hsql::First:{
-                    return OrderByDescription(Catalog::getTableName(order->expr->name),order->expr->name,"ASC","FIRST");
-                }
-                case hsql::Last:{
-                    return OrderByDescription(Catalog::getTableName(order->expr->name),order->expr->name,"ASC","LAST");
-                }
+                case hsql::Undefined : return OrderByDescription(table, columnName, "ASC", "UNDEFINED");
+                case hsql::First : return OrderByDescription(table, columnName, "ASC", "FIRST");
+                case hsql::Last : return OrderByDescription(table, columnName, "ASC", "LAST");
             }
         }
         case hsql::kOrderDesc:{
             switch (order->null_ordering){
-                case hsql::Undefined : {
-                    return OrderByDescription(Catalog::getTableName(order->expr->name),order->expr->name,"DESC","UNDEFINED");
-                }
-                case hsql::First:{
-                    return OrderByDescription(Catalog::getTableName(order->expr->name),order->expr->name,"DESC","FIRST");
-                }
-                case hsql::Last:{
-                    return OrderByDescription(Catalog::getTableName(order->expr->name),order->expr->name,"DESC","LAST");
-                }
+                case hsql::Undefined : return OrderByDescription(table, columnName, "DESC", "UNDEFINED");
+                case hsql::First : return OrderByDescription(table, columnName, "DESC", "FIRST");
+                case hsql::Last : return OrderByDescription(table, columnName, "DESC", "LAST");
             }
         }
     }
-    return OrderByDescription("","","","");;
+    return OrderByDescription("","","","");
 }
 
 GroupByDescription makeGroupByNode(hsql::Expr* column){
@@ -427,7 +455,8 @@ ASTNode* parseQueryExpression(const hsql::SelectStatement* selectStmt){
         for (int i=0;i<selectStmt->selectList->size();i++) {
             switch(selectStmt->selectList->at(i)->type){
                 case hsql::kExprColumnRef:{
-                    selectClauseDescriptionList.push_back(SelectClauseDescription(Catalog::getTableName(selectStmt->selectList->at(i)->name),selectStmt->selectList->at(i)->name));
+                    std::string alias = selectStmt->selectList->at(i)->alias ? selectStmt->selectList->at(i)->alias : "";
+                    selectClauseDescriptionList.push_back(SelectClauseDescription(Catalog::getTableName(selectStmt->selectList->at(i)->name),selectStmt->selectList->at(i)->name, alias));
                     break;
                 }
                 case hsql::kExprFunctionRef:{
@@ -454,7 +483,8 @@ ASTNode* parseQueryExpression(const hsql::SelectStatement* selectStmt){
                      // "The alias should not be directly part of the column name."
                     std::string colName = funcName + "(" + inner + ")";
                     std::string tableName = !funcName.empty() ? "AGG" : "MAP";
-                    selectClauseDescriptionList.push_back(SelectClauseDescription(tableName, colName));
+                    std::string alias = selectStmt->selectList->at(i)->alias ? selectStmt->selectList->at(i)->alias : "";
+                    selectClauseDescriptionList.push_back(SelectClauseDescription(tableName, colName, alias));
                     break;
                 }
             }
@@ -486,7 +516,7 @@ ASTNode* parseQueryExpression(const hsql::SelectStatement* selectStmt){
     if(selectStmt->order){
         std::vector<OrderByDescription> orderByList;
         for(int i=0;i<selectStmt->order->size();i++){
-            orderByList.push_back(makeOrderNode(selectStmt->order->at(i)));
+            orderByList.push_back(makeOrderNode(selectStmt->order->at(i), selectStmt->selectList));
         }
         ASTNode* orderbynode = new ASTNode(OrderByClauseNode(orderByList));
         current->left = orderbynode;
