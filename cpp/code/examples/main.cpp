@@ -31,7 +31,7 @@ int main() {
 
     // Parse SQL and optimize
     auto root = generateASTNode(query);
-    generateDotFile(root,"testpic12.dot");
+    generateDotFile(root,"ast.dot");
 
 
     // ############# STANDARD APPROACH ################################
