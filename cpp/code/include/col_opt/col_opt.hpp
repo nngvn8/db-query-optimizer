@@ -23,3 +23,5 @@ LateMaterializationData putLateMaterialization(PlanNode* node, std::set<BaseType
 LateMaterializationData putLateMaterializationV2(PlanNode* node, std::set<BaseType::TableColumn> columnsToMaterializeOn = {}, const std::vector<BaseType::TableColumn>& inputOfParent = {});
 
 LateMaterializationData putLateMaterializationHybrid(PlanNode* node, std::set<BaseType::TableColumn> columnsToMaterializeOn = {}, const std::vector<BaseType::TableColumn>& inputOfParent = {});
+
+void grandChildrenOptimization(PlanNode* node);

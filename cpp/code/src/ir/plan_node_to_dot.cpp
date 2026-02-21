@@ -173,7 +173,7 @@ namespace {
         }
         else if (node.irData.is<MatOp>()) {
             MaterializeView view(mutableIr);
-            ss << "Mat\nIdx: " << view.idxCol() << "\nFilter: " << view.filterCol();
+            ss << "Mat\nIdx: " << view.idxCol() << "\nFilter: " << view.filterCol() << "\nPosList: " << node.irData.outputsPosList;
         }
         else {
             ss << "[Empty/Unknown IR]";
@@ -251,7 +251,7 @@ namespace {
                 ss << data.inputColumn << " -> " << data.outputColumn;
             }
             else if constexpr (std::is_same_v<T, ItemBuilder::MaterializeNode>) {
-                ss << "API Mat\nIdx: " << data.idxColumn << "\nFilter: " << data.filterColumn;
+                ss << "API Mat\nIdx: " << data.idxColumn << "\nFilter: " << data.filterColumn << "\nPosList: " << node.irData.outputsPosList;
             }
             else if constexpr (std::is_same_v<T, ItemBuilder::MultiGroupNode>) {
                 ss << "API MultiGroup\n(";
