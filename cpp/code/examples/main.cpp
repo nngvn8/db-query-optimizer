@@ -49,7 +49,7 @@ int main() {
     placeSemiJoins(ir_root.get());
     generatePlanDotFile(*ir_root, "ir_plan_semi_j.dot", DotContentType::IR_DATA);
 
-    removeSortIfSubsetGroup(&ir_root);
+    mergeSortIntoGroupIfSubset(&ir_root);
     generatePlanDotFile(*ir_root, "ir_plan_remove_sort.dot", DotContentType::IR_DATA);
 
     // Move single sum aggregations into group item
@@ -83,8 +83,8 @@ int main() {
     // Place semi joins
     placeSemiJoins(ir_root.get());
     generatePlanDotFile(*ir_root, "ir_plan_semi_j_l.dot", DotContentType::IR_DATA);
-
-    removeSortIfSubsetGroup(&ir_root);
+    
+    mergeSortIntoGroupIfSubset(&ir_root);
     generatePlanDotFile(*ir_root, "ir_plan_remove_sort.dot", DotContentType::IR_DATA);
 
     // Move single sum aggregations into group item
@@ -123,7 +123,7 @@ int main() {
     // placeSemiJoins(ir_root.get());
     generatePlanDotFile(*ir_root, "ir_plan_semi_j_l2.dot", DotContentType::IR_DATA);
     
-    // removeSortIfSubsetGroup(&ir_root);
+    // mergeSortIntoGroupIfSubset(&ir_root);
     generatePlanDotFile(*ir_root, "ir_plan_remove_sort.dot", DotContentType::IR_DATA);
 
     // Move single sum aggregations into group item
@@ -162,7 +162,7 @@ int main() {
     placeSemiJoins(ir_root.get());
     generatePlanDotFile(*ir_root, "ir_plan_semi_j_lh.dot", DotContentType::IR_DATA);
     
-    removeSortIfSubsetGroup(&ir_root);
+    mergeSortIntoGroupIfSubset(&ir_root);
     generatePlanDotFile(*ir_root, "ir_plan_remove_sort.dot", DotContentType::IR_DATA);
 
     // Move single sum aggregations into group item
