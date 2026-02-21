@@ -672,3 +672,97 @@ LateMaterializationData putLateMaterializationHybrid(PlanNode* node, std::set<Ba
     }
     return LateMaterializationData{allTablesBelow, curPos, curMat};
 }
+
+namespace {
+    void grandChildrenOptimizationSub(PlanNode* node, std::set<PlanNode*>& visited) {
+        // Using convention that if materialize then: 
+        // - node->children[0] = idxChild
+        // - node->children[1] = filterChild
+        
+        if (!node) return;
+        if (visited.contains(node)) return;
+        visited.insert(node);
+
+        // ### RECURSE ###
+        for (const auto& child : node->children) {
+            grandChildrenOptimizationSub(child.get(), visited);
+        }
+
+        if (node->irData.is<MatOp>()) {
+            // std::cout << "isMatOp" << std::endl;
+        }
+
+        // This node is a materialize node that outputs a materialized values
+        bool isMatDataNode = node->irData.is<MatOp>() && node->irData.outputsMatVals;
+
+        if (!isMatDataNode) return;
+
+        // The filter child is materialization that outputs a position list
+        const auto filterChild = node->children[1]; // never define references on things you want to change later!
+        bool filterChildIsMatPosListNode = filterChild->irData.is<MatOp>() && filterChild->irData.outputsPosList;
+
+        if (filterChildIsMatPosListNode) {
+
+            // Look at grandchildren of index child
+            const auto& childrenOfFilterFilterChild = filterChild->children[1]->children;
+            auto& idxColOrigNode = node->irData.get_view_if<MaterializeView>()->idxCol();
+            for (const auto& childOfFilterFilterChild : childrenOfFilterFilterChild) {
+
+                // Possibly rewire if outputs matdata
+                if (childOfFilterFilterChild->irData.outputsMatVals) {
+
+                    // If filterGrandChildIdxChild is grouping outputting an aggregation
+                    if (auto groupV = childOfFilterFilterChild->irData.get_view_if<GroupView>()) {
+                        if (const auto* aggResultCol = groupV->aggResultCol()) {
+
+                            // If the aggregation being output is the column this node needs 
+                            if (*aggResultCol == idxColOrigNode) {
+
+                                MaterializeView matV(node->irData);
+
+                                // Make this child of filter-filter-child outputting materialized values the index child 
+                                node->children[0] = childOfFilterFilterChild;
+                                matV.idxCol() = *aggResultCol;
+                                
+                                // Reuse filter information of filter child for this node
+                                node->children[1] = filterChild->children[1];
+                                matV.filterCol() = filterChild->irData.get_view_if<MaterializeView>()->filterCol();
+
+                                return;
+                            }
+                        }
+                    }
+
+                    // Any other Node that outputs materialized values
+                    else {
+                        for (const auto& outCol : childOfFilterFilterChild->irData.outputCols) {
+                            
+                            // If we found a filter grandchild that outputs materialized values of the column this node needs
+                            if (outCol == idxColOrigNode) {
+
+                                MaterializeView matV(node->irData);
+
+                                // Make this child of filter-filter-child outputting materialized values the index child 
+                                node->children[0] = childOfFilterFilterChild;
+                                matV.idxCol() = outCol;
+
+                                // Reuse filter information of filter child for this node
+                                node->children[1] = filterChild->children[1];
+                                matV.filterCol() = filterChild->irData.get_view_if<MaterializeView>()->filterCol();
+
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+
+void grandChildrenOptimization(PlanNode* node) {
+    std::set<PlanNode*> visited;
+    grandChildrenOptimizationSub(node, visited);
+}
