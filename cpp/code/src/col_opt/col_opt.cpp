@@ -369,21 +369,21 @@ LateMaterializationData putLateMaterializationHybrid(PlanNode* node, std::set<Ba
             curPos.merge(pPos);
             prevMat.merge(prevMat);
         }
-
-        if (child->irData.is<SortOp>()) {
-            std::cout << "sort" << std::endl;
-        }
         
         // Create or update materialization if child outputs position list
         if (child->irData.outputsPosList) {
 
+            // Only update columns needed later
             for (const auto& laterCol : columnsNeededLater) {
 
-                // If there is a previous materialization and this is the only column of that table that is needed later
-                // -> update materialization 
+                // Possibly update previous materialization, if
+                // - column is result of map or aggregation or,
+                // - only column of table
+                bool isAggOrMapMatData = laterCol.table.name == "AGG" || laterCol.table.name == "MAP";
                 bool isOnlyColumnOfTableNeededLater = std::ranges::count(columnsNeededLater, laterCol.table, &BaseType::TableColumn::table) == 1;
-                if (prevMat[laterCol] && isOnlyColumnOfTableNeededLater) {
-                     // Find filter col in current child (in case it has multiple outputs)
+                if (prevMat[laterCol] && (isAggOrMapMatData || isOnlyColumnOfTableNeededLater)) {
+                                            
+                    // Find filter col in current child (in case it has multiple outputs)
                     int idx = detFilterColIdx(laterCol, child);
                     filterCol = child->irData.outputCols[idx];
                     
@@ -391,7 +391,7 @@ LateMaterializationData putLateMaterializationHybrid(PlanNode* node, std::set<Ba
                     std::shared_ptr<PlanNode> matNode = std::make_shared<PlanNode>();
                     bool matNodeOutputsPosList = false;
                     matNode->irData = MaterializeView::create(laterCol, filterCol, laterCol, matNodeOutputsPosList);
-
+                    
                     // Left child: Previous Materialization to be updated as left child (source/columnNeededLater)
                     matNode->children.push_back(prevMat[laterCol]);
                     // PositionList output by child, updating the previous position list
@@ -400,7 +400,7 @@ LateMaterializationData putLateMaterializationHybrid(PlanNode* node, std::set<Ba
                     curMat[laterCol] = matNode;
                 }
 
-                // Update position lists of this table if node if table below
+                // Update position lists of this table if table below
                 else if (tablesBelowChild.contains(laterCol.table)) {
 
                     // Update postion list if there was no position list update by any of the children yet (TODO several children want to update because same table at several leaves)
@@ -496,13 +496,11 @@ LateMaterializationData putLateMaterializationHybrid(PlanNode* node, std::set<Ba
                 // Register as Materialization
                 curMat[idxCol] = matNode;
             } 
-
+            // This should not happen
             else {
-                std::cout << "scream" << std::endl;
+                std::cout << "scream " << std::endl;
             }
         }
     }
-
     return LateMaterializationData{allTablesBelow, curPos, curMat};
-
 }
