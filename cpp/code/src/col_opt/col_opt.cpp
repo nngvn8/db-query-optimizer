@@ -49,7 +49,7 @@ void placeSemiJoins(PlanNode* node, std::set<BaseType::Table> tablesNeededLater)
 
 }
 
-void removeSortIfSubsetGroup(std::shared_ptr<PlanNode>* node_ptr) {
+void mergeSortIntoGroupIfSubset(std::shared_ptr<PlanNode>* node_ptr) {
     if (!node_ptr || !*node_ptr) return;
     std::shared_ptr<PlanNode> node = *node_ptr;
 
@@ -93,7 +93,7 @@ void removeSortIfSubsetGroup(std::shared_ptr<PlanNode>* node_ptr) {
     }
     // ### RECURSE ###
     for (auto& child : node->children) {
-        removeSortIfSubsetGroup(&child);
+        mergeSortIntoGroupIfSubset(&child);
     }
 }
 
