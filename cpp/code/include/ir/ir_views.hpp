@@ -99,12 +99,19 @@ public:
     static IrData create(const std::vector<BaseType::TableColumn>& resultCols,
                          std::string fileName = "",
                          std::optional<BaseType::TableColumn> resultIdx = std::nullopt,
-                         const std::vector<std::string>& resultHeaders = {}) {
+                         std::vector<std::string> resultHeaders = {}) {
         IrData irData;
         irData.outputsPosList = false;
         irData.outputsMatVals = true;
         irData.inputColumns = resultCols;
         irData.outputCols = resultCols;
+
+        if (resultHeaders.empty()) {
+            for (const auto& resCol : resultCols) {
+                std::string header = resCol.alias.value_or(resCol.columnName);
+                resultHeaders.push_back(header);
+            }
+        }
         irData.opInfo = SelectOp{resultIdx, resultHeaders};
         return irData;
     }
