@@ -73,7 +73,7 @@ int main() {
     // printSequencedPlan(sequenced_plan);
 
     // Create WorkItems
-    std::vector<WorkItem> workItems = itemBuilder.createWorkItems(sequenced_plan);
+    workItems = itemBuilder.createWorkItems(sequenced_plan);
 
     // ##################### LATE MATERIALIZATION APPROACH #################33
     // Generate IR tree for second optimizer
