@@ -106,6 +106,41 @@ int main() {
     // Create WorkItems
     workItems = itemBuilder.createWorkItems(sequenced_plan);
 
+    // ##################### LATE MATERIALIZATION V2 APPROACH #################33
+    // Generate IR tree for second optimizer
+    ir_root = astToIr(root);
+    generatePlanDotFile(*ir_root, "ir_plan.dot", DotContentType::IR_DATA);
+
+    // Place semi joins
+    placeSemiJoins(ir_root.get());
+    generatePlanDotFile(*ir_root, "ir_plan_semi_j_l2.dot", DotContentType::IR_DATA);
+    
+    removeSortIfSubsetGroup(&ir_root);
+    generatePlanDotFile(*ir_root, "ir_plan_remove_sort.dot", DotContentType::IR_DATA);
+
+    // Move single sum aggregations into group item
+    moveAggIntoGroup(ir_root.get());
+    generatePlanDotFile(*ir_root, "ir_plan_agg_opt_l2.dot", DotContentType::IR_DATA);
+
+    // Put Late Materialization
+    putLateMaterialization(ir_root.get());
+    generatePlanDotFile(*ir_root, "ir_plan_mat_l2.dot", DotContentType::IR_DATA);
+
+    // Rename columns
+    uniqueColNames(ir_root.get());
+    generatePlanDotFile(*ir_root, "ir_plan_mat_num_l2.dot", DotContentType::IR_DATA);
+
+    // Map to Api (Physical) Data
+    irToApiData(ir_root.get());
+    generatePlanDotFile(*ir_root, "api_plan_l2.dot", DotContentType::API_DATA);
+
+    // Sequentialize
+    sequenced_plan = to_sequence_children_list<PlanNode>(ir_root.get());
+    // printSequencedPlan(sequenced_plan);
+
+    // Create WorkItems
+    workItems = itemBuilder.createWorkItems(sequenced_plan);
+
     // ##################### LATE MATERIALIZATION HYBRID APPROACH #################33
     // Generate IR tree for second optimizer
     ir_root = astToIr(root);
@@ -123,7 +158,7 @@ int main() {
     generatePlanDotFile(*ir_root, "ir_plan_agg_opt_lh.dot", DotContentType::IR_DATA);
 
     // Put Late Materialization
-    putLateMaterializationHybrid(ir_root.get());
+    putLateMaterializationV2(ir_root.get());
     generatePlanDotFile(*ir_root, "ir_plan_mat_lh.dot", DotContentType::IR_DATA);
 
     // Rename columns
