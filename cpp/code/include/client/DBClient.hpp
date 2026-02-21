@@ -16,6 +16,21 @@
 
 #include "parser/generate_AST.hpp"
 #include "client/TCPClient.hpp"
+#include "WorkItem.pb.h"
+#include "ir/plan_node.hpp"
+#include "ir/plan_node_to_dot.hpp"
+
+struct ClientConfiguration {
+    std::string ip;
+    size_t port;
+    std::string inputFile;
+
+    bool standalone = false;
+    bool planDot = false;
+    bool semiJoins = false;
+    bool lateMat = false;
+    bool rmSubsetSort = false;
+};
 
 enum class ClientAction {
     Continue,
@@ -25,16 +40,15 @@ enum class ClientAction {
 };
 
 class DBClient {
-public:
-    DBClient(const std::string& file = "")
-        : tcpClient(std::nullopt),
-        inputFile(file),
-        standalone(true) {}
+private:
+    const ClientConfiguration clientConfig;
 
-    DBClient(const std::string& ip, const size_t port, const std::string& file = "")
-        : tcpClient(std::in_place, ip, port),
-        inputFile(file),
-        standalone(false) {}
+public:
+    DBClient(const ClientConfiguration& config)
+    : clientConfig(config),
+      tcpClient(!config.standalone
+                ? std::make_optional<tuddbs::TCPClient>(config.ip, config.port)
+                : std::nullopt) {}
 
     ~DBClient() {
         disableRawMode();
@@ -46,22 +60,24 @@ public:
         std::remove(HISTORY_FILE);
     }
 
+    static void showHelpInstructions();
+    void showDebug();
+
     void initCallbacks();
 
     bool standalone;
 
     ClientAction readQueryInput(std::string& outQuery);
-    int run();
-    int runStandalone();
+    void run();
+    void runStandalone();
+    void runWithServerConnection();
 
     void handleSqlFile(std::string_view& filePath);
 
-    bool sendQueryToServer(int serverSocket, const std::string& query);
-    bool readServerResponse(int serverSocket, std::string& response);
+    void runOptimizerPipeline(ASTNode* root);
+    void createPlanDotFile(const PlanNode& root, const std::string& filename, DotContentType contentType);
 
     ASTNode* createASTRootNode(const std::string& query);
-    void runStandardApproach(ASTNode* root);
-    void runLateMaterializationApproach(ASTNode* root);
 
     static constexpr const char* EXIT_CMD = "exit";
     static constexpr const char* QUIT_CMD = "quit";
@@ -70,6 +86,8 @@ public:
 
 private:
     std::optional<tuddbs::TCPClient> tcpClient;
+
+    std::vector<WorkItem> workItems;
 
     // client history global parameters
     static constexpr const char* HISTORY_FILE = ".client_history";

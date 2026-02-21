@@ -27,7 +27,11 @@
 #include "col_opt/col_opt.hpp"
 #include "WorkResponse.pb.h"
 #include "util/Utility.hpp"
-#include <UnitDefinition.pb.h>
+#include "UnitDefinition.pb.h"
+
+// TIMING
+#include <chrono>
+#include <functional>
 
 // shutdown flags
 std::atomic<bool> g_shouldExit{false};
@@ -35,6 +39,32 @@ int g_serverSocket = -1;
 
 void handleSigInt(int) {
     g_shouldExit.store(true);
+}
+
+void DBClient::showHelpInstructions() {
+    std::cout
+        << "GENERAL" << std::endl
+        << "    -ip             Server IP. If no IP is given use 127.0.0.1" << std::endl
+        << "    -port           Server Port. If no Port is given use 23232" << std::endl
+        << "    -file           Default File for execution of multiple queries" << std::endl
+        << "    -standalone     Standalone. The client runs without Server connection. Used for debugging and testing" << std::endl
+        << "    -help           This Help menu" << std::endl << std::endl
+        << "CONFIGURATION" << std::endl
+        << "    -genPlanDot     Generate Plan dot Files" << std::endl
+        << "    -genSemiJoins   Place Semi Joins" << std::endl
+        << "    -lateMat        Put late Materialization" << std::endl
+        << "    -rmSubsetSort   Remove Group if subset sort" << std::endl;
+}
+
+void DBClient::showDebug() {
+    std::cout
+        << "IP: " << clientConfig.ip << std::endl
+        << "Port: " << clientConfig.port << std::endl
+        << "Input File: " << clientConfig.inputFile << std::endl
+        << "Standalone: " << clientConfig.standalone << std::endl
+        << "PlanDot: " << clientConfig.planDot << std::endl
+        << "Semi Join (" << clientConfig.semiJoins << "); Late Materialize(" << clientConfig.lateMat << "); "
+        << "Remove Sort for Subset (" << clientConfig.rmSubsetSort << ")" << std::endl;
 }
 
 void DBClient::enableRawMode() {
@@ -72,19 +102,6 @@ bool DBClient::equalsIgnoreCase(std::string_view a, std::string_view b) {
     }
     return true;
 }
-
-/* bool DBClient::sendQueryToServer(int serverSocket, const std::string& query) {
-    size_t totalSent = 0;
-    while (totalSent < query.size()) {
-        ssize_t sent = send(serverSocket, query.data() + totalSent, query.size() - totalSent, 0);
-
-        if (sent <= 0)
-            return false;
-
-        totalSent += sent;
-    }
-    return true;
-} */
 
 // Helper function to trim whitespace when reading SQL Files
 std::string trimFileQuery(const std::string& str) {
@@ -221,58 +238,55 @@ ClientAction DBClient::readQueryInput(std::string& outQuery) {
     return ClientAction::Exit;
 }
 
-/* bool DBClient::readServerResponse(int serverSocket, std::string& response) {
-    response.clear();
-    char buf[1024];
-
-    while (true) {
-        ssize_t n = recv(serverSocket, buf, sizeof(buf), 0);
-        if (n <= 0)
-            return false;
-
-        for (ssize_t i = 0; i < n; ++i) {
-            response.push_back(buf[i]);
-            if (buf[i] == ';')
-                return true;
-        }
-    }
-} */
-
 ASTNode* DBClient::createASTRootNode(const std::string& query) {
     auto root = generateASTNode(query);
     generateDotFile(root,"testpic12.dot");
     return root;
 }
 
-// ############# STANDARD APPROACH ################################
-void DBClient::runStandardApproach(ASTNode* root) {
+void DBClient::createPlanDotFile(const PlanNode& root, const std::string& filename, DotContentType contentType) {
+    if (clientConfig.planDot)
+        generatePlanDotFile(root, filename, contentType);
+}
+
+void DBClient::runOptimizerPipeline(ASTNode* root) {
+    auto start = std::chrono::high_resolution_clock::now();
+
     // Generate IR tree for second optimizer
     std::shared_ptr<PlanNode> ir_root = astToIr(root);
-    generatePlanDotFile(*ir_root, "ir_plan.dot", DotContentType::IR_DATA);
+    createPlanDotFile(*ir_root, "ir_plan.dot", DotContentType::IR_DATA);
 
     // Place semi joins
-    std::set<BaseType::Table> tablesNeededLater;
-    placeSemiJoins(ir_root.get(), tablesNeededLater);
-    generatePlanDotFile(*ir_root, "ir_plan_semi_j.dot", DotContentType::IR_DATA);
+    if (clientConfig.semiJoins) {
+        std::set<BaseType::Table> tables;
+        placeSemiJoins(ir_root.get(), tables);
+        createPlanDotFile(*ir_root, "ir_plan_semi_j.dot", DotContentType::IR_DATA);
+    }
 
-    removeSortIfSubsetGroup(&ir_root);
-    generatePlanDotFile(*ir_root, "ir_plan_remove_sort.dot", DotContentType::IR_DATA);
+    if (clientConfig.rmSubsetSort) {
+        removeSortIfSubsetGroup(&ir_root);
+    }
+    createPlanDotFile(*ir_root, "ir_plan_remove_sort.dot", DotContentType::IR_DATA);
 
-    // Move single sum aggregations into group item
+     // Move single sum aggregations into group item
     moveAggIntoGroup(ir_root.get());
-    generatePlanDotFile(*ir_root, "ir_plan_agg_opt.dot", DotContentType::IR_DATA);
+    createPlanDotFile(*ir_root, "ir_plan_agg_opt.dot", DotContentType::IR_DATA);
 
     // Fill Materializes
-    fillMaterializes(ir_root.get());
-    generatePlanDotFile(*ir_root, "ir_plan_mat.dot", DotContentType::IR_DATA);
+    if (clientConfig.lateMat) {
+        putLateMaterialization(ir_root.get());
+    } else {
+        fillMaterializes(ir_root.get());
+    }
+    createPlanDotFile(*ir_root, "ir_plan_mat.dot", DotContentType::IR_DATA);
 
     // Rename columns
     uniqueColNames(ir_root.get());
-    generatePlanDotFile(*ir_root, "ir_plan_mat_num.dot", DotContentType::IR_DATA);
+    createPlanDotFile(*ir_root, "ir_plan_mat_num.dot", DotContentType::IR_DATA);
 
     // Map to Api (Physical) Data
     irToApiData(ir_root.get());
-    generatePlanDotFile(*ir_root, "api_plan.dot", DotContentType::API_DATA);
+    createPlanDotFile(*ir_root, "api_plan.dot", DotContentType::API_DATA);
 
     // Sequentialize
     std::vector<const PlanNode*> sequenced_plan = to_sequence_children_list<PlanNode>(ir_root.get());
@@ -282,56 +296,12 @@ void DBClient::runStandardApproach(ASTNode* root) {
     ItemBuilder itemBuilder;
     std::vector<WorkItem> workItems = itemBuilder.createWorkItems(sequenced_plan);
 
-    for (WorkItem item : workItems) {
-        item.PrintDebugString();
-    }
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double, std::milli> duration = end - start;
+    std::cout << "Start time: " << start << " Duration: " << duration.count() << "ms" << std::endl;
 }
 
-// ##################### LATE MATERIALIZATION APPROACH ###################
-void DBClient::runLateMaterializationApproach(ASTNode* root) {
-    // Generate IR tree for second optimizer
-    std::shared_ptr<PlanNode> ir_root = astToIr(root);
-    generatePlanDotFile(*ir_root, "ir_plan_l.dot", DotContentType::IR_DATA);
-
-    // Place semi joins
-    placeSemiJoins(ir_root.get());
-    generatePlanDotFile(*ir_root, "ir_plan_semi_j_l.dot", DotContentType::IR_DATA);
-
-    removeSortIfSubsetGroup(&ir_root);
-    generatePlanDotFile(*ir_root, "ir_plan_remove_sort.dot", DotContentType::IR_DATA);
-
-    // Move single sum aggregations into group item
-    moveAggIntoGroup(ir_root.get());
-    generatePlanDotFile(*ir_root, "ir_plan_agg_opt_l.dot", DotContentType::IR_DATA);
-
-    // Put Late Materialization
-    putLateMaterialization(ir_root.get());
-    generatePlanDotFile(*ir_root, "ir_plan_mat_l.dot", DotContentType::IR_DATA);
-
-    // Rename columns
-    uniqueColNames(ir_root.get());
-    generatePlanDotFile(*ir_root, "ir_plan_mat_num_l.dot", DotContentType::IR_DATA);
-
-    // Map to Api (Physical) Data
-    irToApiData(ir_root.get());
-    generatePlanDotFile(*ir_root, "api_plan_l.dot", DotContentType::API_DATA);
-
-    // Sequentialize
-    std::vector<const PlanNode*> sequenced_plan = to_sequence_children_list<PlanNode>(ir_root.get());
-    printSequencedPlan(sequenced_plan);
-
-    // Create WorkItems
-    ItemBuilder itemBuilder;
-    std::vector<WorkItem> workItems = itemBuilder.createWorkItems(sequenced_plan);
-
-    for (WorkItem item : workItems) {
-        item.PrintDebugString();
-    }
-}
-
-int DBClient::runStandalone() {
-    // std::string query1 = "SELECT SUM(lo_extendedprice * lo_discount) AS REVENUE FROM lineorder, dates WHERE lo_orderdate = d_datekey AND d_year = 1993 AND lo_discount BETWEEN 1 AND 3 AND lo_quantity < 25;";
-
+void DBClient::runStandalone() {
     historyFile.open(HISTORY_FILE, std::ios::out | std::ios::trunc);
     enableRawMode();
 
@@ -347,18 +317,17 @@ int DBClient::runStandalone() {
 
         if (action == ClientAction::SendQuery) {
             std::cout << query << std::endl;
-            runStandardApproach(createASTRootNode(query));
+            runOptimizerPipeline(createASTRootNode(query));
             saveHistory(query.substr(0, query.size() - 1));
         }
 
         if (action == ClientAction::SqlFile) {
             for (std::string fileQuery : fileQueries) {
                 std::cout << fileQuery << std::endl;
-                runStandardApproach(createASTRootNode(fileQuery));
+                runOptimizerPipeline(createASTRootNode(fileQuery));
             }
         }
     }
-    return 0;
 }
 
 void DBClient::initCallbacks() {
@@ -419,9 +388,15 @@ void DBClient::initCallbacks() {
     tcpClient->addCallback(tuddbs::TCPPackageType::Work, work_cb);
     tcpClient->addCallback(tuddbs::TCPPackageType::UpdateUnitType, updateUnitInfo_cb);
     tcpClient->addCallback(tuddbs::TCPPackageType::Text, text_cb);
+
+    auto workItem_cb = [this](tuddbs::TCPMetaInfo* meta, void* data, size_t len) -> void {
+        std::cout << "[WorkItem List Callback] Invoked." << std::endl;
+    };
+
+    tcpClient->addCallback(tuddbs::TCPPackageType::Work, workItem_cb);
 }
 
-int DBClient::run() {
+void DBClient::runWithServerConnection() {
     tcpClient->start();
     std::cout << "Connected to server. Ready to read queries." << std::endl;
 
@@ -444,13 +419,20 @@ int DBClient::run() {
             break;
 
         if (action == ClientAction::SendQuery) {
-            runStandardApproach(createASTRootNode(query));
+            runOptimizerPipeline(createASTRootNode(query));
             if (!standalone) {
 
             }
-
             saveHistory(query.substr(0, query.size() - 1));
         }
     }
-    return 0;
+}
+
+void DBClient::run() {
+    if (clientConfig.standalone) {
+        runStandalone();
+    } else {
+        initCallbacks();
+        runWithServerConnection();
+    }
 }
