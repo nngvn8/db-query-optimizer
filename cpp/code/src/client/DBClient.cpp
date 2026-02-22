@@ -26,6 +26,7 @@
 #include "util/unique_col_names.hpp"
 #include "col_opt/col_opt.hpp"
 #include "WorkResponse.pb.h"
+#include "QueryPlan.pb.h"
 #include "util/Utility.hpp"
 #include "UnitDefinition.pb.h"
 
@@ -257,6 +258,18 @@ ClientAction DBClient::readQueryInput(std::string& outQuery) {
     return ClientAction::Exit;
 }
 
+QueryPlan DBClient::createQueryPlan(const std::vector<WorkItem>& workItems) {
+    QueryPlan queryPlan;
+    queryPlan.set_planid(1);
+    queryPlan.planitems(workItems.size());
+
+    for (const WorkItem& item : workItems) {
+
+    }
+
+    tuddbs::TCPMetaInfo tcpMetaInfo;
+}
+
 ASTNode* DBClient::createASTRootNode(const std::string& query) {
     auto root = generateASTNode(query);
     generateDotFile(root,"testpic12.dot");
@@ -286,7 +299,7 @@ void DBClient::runOptimizerPipeline(ASTNode* root) {
     }
     createPlanDotFile(*ir_root, "ir_plan_merge_sort.dot", DotContentType::IR_DATA);
 
-     // Move single sum aggregations into group item
+    // Move single sum aggregations into group item
     moveAggIntoGroup(ir_root.get());
     createPlanDotFile(*ir_root, "ir_plan_agg_opt.dot", DotContentType::IR_DATA);
 
@@ -327,6 +340,20 @@ void DBClient::runOptimizerPipeline(ASTNode* root) {
     // Create WorkItems
     ItemBuilder itemBuilder;
     std::vector<WorkItem> workItems = itemBuilder.createWorkItems(sequenced_plan);
+
+    for (WorkItem item : workItems) {
+        tuddbs::TCPMetaInfo info;
+        info.package_type = tuddbs::TCPPackageType::NewTask;  // or whatever type
+        info.payload_size = item.ByteSizeLong();
+
+        void* out_mem = malloc(sizeof(tuddbs::TCPMetaInfo) + info.payload_size);
+
+        const size_t message_size =
+            tuddbs::Utility::serializeItemToMemory(out_mem, item, info);
+
+        tcpClient->notifyHost(out_mem, message_size);
+        free(out_mem);
+    }
 
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double, std::milli> duration = end - start;
@@ -420,12 +447,6 @@ void DBClient::initCallbacks() {
     tcpClient->addCallback(tuddbs::TCPPackageType::Work, work_cb);
     tcpClient->addCallback(tuddbs::TCPPackageType::UpdateUnitType, updateUnitInfo_cb);
     tcpClient->addCallback(tuddbs::TCPPackageType::Text, text_cb);
-
-    auto workItem_cb = [this](tuddbs::TCPMetaInfo* meta, void* data, size_t len) -> void {
-        std::cout << "[WorkItem List Callback] Invoked." << std::endl;
-    };
-
-    tcpClient->addCallback(tuddbs::TCPPackageType::Work, workItem_cb);
 }
 
 void DBClient::runWithServerConnection() {
@@ -452,9 +473,6 @@ void DBClient::runWithServerConnection() {
 
         if (action == ClientAction::SendQuery) {
             runOptimizerPipeline(createASTRootNode(query));
-            if (!standalone) {
-
-            }
             saveHistory(query.substr(0, query.size() - 1));
         }
     }

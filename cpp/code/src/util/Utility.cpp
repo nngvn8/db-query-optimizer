@@ -168,4 +168,12 @@ void Utility::extractItemsModifyBuffer(void* in_memory, ssize_t in_received_byte
     out_unprocessed_bytes = remaining_bytes;
 }
 
+void Utility::printWorkItem(const WorkItem& item) {
+    std::cout << "WorkItem[" << item.itemid()
+        << "]: plan_id=" << item.planid()
+        << "; OperatorID(" << OperatorType_Name(item.operatorid())
+        << "); Size(" << item.ByteSize() << ")"
+        << std::endl;
+}
+
 }  // namespace tuddbs

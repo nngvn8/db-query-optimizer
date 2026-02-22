@@ -56,5 +56,7 @@ class Utility {
      * in_memory and out_message_buffer_start may be identical pointers.
      */
     static void extractItemsModifyBuffer(void* in_memory, ssize_t in_received_bytes, void* out_message_buffer_start, size_t& out_unprocessed_bytes, CallbackMap* callbacks = nullptr, bool verbose = false);
+
+    static void printWorkItem(const WorkItem& item);
 };
 }  // namespace tuddbs

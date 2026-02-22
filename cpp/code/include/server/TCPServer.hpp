@@ -19,6 +19,7 @@ enum class TCPPackageType : uint32_t {
     Undefined = 0,
     Work,
     RerouteWork,
+    NewTask,
     TaskFinished,
     Text,
     UpdateUnitType,

@@ -17,6 +17,7 @@
 #include "parser/generate_AST.hpp"
 #include "client/TCPClient.hpp"
 #include "WorkItem.pb.h"
+#include "QueryPlan.pb.h"
 #include "ir/plan_node.hpp"
 #include "ir/plan_node_to_dot.hpp"
 
@@ -105,6 +106,7 @@ private:
     std::optional<tuddbs::TCPClient> tcpClient;
 
     std::vector<WorkItem> workItems;
+    QueryPlan createQueryPlan(const std::vector<WorkItem>& workItems);
 
     // client history global parameters
     static constexpr const char* HISTORY_FILE = ".client_history";

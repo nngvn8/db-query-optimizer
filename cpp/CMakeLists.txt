@@ -65,7 +65,7 @@ add_executable(optimizer-compute-unit "${CMAKE_CURRENT_SOURCE_DIR}/code/examples
 
 # DBClient
 add_executable(optimizer-db-client "${CMAKE_CURRENT_SOURCE_DIR}/code/examples/DBClient_example.cpp" ${PROJECT_SRC} ${PROJECT_HEADERS})
-add_executable(optimizer-db-server "${CMAKE_CURRENT_SOURCE_DIR}/code/examples/DBServer.cpp" ${PROJECT_SRC} ${PROJECT_HEADERS})
+add_executable(optimizer-db-server "${CMAKE_CURRENT_SOURCE_DIR}/code/examples/DBServer_example.cpp" ${PROJECT_SRC} ${PROJECT_HEADERS})
 
 # Main - Remove later
 add_executable(optimizer-tmp "${CMAKE_CURRENT_SOURCE_DIR}/code/examples/main.cpp" ${PROJECT_SRC} ${PROJECT_HEADERS})
