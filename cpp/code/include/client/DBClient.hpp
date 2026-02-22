@@ -33,6 +33,8 @@ struct ClientConfiguration {
     std::string inputFile;
 
     bool standalone = false;
+    bool debug = false;
+
     bool planDot = false;
     bool semiJoins = false;
     bool rmSubsetSort = false;
@@ -104,6 +106,8 @@ public:
 
 private:
     std::optional<tuddbs::TCPClient> tcpClient;
+
+    void mainClientLoop();
 
     std::vector<WorkItem> workItems;
     QueryPlan createQueryPlan(const std::vector<WorkItem>& workItems);

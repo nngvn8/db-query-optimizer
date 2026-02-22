@@ -15,6 +15,8 @@ int main(int argc, char* argv[]) {
     config.inputFile = parser.takeParseArg<std::string>("-file", "[INFO] No input file given.", "", false);
 
     config.standalone = parser.takeParseFlag("-standalone");
+    config.debug = parser.takeParseFlag("-debug");
+
     config.planDot = parser.takeParseFlag("-genPlanDot");
     config.semiJoins = parser.takeParseFlag("-genSemiJoins");
     config.rmSubsetSort = parser.takeParseFlag("-rmSubsetSort");
@@ -24,7 +26,6 @@ int main(int argc, char* argv[]) {
     config.setMatType(materialize);
 
     const bool help = parser.takeParseFlag("-help");
-    const bool debug = parser.takeParseFlag("-debug");
 
     if (help) {
         DBClient::showHelpInstructions();
@@ -32,7 +33,7 @@ int main(int argc, char* argv[]) {
     }
 
     DBClient dbClient(config);
-    if (debug) {
+    if (config.debug) {
         dbClient.showDebug();
     }
 

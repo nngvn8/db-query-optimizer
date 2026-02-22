@@ -258,18 +258,6 @@ ClientAction DBClient::readQueryInput(std::string& outQuery) {
     return ClientAction::Exit;
 }
 
-QueryPlan DBClient::createQueryPlan(const std::vector<WorkItem>& workItems) {
-    QueryPlan queryPlan;
-    queryPlan.set_planid(1);
-    queryPlan.planitems(workItems.size());
-
-    for (const WorkItem& item : workItems) {
-
-    }
-
-    tuddbs::TCPMetaInfo tcpMetaInfo;
-}
-
 ASTNode* DBClient::createASTRootNode(const std::string& query) {
     auto root = generateASTNode(query);
     generateDotFile(root,"testpic12.dot");
@@ -343,13 +331,16 @@ void DBClient::runOptimizerPipeline(ASTNode* root) {
 
     for (WorkItem item : workItems) {
         tuddbs::TCPMetaInfo info;
-        info.package_type = tuddbs::TCPPackageType::NewTask;  // or whatever type
+        info.package_type = tuddbs::TCPPackageType::NewTask;
         info.payload_size = item.ByteSizeLong();
 
         void* out_mem = malloc(sizeof(tuddbs::TCPMetaInfo) + info.payload_size);
 
-        const size_t message_size =
-            tuddbs::Utility::serializeItemToMemory(out_mem, item, info);
+        const size_t message_size = tuddbs::Utility::serializeItemToMemory(out_mem, item, info);
+
+        if (clientConfig.debug) {
+            tuddbs::Utility::printWorkItem(item);
+        }
 
         tcpClient->notifyHost(out_mem, message_size);
         free(out_mem);
@@ -357,13 +348,10 @@ void DBClient::runOptimizerPipeline(ASTNode* root) {
 
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double, std::milli> duration = end - start;
-    std::cout << "Start time: " << start << " Duration: " << duration.count() << "ms" << std::endl;
+    std::cout << "\nStart time: " << start << " Duration: " << duration.count() << "ms" << std::endl;
 }
 
-void DBClient::runStandalone() {
-    historyFile.open(HISTORY_FILE, std::ios::out | std::ios::trunc);
-    enableRawMode();
-
+void DBClient::mainClientLoop() {
     while (!g_shouldExit.load()) {
         std::string query;
         ClientAction action = readQueryInput(query);
@@ -387,6 +375,12 @@ void DBClient::runStandalone() {
             }
         }
     }
+}
+
+void DBClient::runStandalone() {
+    historyFile.open(HISTORY_FILE, std::ios::out | std::ios::trunc);
+    enableRawMode();
+    mainClientLoop();
 }
 
 void DBClient::initCallbacks() {
@@ -460,22 +454,7 @@ void DBClient::runWithServerConnection() {
         // TODO input file
     }
 
-    // main loop with sigint handling if aborted
-    while (!g_shouldExit.load()) {
-        std::string query;
-        ClientAction action = readQueryInput(query);
-
-        if (g_shouldExit.load())
-            break;
-
-        if (action == ClientAction::Exit)
-            break;
-
-        if (action == ClientAction::SendQuery) {
-            runOptimizerPipeline(createASTRootNode(query));
-            saveHistory(query.substr(0, query.size() - 1));
-        }
-    }
+    mainClientLoop();
 }
 
 void DBClient::run() {
