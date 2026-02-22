@@ -20,6 +20,12 @@
 #include "ir/plan_node.hpp"
 #include "ir/plan_node_to_dot.hpp"
 
+enum class MaterializeOptTypes {
+    fillMaterializes,
+    putLateMaterialization,
+    putLateMaterializationsHybrid
+};
+
 struct ClientConfiguration {
     std::string ip;
     size_t port;
@@ -28,8 +34,19 @@ struct ClientConfiguration {
     bool standalone = false;
     bool planDot = false;
     bool semiJoins = false;
-    bool lateMat = false;
     bool rmSubsetSort = false;
+    bool grandChildOpt = false;
+
+    MaterializeOptTypes matType = MaterializeOptTypes::fillMaterializes;
+    void setMatType(const std::string& type) {
+        if (type == "putLateMaterialization") {
+            matType = MaterializeOptTypes::putLateMaterialization;
+        } else if (type == "putLateMaterializationsHybrid") {
+            matType = MaterializeOptTypes::putLateMaterializationsHybrid;
+        } else {
+            matType = MaterializeOptTypes::fillMaterializes;
+        }
+    }
 };
 
 enum class ClientAction {

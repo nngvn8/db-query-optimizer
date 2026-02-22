@@ -43,28 +43,47 @@ void handleSigInt(int) {
 
 void DBClient::showHelpInstructions() {
     std::cout
+        << std::endl << "RUN" << std::endl
+        << "    optimizer-db-client [-FLAG] ... [-ARG <parameter>] ..." << std::endl << std::endl
         << "GENERAL" << std::endl
-        << "    -ip             Server IP. If no IP is given use 127.0.0.1" << std::endl
-        << "    -port           Server Port. If no Port is given use 23232" << std::endl
-        << "    -file           Default File for execution of multiple queries" << std::endl
-        << "    -standalone     Standalone. The client runs without Server connection. Used for debugging and testing" << std::endl
-        << "    -help           This Help menu" << std::endl << std::endl
+        << "    -ip                 Server IP. If no IP is given use 127.0.0.1" << std::endl
+        << "    -port               Server Port. If no Port is given use 23232" << std::endl
+        << "    -file               Default File for execution of multiple queries" << std::endl
+        << "    -standalone         Standalone. The client runs without Server connection. Used for debugging and testing" << std::endl
+        << "    -help               This Help menu" << std::endl << std::endl
         << "CONFIGURATION" << std::endl
-        << "    -genPlanDot     Generate Plan dot Files" << std::endl
-        << "    -genSemiJoins   Place Semi Joins" << std::endl
-        << "    -lateMat        Put late Materialization" << std::endl
-        << "    -rmSubsetSort   Remove Group if subset sort" << std::endl;
+        << "    -genPlanDot         Generate Plan dot Files" << std::endl
+        << "    -genSemiJoins       Place Semi Joins" << std::endl
+        << "    -matType [type]     Way of Materialization type = [standard, lateMaterialize, lateMaterializeHybrid]" << std::endl
+        << "    -rmSubsetSort       Remove Group if subset sort" << std::endl
+        << "    -gChildOpt          Grand Children Optimization" << std::endl;
 }
 
 void DBClient::showDebug() {
+    std::string mat;
+    switch (clientConfig.matType) {
+    case MaterializeOptTypes::fillMaterializes:
+        mat = "fillMaterializes";
+        break;
+    case MaterializeOptTypes::putLateMaterialization:
+        mat = "putLateMaterialization";
+        break;
+    case MaterializeOptTypes::putLateMaterializationsHybrid:
+        mat = "putLateMaterializationsHybrid";
+        break;
+    default:
+        break;
+    }
+
     std::cout
         << "IP: " << clientConfig.ip << std::endl
         << "Port: " << clientConfig.port << std::endl
         << "Input File: " << clientConfig.inputFile << std::endl
-        << "Standalone: " << clientConfig.standalone << std::endl
+        << "Standalone: " << std::boolalpha << clientConfig.standalone << std::endl
         << "PlanDot: " << clientConfig.planDot << std::endl
-        << "Semi Join (" << clientConfig.semiJoins << "); Late Materialize(" << clientConfig.lateMat << "); "
-        << "Remove Sort for Subset (" << clientConfig.rmSubsetSort << ")" << std::endl;
+        << "Semi Join (" << clientConfig.semiJoins << "); Materialize Type(" << mat << "); "
+        << "Remove Sort for Subset (" << clientConfig.rmSubsetSort << "); "
+        << "Grand Child Opt (" << clientConfig.grandChildOpt << ")" << std::endl;
 }
 
 void DBClient::enableRawMode() {
@@ -258,12 +277,12 @@ void DBClient::runOptimizerPipeline(ASTNode* root) {
 
     // Place semi joins
     if (clientConfig.semiJoins) {
-        std::set<BaseType::Table> tables;
-        placeSemiJoins(ir_root.get(), tables);
+        placeSemiJoins(ir_root.get());
         createPlanDotFile(*ir_root, "ir_plan_semi_j.dot", DotContentType::IR_DATA);
     }
 
     if (clientConfig.rmSubsetSort) {
+        // TODO mergeSortIntoGroupIfSubset(&ir_root);
         removeSortIfSubsetGroup(&ir_root);
     }
     createPlanDotFile(*ir_root, "ir_plan_remove_sort.dot", DotContentType::IR_DATA);
@@ -273,12 +292,27 @@ void DBClient::runOptimizerPipeline(ASTNode* root) {
     createPlanDotFile(*ir_root, "ir_plan_agg_opt.dot", DotContentType::IR_DATA);
 
     // Fill Materializes
-    if (clientConfig.lateMat) {
-        putLateMaterialization(ir_root.get());
-    } else {
+    switch (clientConfig.matType) {
+    case MaterializeOptTypes::fillMaterializes:
         fillMaterializes(ir_root.get());
+        break;
+    case MaterializeOptTypes::putLateMaterialization:
+        // TODO putLateMaterializationV2(ir_root.get());
+        putLateMaterialization(ir_root.get());
+        break;
+    case MaterializeOptTypes::putLateMaterializationsHybrid:
+        //TODO putLateMaterializationsHybrid(ir_root.get());
+        break;
+    default:
+        break;
     }
     createPlanDotFile(*ir_root, "ir_plan_mat.dot", DotContentType::IR_DATA);
+
+    // GrandchildrenOptimization
+    if (clientConfig.grandChildOpt) {
+        // TODO grandChildrenOptimization(ir_root.get());
+        createPlanDotFile(*ir_root, "ir_plan_mat_l2_gco.dot", DotContentType::IR_DATA);
+    }
 
     // Rename columns
     uniqueColNames(ir_root.get());

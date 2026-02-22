@@ -10,15 +10,18 @@ int main(int argc, char* argv[]) {
     ArgParser parser(argc, argv);
     ClientConfiguration config;
 
-    config.ip = parser.takeParseArg<std::string>("-ip", "[Error] No IP given. Pass a server IP with [-ip]", "127.0.0.1", false);
-    config.port = parser.takeParseArg<size_t>("-port", "[Error] No Port given. Pass a port with [-port].", 23232, false);
-    config.inputFile = parser.takeParseArg<std::string>("-file", "", "", false);
+    config.ip = parser.takeParseArg<std::string>("-ip", "[Warning] No IP given. Pass a server IP with [-ip]", "127.0.0.1", false);
+    config.port = parser.takeParseArg<size_t>("-port", "[Warning] No Port given. Pass a port with [-port].", 23232, false);
+    config.inputFile = parser.takeParseArg<std::string>("-file", "[INFO] No input file given.", "", false);
 
     config.standalone = parser.takeParseFlag("-standalone");
     config.planDot = parser.takeParseFlag("-genPlanDot");
     config.semiJoins = parser.takeParseFlag("-genSemiJoins");
-    config.lateMat = parser.takeParseFlag("-lateMat");
     config.rmSubsetSort = parser.takeParseFlag("-rmSubsetSort");
+    config.grandChildOpt = parser.takeParseFlag("-gChildOpt");
+
+    const std::string& materialize = parser.takeParseArg<std::string>("-matType", "", "standard", false);
+    config.setMatType(materialize);
 
     const bool help = parser.takeParseFlag("-help");
     const bool debug = parser.takeParseFlag("-debug");
@@ -29,7 +32,6 @@ int main(int argc, char* argv[]) {
     }
 
     DBClient dbClient(config);
-
     if (debug) {
         dbClient.showDebug();
     }
