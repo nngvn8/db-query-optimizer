@@ -284,7 +284,7 @@ void DBClient::runOptimizerPipeline(ASTNode* root) {
     if (clientConfig.rmSubsetSort) {
         mergeSortIntoGroupIfSubset(&ir_root);
     }
-    createPlanDotFile(*ir_root, "ir_plan_remove_sort.dot", DotContentType::IR_DATA);
+    createPlanDotFile(*ir_root, "ir_plan_merge_sort.dot", DotContentType::IR_DATA);
 
      // Move single sum aggregations into group item
     moveAggIntoGroup(ir_root.get());
@@ -309,7 +309,7 @@ void DBClient::runOptimizerPipeline(ASTNode* root) {
     // GrandchildrenOptimization
     if (clientConfig.grandChildOpt) {
         grandChildrenOptimization(ir_root.get());
-        createPlanDotFile(*ir_root, "ir_plan_mat_l2_gco.dot", DotContentType::IR_DATA);
+        createPlanDotFile(*ir_root, "ir_plan_mat_gco.dot", DotContentType::IR_DATA);
     }
 
     // Rename columns
