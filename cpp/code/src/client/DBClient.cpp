@@ -282,8 +282,7 @@ void DBClient::runOptimizerPipeline(ASTNode* root) {
     }
 
     if (clientConfig.rmSubsetSort) {
-        // TODO mergeSortIntoGroupIfSubset(&ir_root);
-        removeSortIfSubsetGroup(&ir_root);
+        mergeSortIntoGroupIfSubset(&ir_root);
     }
     createPlanDotFile(*ir_root, "ir_plan_remove_sort.dot", DotContentType::IR_DATA);
 
@@ -297,11 +296,10 @@ void DBClient::runOptimizerPipeline(ASTNode* root) {
         fillMaterializes(ir_root.get());
         break;
     case MaterializeOptTypes::putLateMaterialization:
-        // TODO putLateMaterializationV2(ir_root.get());
-        putLateMaterialization(ir_root.get());
+        putLateMaterializationV2(ir_root.get());
         break;
     case MaterializeOptTypes::putLateMaterializationsHybrid:
-        //TODO putLateMaterializationsHybrid(ir_root.get());
+        putLateMaterializationHybrid(ir_root.get());
         break;
     default:
         break;
@@ -310,7 +308,7 @@ void DBClient::runOptimizerPipeline(ASTNode* root) {
 
     // GrandchildrenOptimization
     if (clientConfig.grandChildOpt) {
-        // TODO grandChildrenOptimization(ir_root.get());
+        grandChildrenOptimization(ir_root.get());
         createPlanDotFile(*ir_root, "ir_plan_mat_l2_gco.dot", DotContentType::IR_DATA);
     }
 
