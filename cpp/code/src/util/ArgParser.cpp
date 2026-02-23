@@ -43,6 +43,15 @@ std::string ArgParser::getArgByValueAndRemove(const std::string &arg) {
     return empty_string;
 }
 
+bool ArgParser::getFlagByValueAndRemove(const std::string &arg) {
+    auto arg_it = std::find(args.begin(), args.end(), arg);
+    if (arg_it != args.end()) {
+        args.erase(arg_it);
+        return true;
+    }
+    return false;
+}
+
 bool ArgParser::hasArg(const std::string &arg) const {
     return std::find(args.cbegin(), args.cend(), arg) != args.cend();
 }

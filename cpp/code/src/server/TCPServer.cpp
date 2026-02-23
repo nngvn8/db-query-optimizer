@@ -602,6 +602,8 @@ std::string TCPServer::packageTypeToString(TCPPackageType type) {
             return "Work";
         case TCPPackageType::RerouteWork:
             return "RerouteWork";
+        case TCPPackageType::NewTask:
+            return "NewTask";
         case TCPPackageType::TaskFinished:
             return "TaskFinished";
         case TCPPackageType::Text:

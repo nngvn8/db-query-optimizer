@@ -24,6 +24,8 @@ if(NOT Protobuf_FOUND)
   find_package(Protobuf 3.0 REQUIRED)  # module mode
 endif()
 
+find_package(absl REQUIRED)
+
 # Collect sources generically (no hardcoded file names).
 # CONFIGURE_DEPENDS makes CMake re-scan when files are added/removed.
 file(GLOB_RECURSE PROJECT_SRC
@@ -41,11 +43,18 @@ file(GLOB_RECURSE PROJECT_HEADERS
 )
 
 # Hyrise SQL-Parser
+# Collect all .cpp files in SQL Parser
 file(GLOB_RECURSE SQLPARSER_SOURCES
     external/sql-parser/src/*.cpp
 )
 
+# Create a static library
 add_library(sqlparser STATIC ${SQLPARSER_SOURCES})
+
+# Add the include directory so headers are visible
+target_include_directories(sqlparser
+    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/external/sql-parser/src
+)
 
 # JsonCpp
 add_subdirectory(external/jsoncpp)
@@ -55,6 +64,13 @@ add_subdirectory(external/jsoncpp)
 add_executable(optimizer-server "${CMAKE_CURRENT_SOURCE_DIR}/code/examples/tcp_server_example.cpp" ${PROJECT_SRC} ${PROJECT_HEADERS})
 add_executable(optimizer-client "${CMAKE_CURRENT_SOURCE_DIR}/code/examples/tcp_client_example.cpp" ${PROJECT_SRC} ${PROJECT_HEADERS})
 add_executable(optimizer-compute-unit "${CMAKE_CURRENT_SOURCE_DIR}/code/examples/ComputeUnit.cpp" ${PROJECT_SRC} ${PROJECT_HEADERS})
+
+# DBClient
+add_executable(optimizer-db-client "${CMAKE_CURRENT_SOURCE_DIR}/code/examples/DBClient_example.cpp" ${PROJECT_SRC} ${PROJECT_HEADERS})
+add_executable(optimizer-db-server "${CMAKE_CURRENT_SOURCE_DIR}/code/examples/DBServer_example.cpp" ${PROJECT_SRC} ${PROJECT_HEADERS})
+
+# Main - Remove later
+add_executable(optimizer-tmp "${CMAKE_CURRENT_SOURCE_DIR}/code/examples/main.cpp" ${PROJECT_SRC} ${PROJECT_HEADERS})
 
 # Public include paths so consumers (and your own sources) can do #include "c.pb.h"
 target_include_directories(optimizer-server
@@ -72,16 +88,46 @@ target_include_directories(optimizer-compute-unit
         ${CMAKE_CURRENT_SOURCE_DIR}/code/include
         ${CMAKE_CURRENT_SOURCE_DIR}/generated/include
 )
+target_include_directories(optimizer-db-client
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/code/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/generated/include
+)
+target_include_directories(optimizer-db-server
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/code/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/generated/include
+)
+
+# remove
+target_include_directories(optimizer-tmp
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/code/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/generated/include
+)
 
 # Link against Protobuf. Prefer full lib; fall back to lite if that's what is available.
 if(TARGET protobuf::libprotobuf)
-  target_link_libraries(optimizer-server PRIVATE protobuf::libprotobuf PRIVATE sqlparser PRIVATE jsoncpp_lib)
-  target_link_libraries(optimizer-client PRIVATE protobuf::libprotobuf PRIVATE sqlparser PRIVATE jsoncpp_lib)
-  target_link_libraries(optimizer-compute-unit PRIVATE protobuf::libprotobuf PRIVATE sqlparser PRIVATE jsoncpp_lib)
+  target_link_libraries(optimizer-server PRIVATE protobuf::libprotobuf PRIVATE sqlparser PRIVATE jsoncpp_lib absl::log_internal_check_op)
+  target_link_libraries(optimizer-client PRIVATE protobuf::libprotobuf PRIVATE sqlparser PRIVATE jsoncpp_lib absl::log_internal_check_op)
+  target_link_libraries(optimizer-compute-unit PRIVATE protobuf::libprotobuf PRIVATE sqlparser PRIVATE jsoncpp_lib absl::log_internal_check_op)
+
+  target_link_libraries(optimizer-db-client PRIVATE protobuf::libprotobuf PRIVATE sqlparser PRIVATE jsoncpp_lib absl::log_internal_check_op)
+  target_link_libraries(optimizer-db-server PRIVATE protobuf::libprotobuf PRIVATE sqlparser PRIVATE jsoncpp_lib absl::log_internal_check_op)
+
+  # remove
+  target_link_libraries(optimizer-tmp PRIVATE protobuf::libprotobuf PRIVATE sqlparser PRIVATE jsoncpp_lib absl::log_internal_check_op)
+
 elseif(TARGET protobuf::libprotobuf-lite)
-  target_link_libraries(optimizer-server PRIVATE protobuf::libprotobuf-lite PRIVATE sqlparser PRIVATE jsoncpp_lib)
-  target_link_libraries(optimizer-client PRIVATE protobuf::libprotobuf-lite PRIVATE sqlparser PRIVATE jsoncpp_lib)
-  target_link_libraries(optimizer-compute-unit PRIVATE protobuf::libprotobuf-lite PRIVATE sqlparser PRIVATE jsoncpp_lib)
+  target_link_libraries(optimizer-server PRIVATE protobuf::libprotobuf-lite PRIVATE sqlparser PRIVATE jsoncpp_lib absl::log_internal_check_op)
+  target_link_libraries(optimizer-client PRIVATE protobuf::libprotobuf-lite PRIVATE sqlparser PRIVATE jsoncpp_lib absl::log_internal_check_op)
+  target_link_libraries(optimizer-compute-unit PRIVATE protobuf::libprotobuf-lite PRIVATE sqlparser PRIVATE jsoncpp_lib absl::log_internal_check_op)
+
+  target_link_libraries(optimizer-db-client PRIVATE protobuf::libprotobuf-lite PRIVATE sqlparser PRIVATE jsoncpp_lib absl::log_internal_check_op)
+  target_link_libraries(optimizer-db-server PRIVATE protobuf::libprotobuf-lite PRIVATE sqlparser PRIVATE jsoncpp_lib absl::log_internal_check_op)
+
+  # remove
+  target_link_libraries(optimizer-tmp PRIVATE protobuf::libprotobuf-lite PRIVATE sqlparser PRIVATE jsoncpp_lib absl::log_internal_check_op)
 else()
   message(FATAL_ERROR "Protobuf library target not found. Is Protobuf installed correctly?")
 endif()
@@ -91,8 +137,20 @@ if(MSVC)
   target_compile_options(optimizer-server PRIVATE /W4 /permissive-)
   target_compile_options(optimizer-client PRIVATE /W4 /permissive-)
   target_compile_options(optimizer-compute-unit PRIVATE /W4 /permissive-)
+
+  target_compile_options(optimizer-db-client PRIVATE /W4 /permissive-)
+  target_compile_options(optimizer-db-server PRIVATE /W4 /permissive-)
+
+  # remove
+  target_compile_options(optimizer-tmp PRIVATE /W4 /permissive-)
 else()
   target_compile_options(optimizer-server PRIVATE -Wall -Wextra -Wpedantic)
   target_compile_options(optimizer-client PRIVATE -Wall -Wextra -Wpedantic)
   target_compile_options(optimizer-compute-unit PRIVATE -Wall -Wextra -Wpedantic)
+
+  target_compile_options(optimizer-db-client PRIVATE -Wall -Wextra -Wpedantic)
+  target_compile_options(optimizer-db-server PRIVATE -Wall -Wextra -Wpedantic)
+
+  # remove
+  target_compile_options(optimizer-tmp PRIVATE -Wall -Wextra -Wpedantic)
 endif()

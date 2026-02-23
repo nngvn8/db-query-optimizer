@@ -1,7 +1,7 @@
 #ifndef GENERATE_AST_H
 #define GENERATE_AST_H
 
-#include <SQLParser.h>
+#include "SQLParser.h"
 #include <iostream>
 #include <variant>
 #include <vector>
@@ -36,7 +36,7 @@ class TableBaseNode {
 public:
     std::string tableName;
     std::string tableAlias;
-    
+
     TableBaseNode(const std::string& tableName="",
             const std::string& tableAlias="")
                 :tableName(tableName),
@@ -52,8 +52,8 @@ class WhereClauseNode {
         std::string column2;
         std::string value;
         std::string value2;
-        
-        
+
+
         WhereClauseNode(const std::string& table="",
                 const std::string& column="",
                 const std::string& operatorType = "",
@@ -84,10 +84,10 @@ struct SelectClauseDescription {
 
 class SelectClauseNode {
     public:
-        std::vector<SelectClauseDescription> description; 
+        std::vector<SelectClauseDescription> description;
 
         SelectClauseNode(std::vector<SelectClauseDescription>& description)
-            : description(description) {}; 
+            : description(description) {};
 };
 
 
@@ -95,7 +95,7 @@ class Map {
     public:
         std::string table1;
         std::string column1;
-        std::string table2;    
+        std::string table2;
         std::string column2;
         std::string operatorType;
         std::string value;
@@ -121,9 +121,9 @@ class AggregateClauseNode {
     public:
         std::string aggregateFunction;
         std::string alias;
-        std::string table; 
+        std::string table;
         std::string column;
-        
+
         AggregateClauseNode(
                 const std::string& aggrFunc = "",
                 const std::string& alias = "",
@@ -150,7 +150,7 @@ struct GroupByDescription {
 
 class GroupByClauseNode {
 public:
-    std::vector<GroupByDescription> description; 
+    std::vector<GroupByDescription> description;
 
     GroupByClauseNode(std::vector<GroupByDescription>& description)
         : description(description) {}
@@ -177,7 +177,7 @@ struct OrderByDescription {
 class OrderByClauseNode {
 public:
     std::vector<OrderByDescription> orderByList;
-    
+
     OrderByClauseNode(const std::vector<OrderByDescription>& list)
         : orderByList(list)
     {}
@@ -190,7 +190,7 @@ class LimitClauseNode {
 
         LimitClauseNode(
         const std::string& limit = "",
-        const std::string& offset = "") 
+        const std::string& offset = "")
         : limit(limit),
         offset(offset)
         {}
@@ -200,7 +200,7 @@ class SetOperationNode {
     public:
         std::string setOperation;
 
-        SetOperationNode(const std::string& setOperation) 
+        SetOperationNode(const std::string& setOperation)
         : setOperation(setOperation)
         {}
 };
@@ -229,10 +229,10 @@ public:
 
     explicit ASTNode(AggregateClauseNode node)
         : val(std::move(node)), left(nullptr), right(nullptr) {}
-    
+
     explicit ASTNode(Map node)
         : val(std::move(node)), left(nullptr), right(nullptr) {}
-        
+
     explicit ASTNode(SetOperationNode node)
         : val(std::move(node)), left(nullptr), right(nullptr) {}
 
@@ -253,13 +253,13 @@ public:
 
     explicit ASTNode(OrderByClauseNode node)
         : val(std::move(node)), left(nullptr), right(nullptr) {}
-    
+
     explicit ASTNode(LimitClauseNode node)
         : val(std::move(node)), left(nullptr), right(nullptr) {}
 
     ~ASTNode() {
         delete left;
-        delete right; 
+        delete right;
     }
 };
 

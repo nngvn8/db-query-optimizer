@@ -36,7 +36,7 @@
 //     }
 // }
 
-std::string getRawKey(const BaseType::TableColumn& col) {
+inline std::string getRawKey(const BaseType::TableColumn& col) {
     return col.columnName;
 }
 
@@ -110,7 +110,7 @@ public:
     }
 };
 
-void uniqueColNames(PlanNode* node) {
+inline void uniqueColNames(PlanNode* node) {
     NameGenerator nameGenerator;
     Renamer renamer(nameGenerator);
     renamer.process(node);
