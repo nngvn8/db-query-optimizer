@@ -24,6 +24,8 @@ if(NOT Protobuf_FOUND)
   find_package(Protobuf 3.0 REQUIRED)  # module mode
 endif()
 
+find_package(absl REQUIRED)
+
 # Collect sources generically (no hardcoded file names).
 # CONFIGURE_DEPENDS makes CMake re-scan when files are added/removed.
 file(GLOB_RECURSE PROJECT_SRC
@@ -106,26 +108,26 @@ target_include_directories(optimizer-tmp
 
 # Link against Protobuf. Prefer full lib; fall back to lite if that's what is available.
 if(TARGET protobuf::libprotobuf)
-  target_link_libraries(optimizer-server PRIVATE protobuf::libprotobuf PRIVATE sqlparser PRIVATE jsoncpp_lib)
-  target_link_libraries(optimizer-client PRIVATE protobuf::libprotobuf PRIVATE sqlparser PRIVATE jsoncpp_lib)
-  target_link_libraries(optimizer-compute-unit PRIVATE protobuf::libprotobuf PRIVATE sqlparser PRIVATE jsoncpp_lib)
+  target_link_libraries(optimizer-server PRIVATE protobuf::libprotobuf PRIVATE sqlparser PRIVATE jsoncpp_lib absl::log_internal_check_op)
+  target_link_libraries(optimizer-client PRIVATE protobuf::libprotobuf PRIVATE sqlparser PRIVATE jsoncpp_lib absl::log_internal_check_op)
+  target_link_libraries(optimizer-compute-unit PRIVATE protobuf::libprotobuf PRIVATE sqlparser PRIVATE jsoncpp_lib absl::log_internal_check_op)
 
-  target_link_libraries(optimizer-db-client PRIVATE protobuf::libprotobuf PRIVATE sqlparser PRIVATE jsoncpp_lib)
-  target_link_libraries(optimizer-db-server PRIVATE protobuf::libprotobuf PRIVATE sqlparser PRIVATE jsoncpp_lib)
+  target_link_libraries(optimizer-db-client PRIVATE protobuf::libprotobuf PRIVATE sqlparser PRIVATE jsoncpp_lib absl::log_internal_check_op)
+  target_link_libraries(optimizer-db-server PRIVATE protobuf::libprotobuf PRIVATE sqlparser PRIVATE jsoncpp_lib absl::log_internal_check_op)
 
   # remove
-  target_link_libraries(optimizer-tmp PRIVATE protobuf::libprotobuf PRIVATE sqlparser PRIVATE jsoncpp_lib)
+  target_link_libraries(optimizer-tmp PRIVATE protobuf::libprotobuf PRIVATE sqlparser PRIVATE jsoncpp_lib absl::log_internal_check_op)
 
 elseif(TARGET protobuf::libprotobuf-lite)
-  target_link_libraries(optimizer-server PRIVATE protobuf::libprotobuf-lite PRIVATE sqlparser PRIVATE jsoncpp_lib)
-  target_link_libraries(optimizer-client PRIVATE protobuf::libprotobuf-lite PRIVATE sqlparser PRIVATE jsoncpp_lib)
-  target_link_libraries(optimizer-compute-unit PRIVATE protobuf::libprotobuf-lite PRIVATE sqlparser PRIVATE jsoncpp_lib)
+  target_link_libraries(optimizer-server PRIVATE protobuf::libprotobuf-lite PRIVATE sqlparser PRIVATE jsoncpp_lib absl::log_internal_check_op)
+  target_link_libraries(optimizer-client PRIVATE protobuf::libprotobuf-lite PRIVATE sqlparser PRIVATE jsoncpp_lib absl::log_internal_check_op)
+  target_link_libraries(optimizer-compute-unit PRIVATE protobuf::libprotobuf-lite PRIVATE sqlparser PRIVATE jsoncpp_lib absl::log_internal_check_op)
 
-  target_link_libraries(optimizer-db-client PRIVATE protobuf::libprotobuf-lite PRIVATE sqlparser PRIVATE jsoncpp_lib)
-  target_link_libraries(optimizer-db-server PRIVATE protobuf::libprotobuf-lite PRIVATE sqlparser PRIVATE jsoncpp_lib)
+  target_link_libraries(optimizer-db-client PRIVATE protobuf::libprotobuf-lite PRIVATE sqlparser PRIVATE jsoncpp_lib absl::log_internal_check_op)
+  target_link_libraries(optimizer-db-server PRIVATE protobuf::libprotobuf-lite PRIVATE sqlparser PRIVATE jsoncpp_lib absl::log_internal_check_op)
 
   # remove
-  target_link_libraries(optimizer-tmp PRIVATE protobuf::libprotobuf-lite PRIVATE sqlparser PRIVATE jsoncpp_lib)
+  target_link_libraries(optimizer-tmp PRIVATE protobuf::libprotobuf-lite PRIVATE sqlparser PRIVATE jsoncpp_lib absl::log_internal_check_op)
 else()
   message(FATAL_ERROR "Protobuf library target not found. Is Protobuf installed correctly?")
 endif()
