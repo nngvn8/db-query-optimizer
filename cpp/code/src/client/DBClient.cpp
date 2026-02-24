@@ -34,6 +34,10 @@
 #include <chrono>
 #include <functional>
 
+// Number of Seconds to wait before timing out
+constexpr static int TIMEOUT = 10;
+bool tcpConnected = false;
+
 // shutdown flags
 std::atomic<bool> g_shouldExit{false};
 int g_serverSocket = -1;
@@ -352,9 +356,25 @@ void DBClient::runOptimizerPipeline(ASTNode* root) {
 }
 
 void DBClient::mainClientLoop() {
+    historyFile.open(HISTORY_FILE, std::ios::out | std::ios::trunc);
+    enableRawMode();
+
+    if (!clientConfig.inputFile.empty()) {
+        std::string_view inFile = clientConfig.inputFile;
+        handleSqlFile(inFile);
+
+        for (std::string fileQuery : fileQueries) {
+            std::cout << fileQuery << ";" << std::endl;
+            runOptimizerPipeline(createASTRootNode(fileQuery));
+        }
+    }
+
+    ClientAction action;
+    std::string query;
+
     while (!g_shouldExit.load()) {
-        std::string query;
-        ClientAction action = readQueryInput(query);
+        query.clear();
+        action = readQueryInput(query);
 
         if (g_shouldExit.load())
             break;
@@ -370,7 +390,7 @@ void DBClient::mainClientLoop() {
 
         if (action == ClientAction::SqlFile) {
             for (std::string fileQuery : fileQueries) {
-                std::cout << fileQuery << std::endl;
+                std::cout << fileQuery << ";" << std::endl;
                 runOptimizerPipeline(createASTRootNode(fileQuery));
             }
         }
@@ -378,8 +398,6 @@ void DBClient::mainClientLoop() {
 }
 
 void DBClient::runStandalone() {
-    historyFile.open(HISTORY_FILE, std::ios::out | std::ios::trunc);
-    enableRawMode();
     mainClientLoop();
 }
 
@@ -430,6 +448,7 @@ void DBClient::initCallbacks() {
         const size_t message_size = tuddbs::Utility::serializeItemToMemory(out_mem, unit, info);
 
         tcpClient->notifyHost(out_mem, message_size);
+        tcpConnected = true;
         free(out_mem);
     };
 
@@ -445,15 +464,20 @@ void DBClient::initCallbacks() {
 
 void DBClient::runWithServerConnection() {
     tcpClient->start();
-    std::cout << "Connected to server. Ready to read queries." << std::endl;
 
-    historyFile.open(HISTORY_FILE, std::ios::out | std::ios::trunc);
-    enableRawMode();
-
-    if (!inputFile.empty()) {
-        // TODO input file
+    // only start the main loop once the connection stands
+    auto timeout = std::chrono::steady_clock::now() + std::chrono::seconds(TIMEOUT);
+    while (!tcpConnected && std::chrono::steady_clock::now() < timeout) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
 
+    if (!tcpConnected) {
+        std::cout << "Timeout reached. shutting down." << std::endl;
+        tcpClient->closeConnection();
+        return;
+    }
+
+    std::cout << "Connected to server. Ready to read queries." << std::endl;
     mainClientLoop();
 }
 

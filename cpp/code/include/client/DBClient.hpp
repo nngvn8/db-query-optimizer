@@ -123,7 +123,6 @@ private:
     void disableRawMode();
 
     std::vector<std::string> fileQueries;
-    std::string inputFile;
 
     void saveHistory(const std::string& query);
     std::string_view trim(std::string_view s);
