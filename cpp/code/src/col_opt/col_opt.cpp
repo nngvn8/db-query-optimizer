@@ -304,19 +304,19 @@ LateMaterializationData putLateMaterialization(PlanNode* node, std::set<BaseType
             // Set most recent materialization of children as column
             if (const auto& matChild = matChildren[idxCol])
                 node->children.push_back(matChild);
-
-            // Check if there is a position list we materialized on
-            else if (const auto& latestPosList = pPos[idxCol.table]) {
+            
+            // Check if there is a position list we materialized on 
+            else if (const auto& latestPosListNode = pPos[idxCol.table]) {
                 // Fetch Column needed
                 std::shared_ptr<PlanNode> fetchNode = std::make_shared<PlanNode>();
                 fetchNode->irData = FetchView::create(idxCol, false);
 
                 // Materialize latest position list on it
                 std::shared_ptr<PlanNode> matNode = std::make_shared<PlanNode>();
-                matNode->irData = MaterializeView::create(idxCol, latestPosList->irData.outputCols[0], idxCol);
+                matNode->irData = MaterializeView::create(idxCol, latestPosListNode->irData.outputCols[0], idxCol);
                 matNode->children.push_back(fetchNode);
-                matNode->children.push_back(latestPosList);
-
+                matNode->children.push_back(latestPosListNode);
+                
                 // Make this input for child
                 node->children.push_back(matNode);
             }
@@ -475,17 +475,22 @@ LateMaterializationData putLateMaterializationV2(PlanNode* node, std::set<BaseTy
                 node->children.push_back(matChild);
             
             // Check if there is a position list we materialized on 
-            else if (const auto& latestPosList = curPos[idxCol.table]) {
+            else if (const auto& latestPosListNode = curPos[idxCol.table]) {
+                
                 // Fetch Column needed
                 std::shared_ptr<PlanNode> fetchNode = std::make_shared<PlanNode>();
                 fetchNode->irData = FetchView::create(idxCol, false);
+
+                // Find previous position list col
+                auto hasTable = [&idxCol] (BaseType::TableColumn col) { return col.table == idxCol.table; };
+                BaseType::TableColumn prevPosListCol = *(latestPosListNode->irData.outputCols | std::views::filter(hasTable)).begin();
                 
                 // Materialize latest position list on it
                 std::shared_ptr<PlanNode> matNode = std::make_shared<PlanNode>();
                 bool matNodeOutputsPosList = false;
-                matNode->irData = MaterializeView::create(idxCol, latestPosList->irData.outputCols[0], idxCol, matNodeOutputsPosList);
+                matNode->irData = MaterializeView::create(idxCol, prevPosListCol, idxCol, matNodeOutputsPosList);
                 matNode->children.push_back(fetchNode);
-                matNode->children.push_back(latestPosList);
+                matNode->children.push_back(latestPosListNode);
                 
                 // Make this input for child
                 node->children.push_back(matNode);
@@ -646,17 +651,22 @@ LateMaterializationData putLateMaterializationHybrid(PlanNode* node, std::set<Ba
                 node->children.push_back(matChild);
             
             // Check if there is a position list we materialized on 
-            else if (const auto& latestPosList = curPos[idxCol.table]) {
+            else if (const auto& latestPosListNode = curPos[idxCol.table]) {
+                
                 // Fetch Column needed
                 std::shared_ptr<PlanNode> fetchNode = std::make_shared<PlanNode>();
                 fetchNode->irData = FetchView::create(idxCol, false);
+
+                // Find previous position list col
+                auto hasTable = [&idxCol] (BaseType::TableColumn col) { return col.table == idxCol.table; };
+                BaseType::TableColumn prevPosListCol = *(latestPosListNode->irData.outputCols | std::views::filter(hasTable)).begin();
                 
                 // Materialize latest position list on it
                 std::shared_ptr<PlanNode> matNode = std::make_shared<PlanNode>();
                 bool matNodeOutputsPosList = false;
-                matNode->irData = MaterializeView::create(idxCol, latestPosList->irData.outputCols[0], idxCol, matNodeOutputsPosList);
+                matNode->irData = MaterializeView::create(idxCol, prevPosListCol, idxCol, matNodeOutputsPosList);
                 matNode->children.push_back(fetchNode);
-                matNode->children.push_back(latestPosList);
+                matNode->children.push_back(latestPosListNode);
                 
                 // Make this input for child
                 node->children.push_back(matNode);
