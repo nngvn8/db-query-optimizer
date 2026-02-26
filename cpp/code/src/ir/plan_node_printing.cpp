@@ -117,6 +117,7 @@ namespace {
             std::cout << "]";
         }
     }
+
     void printNodeJson(const PlanNode& node){
         std::cout << node.rawJson->nodeType;
     }

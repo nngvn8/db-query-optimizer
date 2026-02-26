@@ -272,7 +272,11 @@ std::shared_ptr<PlanNode> enrichTree(std::shared_ptr<PlanNode> root, SqlQueryDat
     // Add data from query into the result
     std::vector<std::string> select_cols;
     for (const Selection& col : queryData.selections) {
-        select_cols.push_back(col.content);
+        std::string name = col.content;
+        if (!col.alias.empty())
+            name += " AS " + col.alias;
+
+        select_cols.push_back(name);
     }
 
     // Fill result node and set it as new root of the tree
@@ -411,7 +415,7 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
     else if (auto e = std::get_if<AggregateClauseNode>(&ast->val)) {
         std::optional<AggFunc> aggFunc = mapStringToAggFunc(e->aggregateFunction);
         if (aggFunc.has_value()) {
-            ColumnType inColType = Catalog::getSSBColumnType(e->table, e->column);            
+            ColumnType inColType = Catalog::getSSBColumnType(e->table, e->column);
             ColumnType outColType;
             switch (aggFunc.value()) {
                 case AGG_COUNT:
@@ -440,7 +444,7 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
         ColumnType colTypeInput1 = Catalog::getSSBColumnType(e->table1, e->column1);
         ColumnType colTypeInput2 = Catalog::getSSBColumnType(e->table2, e->column2);
         ArithOp op = mapStringToArithOp(e->operatorType);
-        
+
         ColumnType outColType;
         if (colTypeInput1 == ColumnType::TYPE_STRING || colTypeInput2 == ColumnType::TYPE_STRING
             || (op == ARITH_MOD && !(colTypeInput1 == ColumnType::TYPE_INTEGER && colTypeInput2 == ColumnType::TYPE_INTEGER))) {
@@ -506,7 +510,7 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
     // JOIN Node
     else if (auto e = std::get_if<TableJoinNode>(&ast->val)) {
         ColumnType leftType = Catalog::getSSBColumnType(e->onLeftTable, e->onLeftTableColumn);
-        
+
         // TODO: proper type inference as right value might not be column
         ColumnType rightType = Catalog::getSSBColumnType(e->onRightTable, e->onRightTableColumn);
 
@@ -615,14 +619,14 @@ MaterializationData fillMaterializes(PlanNode* node, std::set<BaseType::TableCol
     if (!node) return MaterializationData();
 
     // Previous materializations available (collected from children, possibly updated here)
-    std::map<BaseType::TableColumn, std::shared_ptr<PlanNode>> pMat; 
-    
+    std::map<BaseType::TableColumn, std::shared_ptr<PlanNode>> pMat;
+
     // Tables below this node (union of tables found below all children)
     std::set<BaseType::Table> allTablesBelow;
 
      // Columns this node needs
     std::set<BaseType::TableColumn> columnsThisNode(node->irData.inputColumns.begin(), node->irData.inputColumns.end());
-    
+
     // Add columns needed by this node to columns needed later
     columnsToMaterializeOn.insert(columnsThisNode.begin(), columnsThisNode.end());
 
