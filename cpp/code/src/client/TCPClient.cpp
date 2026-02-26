@@ -9,6 +9,9 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <chrono>
+#include <limits>
+#include <random>
 #include <functional>
 #include <iostream>
 
@@ -36,7 +39,8 @@ TCPClient::~TCPClient() {
 
 void TCPClient::generateSessionUuid() {
     std::mt19937_64 gen(std::chrono::high_resolution_clock::now().time_since_epoch().count());
-    std::uniform_int_distribution<long long int> dist(0, std::llround(std::pow(2, 64) - 1));
+    // std::uniform_int_distribution<long long int> dist(0, std::llround(std::pow(2, 64) - 1));
+    std::uniform_int_distribution<uint64_t> dist(0, std::numeric_limits<uint64_t>::max());
     _session_uuid = dist(gen);
 }
 
