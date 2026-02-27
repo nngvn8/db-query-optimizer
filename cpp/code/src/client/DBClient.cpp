@@ -34,6 +34,9 @@
 #include <chrono>
 #include <functional>
 
+// PRINTING
+#include <iomanip>
+
 // Number of Seconds to wait before timing out
 constexpr static int TIMEOUT = 10;
 bool tcpConnected = false;
@@ -50,18 +53,17 @@ void DBClient::showHelpInstructions() {
     std::cout
         << std::endl << "RUN" << std::endl
         << "    optimizer-db-client [-FLAG] ... [-ARG <parameter>] ..." << std::endl << std::endl
-        << "GENERAL" << std::endl
-        << "    -ip                 Server IP. If no IP is given use 127.0.0.1" << std::endl
-        << "    -port               Server Port. If no Port is given use 23232" << std::endl
-        << "    -file               Default File for execution of multiple queries" << std::endl
-        << "    -standalone         Standalone. The client runs without Server connection. Used for debugging and testing" << std::endl
-        << "    -help               This Help menu" << std::endl << std::endl
-        << "CONFIGURATION" << std::endl
-        << "    -genPlanDot         Generate Plan dot Files" << std::endl
-        << "    -genSemiJoins       Place Semi Joins" << std::endl
-        << "    -matType [type]     Way of Materialization type = [standard, lateMaterialize, lateMaterializeHybrid]" << std::endl
-        << "    -rmSubsetSort       Remove Group if subset sort" << std::endl
-        << "    -gChildOpt          Grand Children Optimization" << std::endl;
+        << "GENERAL" << std::endl;
+
+    for (const auto& [flag, value] : runFields) {
+        std::cout << "\t" << std::left << std::setw(12) << flag << value << std::endl;
+    }
+
+    std::cout << "\nCONFIGURATIONS" << std::endl;
+
+    for (const auto& [flag, value] : configFields) {
+        std::cout << "\t" << std::left << std::setw(12) << flag << value << std::endl;
+    }
 }
 
 void DBClient::showDebug() {
@@ -86,9 +88,10 @@ void DBClient::showDebug() {
         << "Input File: " << clientConfig.inputFile << std::endl
         << "Standalone: " << std::boolalpha << clientConfig.standalone << std::endl
         << "PlanDot: " << clientConfig.planDot << std::endl
-        << "Semi Join (" << clientConfig.semiJoins << "); Materialize Type(" << mat << "); "
-        << "Remove Sort for Subset (" << clientConfig.rmSubsetSort << "); "
-        << "Grand Child Opt (" << clientConfig.grandChildOpt << ")" << std::endl;
+        << "Semi Join: " << clientConfig.semiJoins << std::endl
+        << "Materialize Type: " << mat << std::endl
+        << "Merge Sort into Group if Subset: " << clientConfig.mergeSubsetSort << std::endl
+        << "Grand Child Opt: " << clientConfig.grandChildOpt << std::endl;
 }
 
 void DBClient::enableRawMode() {
@@ -286,7 +289,7 @@ void DBClient::runOptimizerPipeline(ASTNode* root) {
         createPlanDotFile(*ir_root, "ir_plan_semi_j.dot", DotContentType::IR_DATA);
     }
 
-    if (clientConfig.rmSubsetSort) {
+    if (clientConfig.mergeSubsetSort) {
         mergeSortIntoGroupIfSubset(&ir_root);
     }
     createPlanDotFile(*ir_root, "ir_plan_merge_sort.dot", DotContentType::IR_DATA);

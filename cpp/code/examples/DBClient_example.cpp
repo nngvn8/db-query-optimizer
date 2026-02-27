@@ -17,9 +17,9 @@ int main(int argc, char* argv[]) {
     config.standalone = parser.takeParseFlag("-standalone");
     config.debug = parser.takeParseFlag("-debug");
 
-    config.planDot = parser.takeParseFlag("-genPlanDot");
-    config.semiJoins = parser.takeParseFlag("-genSemiJoins");
-    config.rmSubsetSort = parser.takeParseFlag("-rmSubsetSort");
+    config.planDot = parser.takeParseFlag("-planDot");
+    config.semiJoins = parser.takeParseFlag("-semiJoins");
+    config.mergeSubsetSort = parser.takeParseFlag("-mergeSort");
     config.grandChildOpt = parser.takeParseFlag("-gChildOpt");
 
     const std::string& materialize = parser.takeParseArg<std::string>("-matType", "", "standard", false);

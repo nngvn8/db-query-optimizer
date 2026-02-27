@@ -21,6 +21,25 @@
 #include "ir/plan_node.hpp"
 #include "ir/plan_node_to_dot.hpp"
 
+static std::vector<std::pair<std::string, std::string>> runFields {
+    // GENERAL FLAGS
+    {"-ip", "Server IP. If no IP is given use 127.0.0.1"},
+    {"-port", "Server port. If no port is given use 23232"},
+    {"-file", "Default file for single execution of multiple queries"},
+    {"-standalone", "Run in standalone. The client runs without server connection. Used for debugging and testing"},
+    {"-help", "Display the help menu"},
+    {"-debug", "Display debug information"}
+};
+
+static std::vector<std::pair<std::string, std::string>> configFields {
+    // CONFIGURATIONS
+    {"-planDot", "Generate plan dot files"},
+    {"-matType", "Type of materialization to be used in the optimization. Type = [standard, lateMaterialize, lateMaterializeHybrid]"},
+    {"-mergeSort", "Merging of sort into group if subset is present"},
+    {"-semiJoins", "Place Semi Joins"},
+    {"-gChildOpt", "Use grand children optimization"}
+};
+
 enum class MaterializeOptTypes {
     fillMaterializes,
     putLateMaterialization,
@@ -37,7 +56,7 @@ struct ClientConfiguration {
 
     bool planDot = false;
     bool semiJoins = false;
-    bool rmSubsetSort = false;
+    bool mergeSubsetSort = false;
     bool grandChildOpt = false;
 
     MaterializeOptTypes matType = MaterializeOptTypes::fillMaterializes;
