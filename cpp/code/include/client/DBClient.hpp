@@ -42,9 +42,9 @@ struct ClientConfiguration {
 
     MaterializeOptTypes matType = MaterializeOptTypes::fillMaterializes;
     void setMatType(const std::string& type) {
-        if (type == "putLateMaterialization") {
+        if (type == "lateMaterialize") {
             matType = MaterializeOptTypes::putLateMaterialization;
-        } else if (type == "putLateMaterializationsHybrid") {
+        } else if (type == "lateMaterializeHybrid") {
             matType = MaterializeOptTypes::putLateMaterializationsHybrid;
         } else {
             matType = MaterializeOptTypes::fillMaterializes;
