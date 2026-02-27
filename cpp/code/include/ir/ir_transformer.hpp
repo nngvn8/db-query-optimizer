@@ -25,3 +25,12 @@ struct MaterializationData {
 MaterializationData fillMaterializes(PlanNode* node, std::set<BaseType::TableColumn> columnsToMaterializeOn = {}, const std::set<BaseType::TableColumn>& inputOfParent = {});
 
 void irToApiData(PlanNode* node);
+
+// Helpers
+namespace IrTransformHelpers {
+    CompType mapStringToCompType(const std::string& op);
+    BaseType::Join mapStringToJoinType(std::string type);
+    RelOp mapStringToRelOp(std::string op);
+    std::optional<AggFunc> mapStringToAggFunc(std::string func);
+    ArithOp mapStringToArithOp(const std::string& op);
+}

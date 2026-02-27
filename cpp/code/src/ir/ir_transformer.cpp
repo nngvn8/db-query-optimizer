@@ -287,7 +287,7 @@ std::shared_ptr<PlanNode> enrichTree(std::shared_ptr<PlanNode> root, SqlQueryDat
     return resultNode;
 }
 
-namespace {
+namespace IrTransformHelpers {
 
     // --- Helper Functions for Enum Mapping ---
 
@@ -413,7 +413,7 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
     }
     // Aggregation
     else if (auto e = std::get_if<AggregateClauseNode>(&ast->val)) {
-        std::optional<AggFunc> aggFunc = mapStringToAggFunc(e->aggregateFunction);
+        std::optional<AggFunc> aggFunc = IrTransformHelpers::mapStringToAggFunc(e->aggregateFunction);
         if (aggFunc.has_value()) {
             ColumnType inColType = Catalog::getSSBColumnType(e->table, e->column);
             ColumnType outColType;
@@ -443,7 +443,7 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
     else if (auto e = std::get_if<Map>(&ast->val)) {
         ColumnType colTypeInput1 = Catalog::getSSBColumnType(e->table1, e->column1);
         ColumnType colTypeInput2 = Catalog::getSSBColumnType(e->table2, e->column2);
-        ArithOp op = mapStringToArithOp(e->operatorType);
+        ArithOp op = IrTransformHelpers::mapStringToArithOp(e->operatorType);
 
         ColumnType outColType;
         if (colTypeInput1 == ColumnType::TYPE_STRING || colTypeInput2 == ColumnType::TYPE_STRING
@@ -470,22 +470,22 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
         std::optional<BaseType::TableColumn> col2 = std::nullopt;
 
         std::vector<std::variant<uint64_t, float, std::string>> filterArgs;
-        CompType opType = mapStringToCompType(e->operatorType);
+        CompType opType = IrTransformHelpers::mapStringToCompType(e->operatorType);
 
         // TODO: Or capabilities limited by ast parsing: Always or of two equalities
         if (e->operatorType == "OR") {
             opType = CompType::COMP_IN;
 
-            filterArgs.push_back(parseValueByType(e->value, colType));
+            filterArgs.push_back(IrTransformHelpers::parseValueByType(e->value, colType));
             if (!e->value2.empty()) {
-                filterArgs.push_back(parseValueByType(e->value2, colType));
+                filterArgs.push_back(IrTransformHelpers::parseValueByType(e->value2, colType));
             }
         }
         else if (e->operatorType == "BETWEEN") {
             opType = CompType::COMP_BETWEEN;
 
-            filterArgs.push_back(parseValueByType(e->value, colType));
-            filterArgs.push_back(parseValueByType(e->value2, colType));
+            filterArgs.push_back(IrTransformHelpers::parseValueByType(e->value, colType));
+            filterArgs.push_back(IrTransformHelpers::parseValueByType(e->value2, colType));
         }
         // Column based filter (or join)
         else if (!e->column.empty() && !e->column2.empty()) {
@@ -495,7 +495,7 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
         }
         // Single value filter
         else {
-            filterArgs.push_back(parseValueByType(e->value, colType));
+            filterArgs.push_back(IrTransformHelpers::parseValueByType(e->value, colType));
         }
 
         node->irData = FilterView::create(
@@ -522,7 +522,7 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
             leftCol,
             rightCol,
             outCol,
-            mapStringToJoinType(e->joinType),
+            IrTransformHelpers::mapStringToJoinType(e->joinType),
             CompType::COMP_EQ
         );
     }
@@ -542,7 +542,7 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
             dummy,
             dummy,
             outCol,
-            mapStringToRelOp(e->setOperation)
+            IrTransformHelpers::mapStringToRelOp(e->setOperation)
         );
     }
     // Base Table

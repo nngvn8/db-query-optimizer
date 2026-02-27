@@ -13,6 +13,7 @@
 #include "WorkItem.pb.h"
 #include "ir/ir_views.hpp"
 #include "ir/catalog.hpp"
+#include "ir/ir_transformer.hpp"
 
 static inline std::string trim(const std::string& s) {
     size_t start = 0;
@@ -65,35 +66,6 @@ parseJoinCondition(const std::string& input) {
         }
     }
     throw std::invalid_argument("Unsupported condition");
-}
-
-// HELPERS
-CompType mapStringToCompType(const std::string& op) {
-    if (op == "=") return COMP_EQ;
-    if (op == "<") return COMP_LT;
-    if (op == "<=") return COMP_LE;
-    if (op == ">") return COMP_GT;
-    if (op == ">=") return COMP_GE;
-    if (op == "!=" || op == "<>") return COMP_NE;
-    if (op == "BETWEEN") return COMP_BETWEEN; // Simplification
-    if (op == "IN") return COMP_IN;
-    return COMP_EQ; // Default fallback
-}
-
-std::optional<AggFunc> mapStringToAggFunc(const std::string& func) {
-    if (func.empty())
-        return std::nullopt;
-
-    std::string f = func;
-    std::transform(f.begin(), f.end(), f.begin(), ::toupper);
-
-    if (f == "SUM") return AGG_SUM;
-    if (f == "COUNT") return AGG_COUNT;
-    if (f == "MIN") return AGG_MIN;
-    if (f == "MAX") return AGG_MAX;
-    if (f == "AVG") return AGG_AVG;
-
-    return std::nullopt;
 }
 
 bool isAggColumn(const std::string& name) {
@@ -213,7 +185,7 @@ std::shared_ptr<PlanNode> AbstractToIr::abstractToIr(std::shared_ptr<PlanNode> n
         // Filter Node(s)
         for (const auto& filterStr : source->filters) {
             ParsedCondition conditionFields = ConditionParser::parseCondition(filterStr);
-            CompType comp = mapStringToCompType(conditionFields.op);
+            CompType comp = IrTransformHelpers::mapStringToCompType(conditionFields.op);
 
             ColumnType colType = Catalog::getSSBColumnType(source->basetable, conditionFields.column);
             BaseType::TableColumn inputCol(BaseType::Table(table), conditionFields.column, colType);
@@ -242,13 +214,13 @@ std::shared_ptr<PlanNode> AbstractToIr::abstractToIr(std::shared_ptr<PlanNode> n
         BaseType::TableColumn rightCol(BaseType::Table(join->right_table), rightColName, rightType);
         BaseType::TableColumn outCol(BaseType::Table("JOIN"), leftColName + joinOp + rightColName, ColumnType::TYPE_INTEGER);
 
-        node->irData = JoinView::create(leftCol, rightCol, outCol, BaseType::Join::INNER_JOIN, mapStringToCompType(joinOp));
+        node->irData = JoinView::create(leftCol, rightCol, outCol, BaseType::Join::INNER_JOIN, IrTransformHelpers::mapStringToCompType(joinOp));
     }
 
     // ==================== AGGREGATION ====================
     const AbstractAgg* agg = std::get_if<AbstractAgg>(&node->abstractData);
     if (agg) {
-        auto aggFunc = mapStringToAggFunc(agg->agg_type);
+        auto aggFunc = IrTransformHelpers::mapStringToAggFunc(agg->agg_type);
         ColumnType inColType = Catalog::getSSBColumnType("", agg->agg_mapping);
 
         ColumnType outColType;
