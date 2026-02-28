@@ -33,6 +33,16 @@ static inline std::string toUpper(std::string s) {
     return s;
 }
 
+std::string removeAllWhitespace(const std::string& s) {
+    std::string result;
+    result.reserve(s.size());
+
+    std::copy_if(s.begin(), s.end(), std::back_inserter(result),
+                 [](unsigned char c){ return !std::isspace(c); });
+
+    return result;
+}
+
 std::tuple<std::string, std::string, std::string>
 parseJoinCondition(const std::string& input) {
     std::string expr = trim(input);
@@ -66,6 +76,60 @@ parseJoinCondition(const std::string& input) {
         }
     }
     throw std::invalid_argument("Unsupported condition");
+}
+
+bool containsAggOperator(const std::string& str) {
+    return str.find_first_of("+-*/%") != std::string::npos;
+}
+
+std::tuple<std::string, char, std::string>
+parseAggFunction(const std::string& input) {
+    std::string lhs, rhs;
+    char op = 0;
+
+    size_t i = 0;
+
+    // Skip leading spaces
+    while (i < input.size() && std::isspace(input[i])) ++i;
+
+    // Parse left operand
+    while (i < input.size() &&
+           input[i] != '+' &&
+           input[i] != '-' &&
+           input[i] != '*' &&
+           input[i] != '/' &&
+           input[i] != '%') {
+        lhs += input[i++];
+    }
+
+    if (i >= input.size())
+        throw std::invalid_argument("No operator found");
+
+    // Trim trailing space from lhs
+    while (!lhs.empty() && std::isspace(lhs.back()))
+        lhs.pop_back();
+
+    op = input[i++];
+
+    if (op != '+' && op != '-' && op != '*' && op != '/' && op != '%')
+        throw std::invalid_argument("Invalid operator");
+
+    // Skip spaces after operator
+    while (i < input.size() && std::isspace(input[i])) ++i;
+
+    // Parse right operand
+    while (i < input.size()) {
+        rhs += input[i++];
+    }
+
+    // Trim trailing space from rhs
+    while (!rhs.empty() && std::isspace(rhs.back()))
+        rhs.pop_back();
+
+    if (lhs.empty() || rhs.empty())
+        throw std::invalid_argument("Invalid expression format");
+
+    return {lhs, op, rhs};
 }
 
 bool isAggColumn(const std::string& name) {
@@ -178,9 +242,8 @@ std::shared_ptr<PlanNode> AbstractToIr::abstractToIr(std::shared_ptr<PlanNode> n
     if (source) {
         BaseType::Table table(source->basetable);
 
-        // Base fetch node
-        BaseType::TableColumn baseCol(table, "", ColumnType::TYPE_INTEGER);
-        node->irData = FetchView::create(baseCol, true);
+        std::shared_ptr<PlanNode>& parentNode = node;
+        bool parent = true;
 
         // Filter Node(s)
         for (const auto& filterStr : source->filters) {
@@ -194,11 +257,23 @@ std::shared_ptr<PlanNode> AbstractToIr::abstractToIr(std::shared_ptr<PlanNode> n
             for (const std::string& arg : conditionFields.arguments)
                 args.push_back(arg);
 
-            auto filterNode = std::make_shared<PlanNode>();
-            filterNode->irData = FilterView::create(inputCol, comp, std::nullopt, args, inputCol);
+            if (parent) {
+                node->irData = FilterView::create(inputCol, comp, std::nullopt, args, inputCol);
+                parent = false;
+            } else {
+                auto filterNode = std::make_shared<PlanNode>();
+                filterNode->irData = FilterView::create(inputCol, comp, std::nullopt, args, inputCol);
 
-            node->children.push_back(filterNode);
+                node->children.push_back(filterNode);
+                parentNode = filterNode;
+            }
         }
+
+        auto fetchNode = std::make_shared<PlanNode>();
+        BaseType::TableColumn baseCol(table, "", ColumnType::TYPE_INTEGER);
+        fetchNode->irData = FetchView::create(baseCol, true);
+
+        parentNode->children.push_back(fetchNode);
     }
 
     // ==================== JOIN ====================
@@ -230,11 +305,49 @@ std::shared_ptr<PlanNode> AbstractToIr::abstractToIr(std::shared_ptr<PlanNode> n
             default:        outColType = inColType;
         }
 
-        const std::string& firstColName = ConditionParser::getFirstTokenString(agg->agg_mapping);
-        BaseType::TableColumn aggInCol(BaseType::Table(Catalog::getTableName(firstColName)), firstColName, inColType);
-        BaseType::TableColumn aggOutCol(BaseType::Table("AGG"), agg->agg_alias, outColType);
+        // ==================== MAP ====================
+        if (containsAggOperator(agg->agg_mapping)) {
+            auto [aggIn1, op, aggIn2] = parseAggFunction(agg->agg_mapping);
 
-        node->irData = AggView::create(aggInCol, aggOutCol, *aggFunc);
+            const std::string aggTable1 = Catalog::getTableName(aggIn1);
+            ColumnType aggInColType1 = Catalog::getSSBColumnType(aggTable1, aggIn1);
+            BaseType::TableColumn aggInCol1(aggTable1, aggIn1, aggInColType1);
+
+            const std::string aggTable2 = Catalog::getTableName(aggIn2);
+            ColumnType aggInColType2 = Catalog::getSSBColumnType(aggTable2, aggIn2);
+            BaseType::TableColumn aggInCol2(aggTable2, aggIn2, aggInColType2);
+
+            std::string opStr(1, op);
+            ArithOp aggOp = IrTransformHelpers::mapStringToArithOp(opStr);
+
+            ColumnType outColType;
+            if (aggInColType1 == ColumnType::TYPE_STRING || aggInColType2 == ColumnType::TYPE_STRING
+                || (op == ARITH_MOD && !(aggInColType1 == ColumnType::TYPE_INTEGER && aggInColType2 == ColumnType::TYPE_INTEGER))) {
+                throw std::runtime_error("Invalid types for arithmetic operation");
+            }
+            if (aggInColType1 == ColumnType::TYPE_FLOAT || aggInColType2 == ColumnType::TYPE_FLOAT) {
+                outColType = ColumnType::TYPE_FLOAT;
+            }
+            else {
+                outColType = ColumnType::TYPE_INTEGER;
+            }
+
+            BaseType::TableColumn outCol(BaseType::Table("MAP"), aggIn1 + opStr + aggIn2, ColumnType::TYPE_INTEGER);
+            auto mapNode = std::make_shared<PlanNode>();
+            mapNode->irData = MapView::create(aggInCol1, aggOp, aggInCol2, outCol);
+            node->children.push_back(mapNode);
+
+            BaseType::TableColumn aggOutCol(BaseType::Table("AGG"), agg->agg_alias, outColType);
+            node->irData = AggView::create(outCol, aggOutCol, *aggFunc);
+
+            node->irData = MapView::create(aggInCol1, aggOp, aggInCol2, outCol);
+        } else {
+            const std::string& firstColName = ConditionParser::getFirstTokenString(agg->agg_mapping);
+            BaseType::TableColumn aggInCol(BaseType::Table(Catalog::getTableName(firstColName)), firstColName, inColType);
+            BaseType::TableColumn aggOutCol(BaseType::Table("AGG"), agg->agg_alias, outColType);
+
+            node->irData = AggView::create(aggInCol, aggOutCol, *aggFunc);
+        }
     }
 
     // ==================== SORT ====================
@@ -270,7 +383,8 @@ std::shared_ptr<PlanNode> AbstractToIr::abstractToIr(std::shared_ptr<PlanNode> n
                 tableName = "AGG";
             }
 
-            BaseType::TableColumn resultCol(BaseType::Table(tableName), colAlias.name, type, colAlias.alias);
+            std::string colTrimName = removeAllWhitespace(colAlias.name);
+            BaseType::TableColumn resultCol(BaseType::Table(tableName), colTrimName, type, colAlias.alias);
             resultCols.emplace_back(resultCol);
         }
         node->irData = SelectView::create(resultCols);
