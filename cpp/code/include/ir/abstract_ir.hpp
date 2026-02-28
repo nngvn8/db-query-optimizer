@@ -23,6 +23,7 @@ struct AbstractAgg {
 
 struct AbstractSort {
     std::vector<std::string> column_names;
+    std::vector<std::string> aliases;
     std::vector<bool> asc;
 
 };

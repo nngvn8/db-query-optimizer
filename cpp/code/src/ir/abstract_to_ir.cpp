@@ -237,16 +237,22 @@ namespace ConditionParser {
 
 std::shared_ptr<PlanNode> AbstractToIr::abstractToIr(std::shared_ptr<PlanNode> node) {
 
+    // RECURSION
+    for (size_t i = 0; i < node->children.size(); i++) {
+        abstractToIr(node->children[i]);
+    }
+
     // ==================== SOURCE ====================
     const AbstractSource* source = std::get_if<AbstractSource>(&node->abstractData);
     if (source) {
         BaseType::Table table(source->basetable);
 
-        std::shared_ptr<PlanNode>& parentNode = node;
-        bool parent = true;
+        std::vector<std::shared_ptr<PlanNode>> filterNodes;
 
-        // Filter Node(s)
+        // Create Filter Node(s)
         for (const auto& filterStr : source->filters) {
+            std::shared_ptr<PlanNode> filterNode = std::make_shared<PlanNode>();
+
             ParsedCondition conditionFields = ConditionParser::parseCondition(filterStr);
             CompType comp = IrTransformHelpers::mapStringToCompType(conditionFields.op);
 
@@ -257,23 +263,36 @@ std::shared_ptr<PlanNode> AbstractToIr::abstractToIr(std::shared_ptr<PlanNode> n
             for (const std::string& arg : conditionFields.arguments)
                 args.push_back(arg);
 
-            if (parent) {
-                node->irData = FilterView::create(inputCol, comp, std::nullopt, args, inputCol);
-                parent = false;
-            } else {
-                auto filterNode = std::make_shared<PlanNode>();
-                filterNode->irData = FilterView::create(inputCol, comp, std::nullopt, args, inputCol);
-
-                node->children.push_back(filterNode);
-                parentNode = filterNode;
-            }
+            filterNode->irData = FilterView::create(inputCol, comp, std::nullopt, args, inputCol);
+            filterNodes.push_back(filterNode);
         }
 
+        // Create fetch node
         auto fetchNode = std::make_shared<PlanNode>();
         BaseType::TableColumn baseCol(table, "", ColumnType::TYPE_INTEGER);
         fetchNode->irData = FetchView::create(baseCol, true);
 
-        parentNode->children.push_back(fetchNode);
+        // There is at least one filter
+        if (!filterNodes.empty()) {
+            // Wire filter nodes
+            for (size_t i = 0; i < filterNodes.size() - 1; ++i) {
+                filterNodes[i]->children.push_back(filterNodes[i+1]);
+            }
+
+            // Append fetch node as last child
+            filterNodes.back()->children.push_back(fetchNode);
+
+            // Make this node the first filter node
+            node->irData = filterNodes[0]->irData;
+            node->children = filterNodes[0]->children;
+        } 
+        
+        // There is only the fetch node and not filters
+        else {
+            node->irData = fetchNode->irData;
+            node->children.clear();
+        }
+
     }
 
     // ==================== JOIN ====================
@@ -320,31 +339,37 @@ std::shared_ptr<PlanNode> AbstractToIr::abstractToIr(std::shared_ptr<PlanNode> n
             std::string opStr(1, op);
             ArithOp aggOp = IrTransformHelpers::mapStringToArithOp(opStr);
 
-            ColumnType outColType;
+            ColumnType mapOutColType;
             if (aggInColType1 == ColumnType::TYPE_STRING || aggInColType2 == ColumnType::TYPE_STRING
                 || (op == ARITH_MOD && !(aggInColType1 == ColumnType::TYPE_INTEGER && aggInColType2 == ColumnType::TYPE_INTEGER))) {
                 throw std::runtime_error("Invalid types for arithmetic operation");
             }
             if (aggInColType1 == ColumnType::TYPE_FLOAT || aggInColType2 == ColumnType::TYPE_FLOAT) {
-                outColType = ColumnType::TYPE_FLOAT;
+                mapOutColType = ColumnType::TYPE_FLOAT;
             }
             else {
-                outColType = ColumnType::TYPE_INTEGER;
+                mapOutColType = ColumnType::TYPE_INTEGER;
             }
 
-            BaseType::TableColumn outCol(BaseType::Table("MAP"), aggIn1 + opStr + aggIn2, ColumnType::TYPE_INTEGER);
+            BaseType::TableColumn mapOutCol(BaseType::Table("MAP"), aggIn1 + opStr + aggIn2, mapOutColType);
             auto mapNode = std::make_shared<PlanNode>();
-            mapNode->irData = MapView::create(aggInCol1, aggOp, aggInCol2, outCol);
+            mapNode->irData = MapView::create(aggInCol1, aggOp, aggInCol2, mapOutCol);
+
+            // Move children to map node
+            mapNode->children = node->children;
+            node->children.clear();
             node->children.push_back(mapNode);
 
-            BaseType::TableColumn aggOutCol(BaseType::Table("AGG"), agg->agg_alias, outColType);
-            node->irData = AggView::create(outCol, aggOutCol, *aggFunc);
+            // Compute type of output column of aggFunc
+            std::string aggOutColName = agg->agg_type + "(" + mapOutCol.columnName + ")";
+            BaseType::TableColumn aggOutCol(BaseType::Table("AGG"), aggOutColName, outColType, agg->agg_alias);
+            node->irData = AggView::create(mapOutCol, aggOutCol, *aggFunc);
 
-            node->irData = MapView::create(aggInCol1, aggOp, aggInCol2, outCol);
         } else {
             const std::string& firstColName = ConditionParser::getFirstTokenString(agg->agg_mapping);
             BaseType::TableColumn aggInCol(BaseType::Table(Catalog::getTableName(firstColName)), firstColName, inColType);
-            BaseType::TableColumn aggOutCol(BaseType::Table("AGG"), agg->agg_alias, outColType);
+            std::string aggOutColName = agg->agg_type + "(" + aggInCol.columnName + ")";
+            BaseType::TableColumn aggOutCol(BaseType::Table("AGG"), aggOutColName, outColType, agg->agg_alias);
 
             node->irData = AggView::create(aggInCol, aggOutCol, *aggFunc);
         }
@@ -357,16 +382,22 @@ std::shared_ptr<PlanNode> AbstractToIr::abstractToIr(std::shared_ptr<PlanNode> n
         std::string sortColString = "SORT_";
 
         for (size_t i = 0; i < sort->column_names.size(); ++i) {
-            ColumnType type = Catalog::getSSBColumnType("", sort->column_names[i]);
-            std::string tableName = Catalog::getTableName(sort->column_names[i]);
+            std::string colName = sort->column_names[i];
+            ColumnType type = Catalog::getSSBColumnType("", colName);
+            std::string tableName = Catalog::getTableName(colName);
 
-            BaseType::TableColumn col(BaseType::Table(tableName), sort->column_names[i], type);
+            if (tableName == "Default" && isAggColumn(colName)) {
+                tableName = "AGG";
+            }
+
+            std::optional<std::string> alias_opt = sort->aliases[i].empty() ? std::nullopt : std::make_optional(sort->aliases[i]);
+            BaseType::TableColumn col(BaseType::Table(tableName), colName, type, alias_opt);
 
             orders.emplace_back(col, sort->asc[i], false);
             sortColString += tableName + "." + sort->column_names[i] + (i < (sort->column_names.size() - 1) ? "_" : "");
         }
 
-        BaseType::TableColumn outCol(BaseType::Table(""), sortColString, ColumnType::TYPE_INTEGER);
+        BaseType::TableColumn outCol(BaseType::Table("SORT"), sortColString, ColumnType::TYPE_INTEGER);
         node->irData = SortOrderView::create(orders, outCol);
     }
 
@@ -390,9 +421,5 @@ std::shared_ptr<PlanNode> AbstractToIr::abstractToIr(std::shared_ptr<PlanNode> n
         node->irData = SelectView::create(resultCols);
     }
 
-    // RECURSION
-    for (size_t i = 0; i < node->children.size(); i++) {
-        abstractToIr(node->children[i]);
-    }
     return node;
 }

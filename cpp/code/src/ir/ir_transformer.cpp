@@ -78,6 +78,24 @@ void removeDeepAggregate(std::shared_ptr<PlanNode>& node) {
     }
 }
 
+void removeDeepSort(std::shared_ptr<PlanNode>& node) {
+    // Pointer to the shared_ptr we are currently inspecting
+    std::shared_ptr<PlanNode>* currentPtr = &node;
+
+    // Find sort
+    while (*currentPtr && !isNodeType(currentPtr->get(), SORT)) {
+        if ((*currentPtr)->children.empty()) return;
+        currentPtr = &((*currentPtr)->children[0]);
+    }
+
+    // Replace the sort with its own child
+    if (*currentPtr && isNodeType(currentPtr->get(), SORT)) {
+        if ((*currentPtr)->children.size() == 1) {
+            *currentPtr = (*currentPtr)->children[0];
+        }
+    }
+}
+
 std::shared_ptr<PlanNode> pruneTree(std::shared_ptr<PlanNode> node) {
     if (!node) return nullptr;
 
@@ -116,6 +134,14 @@ std::shared_ptr<PlanNode> pruneTree(std::shared_ptr<PlanNode> node) {
         }
     }
 
+    // Remove Sort below Sort
+    if (SORT.count(currentType)) {
+        if (node->children.size() == 1) {
+            removeDeepSort(node->children[0]);
+        }
+    }
+
+
     // Collapse bitmap
     if (BITMAP.count(currentType) && node->children.size() == 1) {
         PlanNode* childPtr = node->children[0].get();
@@ -138,6 +164,17 @@ std::shared_ptr<PlanNode> pruneTree(std::shared_ptr<PlanNode> node) {
 
     // Generate abstract representation and fill with needed raw data
     node->abstractData = convertToAbstract(node->rawJson.value());
+
+    // Swap Agg and Sort if Sort is below Agg
+    if (std::holds_alternative<AbstractAgg>(node->abstractData)) {
+        if (!node->children.empty()) {
+            PlanNode* child = node->children[0].get();
+            if (std::holds_alternative<AbstractSort>(child->abstractData)) {
+                std::swap(node->abstractData, child->abstractData);
+                std::swap(node->rawJson, child->rawJson);
+            }
+        }
+    }
 
     return node; // Return the modified (but same pointer) node
 }
@@ -215,12 +252,28 @@ std::set<std::string> enrichTreeSub(PlanNode* node, SqlQueryData& queryData){
     // Case sort node
     if (AbstractSort* sort = std::get_if<AbstractSort>(&node->abstractData)) {
         std::vector<std::string> col_names;
+        std::vector<std::string> aliases;
         std::vector<bool> sort_orders;
+        std::map<std::string, std::string> aliasMap;
+
+        for (const Selection& col : queryData.selections) {
+            if (!col.alias.empty()) {
+                aliasMap[col.alias] = col.content;
+            }
+        }
+
         for (int i=0; i < queryData.sorting.size(); ++i){
-            col_names.push_back(queryData.sorting[i].field);
+            std::string sorting_entry = queryData.sorting[i].field;
+            bool sorting_entry_is_alias = aliasMap.contains(sorting_entry);
+            std::string col_name = !sorting_entry_is_alias ? sorting_entry : aliasMap[sorting_entry];
+            std::string alias = sorting_entry_is_alias ? sorting_entry : "";
+
+            col_names.push_back(col_name);
+            aliases.push_back(alias);
             sort_orders.push_back(queryData.sorting[i].asc);
         }
         sort->column_names = col_names;
+        sort->aliases = aliases;
         sort->asc = sort_orders;
     }
 

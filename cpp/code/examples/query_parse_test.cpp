@@ -7,9 +7,10 @@
 #include "util/sequentializer.hpp"
 #include "col_opt/col_opt.hpp"
 #include "util/unique_col_names.hpp"
+#include "ir/plan_node_to_dot.hpp"
 
 int main(){
-    std::string base_dir = "../pb-plans/";
+    std::string base_dir = "../../pb-plans/";
     std::vector<std::string> json_plan_files = {"q1-1-plan.json", "q1-2-plan.json", "q1-3-plan.json", "q2-1-plan.json", "q2-2-plan.json", "q2-3-plan.json", "q3-1-plan.json", "q3-2-plan.json", "q3-3-plan.json", "q3-4-plan.json", "q4-1-plan.json", "q4-2-plan.json", "q4-3-plan.json"};
     std::vector<std::string> ssb_queries = {"q1-1.sql", "q1-2.sql", "q1-3.sql", "q2-1.sql", "q2-2.sql", "q2-3.sql", "q3-1.sql", "q3-2.sql", "q3-3.sql", "q3-4.sql", "q4-1.sql", "q4-2.sql", "q4-3.sql"};
 
@@ -32,6 +33,8 @@ int main(){
 
         AbstractToIr::abstractToIr(planNodeRoot);
 
+        generatePlanDotFile(*planNodeRoot, "ir_plan.dot", DotContentType::IR_DATA);
+
         std::cout << "\nSEQUENCE\n" << std::endl;
 
         std::vector<const PlanNode*> sequenced_plan = to_sequence_children_list<PlanNode>(planNodeRoot.get());
@@ -46,6 +49,5 @@ int main(){
         sequenced_plan = to_sequence_children_list<PlanNode>(planNodeRoot.get());
         printSequencedPlan(sequenced_plan);
 
-        break;
     }
 }

@@ -29,7 +29,8 @@ SRC_DIRS := ./src
 SOURCES := $(shell find $(SRC_DIRS) -name '*.cpp')
 # SOURCES := $(filter-out $(EXCLUDES), $(SOURCES))
 SOURCES += $(PROTO_SRC)
-SOURCES += ./examples/main.cpp
+# SOURCES += ./examples/main.cpp
+SOURCES += ./examples/query_parse_test.cpp
 
 OBJECTS := $(SOURCES:%.cpp=$(BUILD_DIR)/%.o)
 OBJECTS := $(OBJECTS:%.cc=$(BUILD_DIR)/%.o)
