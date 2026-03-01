@@ -232,7 +232,7 @@ MaterializationData fillMaterializes(PlanNode* node, std::set<BaseType::TableCol
                 node->children.push_back(pMat[idxCol]);
             // This should not happen (currently ocuring because no proper map nodes)
             else {
-                std::cout << "scream" << std::endl;
+                std::cout << "Error: Column " << idxCol.table.name << "." << idxCol.columnName << " required but not found in materialization process (matType: standard)." << std::endl;
             }
         }
     }

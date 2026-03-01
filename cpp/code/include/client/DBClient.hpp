@@ -47,11 +47,11 @@ static std::vector<std::pair<std::string, std::string>> runFields {
 /// A list of fields related to the configuration of the optimizer.
 static std::vector<std::pair<std::string, std::string>> configFields {
     // CONFIGURATIONS
-    {"-planDot", "Generate plan dot files"},
-    {"-matType", "Type of materialization to be used in the optimization. Type = [standard, lateMaterialize, lateMaterializeHybrid]"},
-    {"-mergeSort", "Merging of sort into group if subset is present"},
-    {"-semiJoins", "Place Semi Joins"},
-    {"-gChildOpt", "Use grand children optimization"}
+    {"-genPlanDot", "Generate plan dot files"},
+    {"-matType", "Materialization strategy [std, lateMat, lateMatHybrid]"},
+    {"-mergeSort", "Merge sort into group if all sort-columns in group-columns."},
+    {"-semiJoins", "Replace joins with semi-joins if possible."},
+    {"-gChildOpt", "Enable grand children optimization (reuse materializations for operation after)."}
 };
 
 /**
@@ -89,9 +89,9 @@ struct ClientConfiguration {
      * @param type The string representation of the materialization type.
      */
     void setMatType(const std::string& type) {
-        if (type == "lateMaterialize") {
+        if (type == "lateMat") {
             matType = MaterializeOptTypes::putLateMaterialization;
-        } else if (type == "lateMaterializeHybrid") {
+        } else if (type == "lateMatHybrid") {
             matType = MaterializeOptTypes::putLateMaterializationsHybrid;
         } else {
             matType = MaterializeOptTypes::fillMaterializes;
