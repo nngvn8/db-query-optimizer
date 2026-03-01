@@ -120,14 +120,14 @@ int main() {
     generatePlanDotFile(*ir_root, "ir_plan.dot", DotContentType::IR_DATA);
 
     // Place semi joins
-    // placeSemiJoins(ir_root.get());
+    placeSemiJoins(ir_root.get());
     generatePlanDotFile(*ir_root, "ir_plan_semi_j_l2.dot", DotContentType::IR_DATA);
     
-    // mergeSortIntoGroupIfSubset(&ir_root);
+    mergeSortIntoGroupIfSubset(&ir_root);
     generatePlanDotFile(*ir_root, "ir_plan_remove_sort.dot", DotContentType::IR_DATA);
 
     // Move single sum aggregations into group item
-    // moveAggIntoGroup(ir_root.get());
+    moveAggIntoGroup(ir_root.get());
     generatePlanDotFile(*ir_root, "ir_plan_agg_opt_l2.dot", DotContentType::IR_DATA);
 
     // Put Late Materialization

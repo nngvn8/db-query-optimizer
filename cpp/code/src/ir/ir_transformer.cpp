@@ -425,23 +425,24 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
     // Order By
     else if (auto e = std::get_if<OrderByClauseNode>(&ast->val)) {
         std::vector<BaseType::OrderDescription> orders;
-        int i = 0;
-        std::string orderColString = "ORDER_";
+        std::vector<BaseType::TableColumn> sortCols;
+
         for (const auto& desc : e->orderByList) {
             ColumnType type = Catalog::getSSBColumnType(desc.table, desc.column);
             bool isAsc = (desc.ordertype != "DESC");
             bool isNullsFirst = (desc.nullordering == "FIRST");
 
+            BaseType::TableColumn sortCol(desc.table, desc.column, type);
+
             orders.emplace_back(
-                BaseType::TableColumn(desc.table, desc.column, type),
+                sortCol,
                 isAsc,
                 isNullsFirst
             );
 
-            orderColString += std::string(1, desc.table[0]) + "." + desc.column + (i < e->orderByList.size() - 1 ? "_" : "");
-            i++;
+            sortCols.push_back(sortCol);
         }
-        BaseType::TableColumn outCol(BaseType::Table(""), orderColString, ColumnType::TYPE_INTEGER);
+        BaseType::TableColumn outCol = SortOrderView::generateOutCol(sortCols);
         node->irData = SortOrderView::create(orders, outCol);
     }
     // Group By

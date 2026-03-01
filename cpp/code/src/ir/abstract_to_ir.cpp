@@ -386,6 +386,9 @@ std::shared_ptr<PlanNode> AbstractToIr::abstractToIr(std::shared_ptr<PlanNode> n
             std::vector<BaseType::TableColumn> groups;
             for (const auto& colName : agg->grouping_cols) {
                 std::string tableName = Catalog::getTableName(colName);
+                if (tableName == "Default" && isAggColumn(colName)) {
+                    tableName = "AGG";
+                }
                 ColumnType type = Catalog::getSSBColumnType(tableName, colName);
                 groups.emplace_back(tableName, colName, type);
             }
@@ -416,8 +419,9 @@ std::shared_ptr<PlanNode> AbstractToIr::abstractToIr(std::shared_ptr<PlanNode> n
     const AbstractSort* sort = std::get_if<AbstractSort>(&node->abstractData);
     if (sort) {
         std::vector<BaseType::OrderDescription> orders;
-        std::string sortColString = "SORT_";
-
+        
+        // Generate TableColumns for all columns to be sorted
+        std::vector<BaseType::TableColumn> sortCols;
         for (size_t i = 0; i < sort->column_names.size(); ++i) {
             std::string colName = sort->column_names[i];
             ColumnType type = Catalog::getSSBColumnType("", colName);
@@ -431,10 +435,10 @@ std::shared_ptr<PlanNode> AbstractToIr::abstractToIr(std::shared_ptr<PlanNode> n
             BaseType::TableColumn col(BaseType::Table(tableName), colName, type, alias_opt);
 
             orders.emplace_back(col, sort->asc[i], false);
-            sortColString += tableName + "." + sort->column_names[i] + (i < (sort->column_names.size() - 1) ? "_" : "");
+            sortCols.push_back(col);
         }
 
-        BaseType::TableColumn outCol(BaseType::Table("SORT"), sortColString, ColumnType::TYPE_INTEGER);
+        BaseType::TableColumn outCol = SortOrderView::generateOutCol(sortCols);
         node->irData = SortOrderView::create(orders, outCol);
     }
 
