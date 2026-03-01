@@ -275,6 +275,7 @@ void DBClient::runOptimizerPipeline(ASTNode* root) {
 
     // Generate IR tree for second optimizer
     std::shared_ptr<PlanNode> ir_root = astToIr(root);
+    ensureCorrectColumnSetup(ir_root);
     createPlanDotFile(*ir_root, "ir_plan.dot", DotContentType::IR_DATA);
 
     // Place semi joins
