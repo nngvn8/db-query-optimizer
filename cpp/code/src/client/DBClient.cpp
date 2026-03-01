@@ -275,11 +275,9 @@ ASTNode* DBClient::createASTRootNode(const std::string& query) {
 
 std::shared_ptr<PlanNode> DBClient::getIrRootJson(const std::string& query) {
     std::shared_ptr<PlanNode> ir_root;
-    std::cout << "Processing JSON query plan " << clientConfig.jsonPlanFile << std::endl;
+    std::cout << "Using JSON query plan for processing " << clientConfig.jsonPlanFile << std::endl;
 
     std::filesystem::path jsonPath(clientConfig.jsonPlanFile);
-
-    std::cout << jsonPath.parent_path().string() << " - " << jsonPath.filename().string() << std::endl;
 
     Json::Value queryPlan = read_plan_to_json(jsonPath.parent_path().string() + "/", jsonPath.filename().string());
     ir_root = std::make_shared<PlanNode>(queryPlan);
