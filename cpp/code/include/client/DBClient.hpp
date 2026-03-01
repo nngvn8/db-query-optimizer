@@ -13,6 +13,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
+#include <mutex>
 
 // HISTORY
 #include <fstream>
@@ -217,12 +218,12 @@ public:
 private:
     std::optional<tuddbs::TCPClient> tcpClient;
 
+    std::mutex coutMutex;
     ThreadPool threadPool;
 
     void mainClientLoop();
 
     std::vector<WorkItem> workItems;
-    QueryPlan createQueryPlan(const std::vector<WorkItem>& workItems);
 
     // client history global parameters
     static constexpr const char* HISTORY_FILE = ".client_history";

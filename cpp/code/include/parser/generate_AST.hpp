@@ -376,6 +376,7 @@ ASTNode* exploreTable(hsql::TableRef* table);
  * @return A pointer to the root of the generated AST.
  */
 ASTNode* generateASTNode(const std::string& query);
+ASTNode* generateASTNode(const std::string& query, std::mutex& coutMutex);
 
 /**
  * @brief Creates a WHERE clause node from a parser expression.

@@ -91,7 +91,7 @@ void DBClient::showDebug() {
         << "Semi Join: " << clientConfig.semiJoins << std::endl
         << "Materialize Type: " << mat << std::endl
         << "Merge Sort into Group if Subset: " << clientConfig.mergeSubsetSort << std::endl
-        << "Grand Child Opt: " << clientConfig.grandChildOpt << std::endl;
+        << "Grand Child Opt: " << clientConfig.grandChildOpt << std::endl << std::endl;
 }
 
 void DBClient::enableRawMode() {
@@ -110,14 +110,6 @@ void DBClient::saveHistory(const std::string& query) {
     historyIndex = history.size();
     historyFile << query << "\n";
     historyFile.flush();
-}
-
-std::string_view DBClient::trim(std::string_view s) {
-    while (!s.empty() && std::isspace(static_cast<unsigned char>(s.front())))
-        s.remove_prefix(1);
-    while (!s.empty() && std::isspace(static_cast<unsigned char>(s.back())))
-        s.remove_suffix(1);
-    return s;
 }
 
 bool DBClient::equalsIgnoreCase(std::string_view a, std::string_view b) {
@@ -140,7 +132,7 @@ std::string trimFileQuery(const std::string& str) {
 
 void DBClient::handleSqlFile(std::string_view& filePath) {
     std::string fileName = std::string(filePath);
-    std::cout << "Using SQL File: " << fileName << std::endl;
+    std::cout << "Using SQL File: " << fileName << std::endl << std::endl;
 
     std::ifstream file(fileName);
     fileQueries.clear();
@@ -212,29 +204,30 @@ ClientAction DBClient::readQueryInput(std::string& outQuery) {
         // ENTER -> submit query
         if (c == '\n') {
             std::cout << std::endl;
+            std::string_view vQuery = buffer;
 
-            std::string_view trimmed = trim(buffer);
-
-            if (equalsIgnoreCase(trimmed, EXIT_CMD) ||
-                equalsIgnoreCase(trimmed, QUIT_CMD)) {
+            if (equalsIgnoreCase(vQuery, EXIT_CMD) ||
+                equalsIgnoreCase(vQuery, QUIT_CMD)) {
                 buffer.clear();
                 return ClientAction::Exit;
             }
 
-            if (!trimmed.empty()) {
+            if (!vQuery.empty()) {
                 // Handle .sql files
-                if (trimmed.ends_with(".sql")) {
-                    handleSqlFile(trimmed);
+                if (vQuery.ends_with(".sql")) {
+                    handleSqlFile(vQuery);
 
                     buffer.clear();
                     return ClientAction::SqlFile;
                 }
 
                 // Handle end of query with ;
-                if (trimmed.back() != ';')
+                if (vQuery.back() != ';') {
+                    buffer += ' ';
                     continue;
+                }
 
-                outQuery = std::string(trimmed);
+                outQuery = std::string(vQuery);
                 buffer.clear();
                 return ClientAction::SendQuery;
             }
@@ -265,15 +258,16 @@ ClientAction DBClient::readQueryInput(std::string& outQuery) {
     return ClientAction::Exit;
 }
 
-ASTNode* DBClient::createASTRootNode(const std::string& query) {
-    auto root = generateASTNode(query);
-    generateDotFile(root,"testpic12.dot");
-    return root;
-}
-
 void DBClient::createPlanDotFile(const PlanNode& root, const std::string& filename, DotContentType contentType) {
     if (clientConfig.planDot)
         generatePlanDotFile(root, filename, contentType);
+}
+
+ASTNode* DBClient::createASTRootNode(const std::string& query) {
+    auto root = generateASTNode(query, coutMutex);
+    if (clientConfig.planDot)
+        generateDotFile(root,"ast_tree.dot");
+    return root;
 }
 
 void DBClient::runOptimizerPipeline(ASTNode* root) {
@@ -330,7 +324,6 @@ void DBClient::runOptimizerPipeline(ASTNode* root) {
 
     // Sequentialize
     std::vector<const PlanNode*> sequenced_plan = to_sequence_children_list<PlanNode>(ir_root.get());
-    printSequencedPlan(sequenced_plan);
 
     // Create WorkItems
     ItemBuilder itemBuilder;
@@ -342,20 +335,25 @@ void DBClient::runOptimizerPipeline(ASTNode* root) {
         info.payload_size = item.ByteSizeLong();
 
         void* out_mem = malloc(sizeof(tuddbs::TCPMetaInfo) + info.payload_size);
-
         const size_t message_size = tuddbs::Utility::serializeItemToMemory(out_mem, item, info);
-
-        if (clientConfig.debug) {
-            tuddbs::Utility::printWorkItem(item);
-        }
 
         tcpClient->notifyHost(out_mem, message_size);
         free(out_mem);
     }
 
-    auto end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double, std::milli> duration = end - start;
-    std::cout << "\nStart time: " << start << " Duration: " << duration.count() << "ms" << std::endl;
+    if (clientConfig.debug) {
+        std::lock_guard<std::mutex> lock(coutMutex);
+
+        printSequencedPlan(sequenced_plan);
+        std::cout << std::endl;
+        for (WorkItem item : workItems)
+            tuddbs::Utility::printWorkItem(item);
+
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::milli> duration = end - start;
+        std::cout << "\nStart time: " << start << " Duration: " << duration.count() << "ms" << std::endl;
+        std::cout << "\n--------------------------------------------------------------------------------------" << std::endl;
+    }
 }
 
 void DBClient::mainClientLoop() {
@@ -367,8 +365,10 @@ void DBClient::mainClientLoop() {
         handleSqlFile(inFile);
 
         for (const std::string& fileQuery : fileQueries) {
-            std::cout << fileQuery << ";" << std::endl;
-            threadPool.enqueue([this, fileQuery]() { runOptimizerPipeline(createASTRootNode(fileQuery)); });
+            std::cout << fileQuery << ";" << std::endl << std::endl;
+            threadPool.enqueue([this, fileQuery]() {
+                runOptimizerPipeline(createASTRootNode(fileQuery));
+            });
         }
     }
 
@@ -386,15 +386,16 @@ void DBClient::mainClientLoop() {
             break;
 
         if (action == ClientAction::SendQuery) {
-            std::cout << query << std::endl;
             runOptimizerPipeline(createASTRootNode(query));
             saveHistory(query.substr(0, query.size() - 1));
         }
 
         if (action == ClientAction::SqlFile) {
             for (std::string fileQuery : fileQueries) {
-                std::cout << fileQuery << ";" << std::endl;
-                threadPool.enqueue([this, fileQuery]() { runOptimizerPipeline(createASTRootNode(fileQuery)); });
+                std::cout << fileQuery << ";" << std::endl << std::endl;
+                threadPool.enqueue([this, fileQuery]() {
+                    runOptimizerPipeline(createASTRootNode(fileQuery));
+                });
             }
         }
     }

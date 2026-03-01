@@ -284,7 +284,7 @@ OrderByDescription makeOrderNode(hsql::OrderDescription* order, const std::vecto
     if(order->expr->table){
         table = order->expr->table;
     }
-    
+
     std::string columnName = order->expr->name ? order->expr->name : "";
 
     if (table.empty() && selectList) {
@@ -412,10 +412,10 @@ void printAST(ASTNode* root){
         for(int i=0;i<(*e).description.size();i++){
             cout<< (*e).description[i].table<<"."<<(*e).description[i].column<<" ";
         }
-        cout<<std::endl; 
+        cout<<std::endl;
     }
     else if(auto e = std::get_if<AggregateClauseNode>(&root->val)){
-        cout<<"Aggregate Node: "<<(*e).aggregateFunction <<"("<<(*e).table<<"."<<(*e).column<<") as "<< (*e).alias<<std::endl; 
+        cout<<"Aggregate Node: "<<(*e).aggregateFunction <<"("<<(*e).table<<"."<<(*e).column<<") as "<< (*e).alias<<std::endl;
     }
     else if(auto e = std::get_if<GroupByClauseNode>(&root->val)){
         cout<<"Group By: ";
@@ -490,12 +490,12 @@ ASTNode* parseQueryExpression(const hsql::SelectStatement* selectStmt){
             }
         }
         delete root;
-        ASTNode* node = new ASTNode(SelectClauseNode(selectClauseDescriptionList)); 
+        ASTNode* node = new ASTNode(SelectClauseNode(selectClauseDescriptionList));
         root = node;
-        current = root; 
+        current = root;
     }
 
-    
+
     // logic to parse "Limit clause"
 
     if(selectStmt->limit){
@@ -549,7 +549,7 @@ ASTNode* parseQueryExpression(const hsql::SelectStatement* selectStmt){
                     else{
                         alias = "";
                     }
-                    
+
                     std::string inputTable = "";
                     std::string inputColumn = "";
                     hsql::Expr* arg0 = selectStmt->selectList->at(i)->exprList->at(0);
@@ -560,10 +560,10 @@ ASTNode* parseQueryExpression(const hsql::SelectStatement* selectStmt){
                             else if(arg0->opType == hsql::kOpMinus) op = "-";
                             else if(arg0->opType == hsql::kOpAsterisk) op = "*";
                             else if(arg0->opType == hsql::kOpSlash) op = "/";
-                            
+
                             std::string left = arg0->expr->name ? arg0->expr->name : "";
                             std::string right = arg0->expr2->name ? arg0->expr2->name : "";
-                            
+
                             inputTable = "MAP";
                             inputColumn = left + op + right;
                     } else if (arg0->type == hsql::kExprColumnRef) {
@@ -576,11 +576,11 @@ ASTNode* parseQueryExpression(const hsql::SelectStatement* selectStmt){
                     if(auto e = std::get_if<std::monostate>(&current->val)){
                         delete root;
                         root = node;
-                        current = root; 
+                        current = root;
                     }
                     else{
                         current->left = node;
-                        current = current->left; 
+                        current = current->left;
                     }
 
                     switch(arg0->type){
@@ -604,13 +604,13 @@ ASTNode* parseQueryExpression(const hsql::SelectStatement* selectStmt){
                                     Catalog::getTableName(arg0->expr2->name),
                                     arg0->expr2->name,
                                     op)
-                                );    
+                                );
                             current->left = node;
                             current = current->left;
-                            continue; 
+                            continue;
                         }
                         case hsql::kExprColumnRef : {
-                            continue; 
+                            continue;
                         }
                     }
                 }
@@ -654,10 +654,10 @@ ASTNode* generateASTNode(const std::string& query){
     bool success = hsql::SQLParser::parseSQLString(query, &result);
 
     if(result.isValid()){
-        std::cout<<"the result is valid"<<"\n";
+        std::cout << "The result is valid." << std::endl;
     }
     else{
-        std::cout<<"the result is invalid"<<"\n";
+        std::cout << "The result is invalid." << std::endl;
     }
 
     ASTNode* root = new ASTNode();
@@ -665,15 +665,46 @@ ASTNode* generateASTNode(const std::string& query){
     for(int i=0;i<result.size();i++){
         const hsql::SQLStatement* stmt = result.getStatement(i);
 
-        if(stmt->type() == hsql::kStmtSelect){        
-        const hsql::SelectStatement* selectStmt = static_cast<const hsql::SelectStatement*>(stmt);    
+        if(stmt->type() == hsql::kStmtSelect){
+        const hsql::SelectStatement* selectStmt = static_cast<const hsql::SelectStatement*>(stmt);
             delete root;
             root = parseQueryExpression(selectStmt);
-        }   
+        }
     }
-    cout<<"Parsed Successfully"<<endl<<endl;
+
+    std::cout << "Parsed Successfully" << std::endl;
+    root = optimizerOne(root);
+    return root;
+}
+
+ASTNode* generateASTNode(const std::string& query, std::mutex& coutMutex) {
+    hsql::SQLParserResult result;
+    bool success = hsql::SQLParser::parseSQLString(query, &result);
+    std::string message;
+
+    if(result.isValid()){
+        message = "The result is valid.";
+    } else{
+        message = "The result is invalid.";
+    }
+
+    ASTNode* root = new ASTNode();
+
+    for(int i=0;i<result.size();i++){
+        const hsql::SQLStatement* stmt = result.getStatement(i);
+
+        if(stmt->type() == hsql::kStmtSelect){
+        const hsql::SelectStatement* selectStmt = static_cast<const hsql::SelectStatement*>(stmt);
+            delete root;
+            root = parseQueryExpression(selectStmt);
+        }
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(coutMutex);
+        std::cout << std::endl << message << std::endl << "Parsed Successfully" << std::endl << std::endl;
+    }
 
     root = optimizerOne(root);
-
     return root;
 }
