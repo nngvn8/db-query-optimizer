@@ -109,11 +109,25 @@ You should be able to pull and push, etc. from inside the container.
 To run the DB Client example with optional flags, execute the following command:
 ```bash
 ./build/bin/optimizer-db-client <flags>
+
+# Now the client is running and accepting input
+<queries>
+<sql-files>
 ```
 
 To display the help menu, use:
 ```bash
 ./build/bin/optimizer-db-client -help
+```
+
+To get an insight, use:
+```bash
+./build/bin/optimizer-db-client -debug
+```
+
+To run standalone without a server, use:
+```bash
+./build/bin/optimizer-db-client -standalone
 ```
 
 Once the client is running, it accepts three primary types of input:
