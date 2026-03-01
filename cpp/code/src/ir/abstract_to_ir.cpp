@@ -83,7 +83,7 @@ bool containsAggOperator(const std::string& str) {
 }
 
 std::tuple<std::string, char, std::string>
-parseAggFunction(const std::string& input) {
+parseMapping(const std::string& input) {
     std::string lhs, rhs;
     char op = 0;
 
@@ -314,19 +314,16 @@ std::shared_ptr<PlanNode> AbstractToIr::abstractToIr(std::shared_ptr<PlanNode> n
     // ==================== AGGREGATION ====================
     const AbstractAgg* agg = std::get_if<AbstractAgg>(&node->abstractData);
     if (agg) {
-        auto aggFunc = IrTransformHelpers::mapStringToAggFunc(agg->agg_type);
-        ColumnType inColType = Catalog::getSSBColumnType("", agg->agg_mapping);
+        const std::string& firstColName = ConditionParser::getFirstTokenString(agg->agg_mapping);
+        BaseType::TableColumn aggInCol(BaseType::Table(Catalog::getTableName(firstColName)), firstColName, Catalog::getSSBColumnType("", firstColName));
 
-        ColumnType outColType;
-        switch (*aggFunc) {
-            case AGG_COUNT: outColType = ColumnType::TYPE_INTEGER; break;
-            case AGG_AVG:   outColType = ColumnType::TYPE_FLOAT;   break;
-            default:        outColType = inColType;
-        }
+        BaseType::TableColumn prevOutCol = aggInCol;
+
+        std::vector<IrData> abstractAggItems;
 
         // ==================== MAP ====================
         if (containsAggOperator(agg->agg_mapping)) {
-            auto [aggIn1, op, aggIn2] = parseAggFunction(agg->agg_mapping);
+            auto [aggIn1, op, aggIn2] = parseMapping(agg->agg_mapping);
 
             const std::string aggTable1 = Catalog::getTableName(aggIn1);
             ColumnType aggInColType1 = Catalog::getSSBColumnType(aggTable1, aggIn1);
@@ -352,27 +349,48 @@ std::shared_ptr<PlanNode> AbstractToIr::abstractToIr(std::shared_ptr<PlanNode> n
             }
 
             BaseType::TableColumn mapOutCol(BaseType::Table("MAP"), aggIn1 + opStr + aggIn2, mapOutColType);
-            auto mapNode = std::make_shared<PlanNode>();
-            mapNode->irData = MapView::create(aggInCol1, aggOp, aggInCol2, mapOutCol);
+            IrData mapIrData = MapView::create(aggInCol1, aggOp, aggInCol2, mapOutCol);
 
-            // Move children to map node
-            mapNode->children = node->children;
-            node->children.clear();
-            node->children.push_back(mapNode);
+            abstractAggItems.push_back(mapIrData);
+
+            prevOutCol = mapOutCol;
+        } 
+
+        // ==================== AGGREGATION ====================
+        if (auto aggFunc = IrTransformHelpers::mapStringToAggFunc(agg->agg_type)) {
+
+            BaseType::TableColumn inCol = prevOutCol;
 
             // Compute type of output column of aggFunc
-            std::string aggOutColName = agg->agg_type + "(" + mapOutCol.columnName + ")";
-            BaseType::TableColumn aggOutCol(BaseType::Table("AGG"), aggOutColName, outColType, agg->agg_alias);
-            node->irData = AggView::create(mapOutCol, aggOutCol, *aggFunc);
+            ColumnType outColType;
+            switch (*aggFunc) {
+                case AGG_COUNT: outColType = ColumnType::TYPE_INTEGER; break;
+                case AGG_AVG:   outColType = ColumnType::TYPE_FLOAT;   break;
+                default:        outColType = inCol.columnType;
+            }
 
-        } else {
-            const std::string& firstColName = ConditionParser::getFirstTokenString(agg->agg_mapping);
-            BaseType::TableColumn aggInCol(BaseType::Table(Catalog::getTableName(firstColName)), firstColName, inColType);
-            std::string aggOutColName = agg->agg_type + "(" + aggInCol.columnName + ")";
+            std::string aggOutColName = agg->agg_type + "(" + inCol.columnName + ")";
             BaseType::TableColumn aggOutCol(BaseType::Table("AGG"), aggOutColName, outColType, agg->agg_alias);
+            IrData aggIrData = AggView::create(inCol, aggOutCol, *aggFunc);
 
-            node->irData = AggView::create(aggInCol, aggOutCol, *aggFunc);
+            abstractAggItems.push_back(aggIrData);
+
+            prevOutCol = aggOutCol;
         }
+
+        if (node->children.size() != 1) 
+            throw std::runtime_error("Abstract aggregation must always have exactly one child");
+
+        std::shared_ptr<PlanNode> prevChild = node->children[0];
+        for (const auto& aggItem : abstractAggItems) {
+            std::shared_ptr<PlanNode> aggNode = std::make_shared<PlanNode>();
+            aggNode->irData = aggItem;
+            aggNode->children.push_back(prevChild);
+            prevChild = aggNode;
+        }
+
+        node->irData = prevChild->irData;
+        node->children = prevChild->children;
     }
 
     // ==================== SORT ====================
