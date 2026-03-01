@@ -5,6 +5,7 @@
 
 #include <ranges>
 #include <deque>
+#include <unordered_set>
 
 void placeSemiJoins(PlanNode* node, std::set<BaseType::Table> tablesNeededLater) {
     if (!node) return;
@@ -155,17 +156,20 @@ namespace {
 
         // BFS for usage of table that our column is based on
         int idx; // to determine innerCol or outerCol - is inherited downwards
-        std::shared_ptr<PlanNode> cur_node;
-        std::deque<std::pair<int, const std::shared_ptr<PlanNode>&>> bfsQueue;
+        PlanNode* cur_node;
+        std::deque<std::pair<int, PlanNode*>> bfsQueue;
+        std::unordered_set<const PlanNode*> visited;
 
-
-        bfsQueue.push_back(std::pair<int, const std::shared_ptr<PlanNode>&>(0, node->children[0]));
-        bfsQueue.push_back(std::pair<int, const std::shared_ptr<PlanNode>&>(1, node->children[1]));
+        bfsQueue.push_back({0, node->children[0].get()});
+        bfsQueue.push_back({1, node->children[1].get()});
 
         while (!bfsQueue.empty()) {
             idx = bfsQueue.front().first;
             cur_node = bfsQueue.front().second;
             bfsQueue.pop_front();
+
+            if (visited.count(cur_node)) continue;
+            visited.insert(cur_node);
 
             // Need to find the the table of our column further down the tree
             for (const auto& outCol : cur_node->irData.outputCols) {
@@ -176,9 +180,10 @@ namespace {
 
             // bfs
             for (const auto& child : cur_node->children) {
-                bfsQueue.push_back(std::pair<int, const std::shared_ptr<PlanNode>&>(idx, child));
+                bfsQueue.push_back({idx, child.get()});
             }
         }
+        return 0;
     }
 
 }
