@@ -51,7 +51,8 @@ static std::vector<std::pair<std::string, std::string>> configFields {
     {"-matType", "Materialization strategy [std, lateMat, lateMatHybrid]"},
     {"-mergeSort", "Merge sort into group if all sort-columns in group-columns."},
     {"-semiJoins", "Replace joins with semi-joins if possible."},
-    {"-gChildOpt", "Enable grand children optimization (reuse materializations for operation after)."}
+    {"-gChildOpt", "Enable grand children optimization (reuse materializations for operation after)."},
+    {"-jsonPlan", "Use a given JSON plan file for a query. The next input is expected to be either the query or a sql file containing it."}
 };
 
 /**
@@ -82,6 +83,9 @@ struct ClientConfiguration {
     bool semiJoins = false;
     bool mergeSubsetSort = false;
     bool grandChildOpt = false;
+
+    bool jsonPlan = false;
+    std::string jsonPlanFile;
 
     MaterializeOptTypes matType = MaterializeOptTypes::fillMaterializes;
     /**
@@ -116,7 +120,7 @@ enum class ClientAction {
  */
 class DBClient {
 private:
-    const ClientConfiguration clientConfig;
+    ClientConfiguration clientConfig;
 
 public:
     /**
@@ -193,8 +197,9 @@ public:
      * @brief Runs the optimizer pipeline on a given AST.
      * @param root The root of the AST.
      * @param planId PlanId for the work items.
+     * @param query query to use
      */
-    void runOptimizerPipeline(ASTNode* root, uint64_t planId);
+    void runOptimizerPipeline(ASTNode* root, uint64_t planId, const std::string& query);
 
     /**
      * @brief Creates a dot file for a given query plan.
@@ -210,14 +215,6 @@ public:
      * @return The root of the generated AST.
      */
     ASTNode* createASTRootNode(const std::string& query);
-
-    /**
-     * @brief Runs the pipelines for json plan processing
-     * @param getTree how should the tree be generated
-     * @param prefix prefix for the type of result
-     * @param sql_file file to use
-     */
-    void runPipelines(std::function<std::shared_ptr<PlanNode>()> getTree, const std::string& prefix, const std::string& sql_file);
 
     static constexpr const char* EXIT_CMD = "exit";
     static constexpr const char* QUIT_CMD = "quit";
@@ -238,6 +235,8 @@ private:
     uint64_t getNextWorkItemPlanId() {
         return workItemPlanId.fetch_add(1, std::memory_order_relaxed);
     }
+
+    std::shared_ptr<PlanNode> getIrRootJson(const std::string& query);
 
     void handleJsonPlanFile(const std::string& jsonFilePath, const std::string& sqlFilePath);
 

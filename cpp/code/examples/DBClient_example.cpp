@@ -22,6 +22,9 @@ int main(int argc, char* argv[]) {
     config.mergeSubsetSort = parser.takeParseFlag("-mergeSort");
     config.grandChildOpt = parser.takeParseFlag("-gChildOpt");
 
+    config.jsonPlanFile = parser.takeParseArg<std::string>("-jsonPlan", "", "", false);
+    config.jsonPlan = !config.jsonPlanFile.empty();
+
     const std::string& materialize = parser.takeParseArg<std::string>("-matType", "", "std", false);
     config.setMatType(materialize);
 

@@ -93,7 +93,8 @@ void DBClient::showDebug() {
         << "Semi Join: " << clientConfig.semiJoins << std::endl
         << "Materialize Type: " << mat << std::endl
         << "Merge Sort into Group if Subset: " << clientConfig.mergeSubsetSort << std::endl
-        << "Grand Child Opt: " << clientConfig.grandChildOpt << std::endl << std::endl;
+        << "Grand Child Opt: " << clientConfig.grandChildOpt << std::endl
+        << "JSON Plan: " << clientConfig.jsonPlanFile << " - " << clientConfig.jsonPlan << std::endl << std::endl;
 }
 
 void DBClient::enableRawMode() {
@@ -163,24 +164,9 @@ void DBClient::handleSqlFile(std::string_view& filePath) {
     }
 }
 
-void DBClient::handleJsonPlanFile(const std::string& jsonFilePath, const std::string& sqlFilePath) {
-    std::cout << "Processing JSON query plan " << jsonFilePath << " with following query file: " << sqlFilePath << std::endl;
-
-    std::filesystem::path jsonPath(jsonFilePath);
-    std::filesystem::path sqlPath(sqlFilePath);
-
-    std::string sqlFile = sqlPath.filename().string();
-
-    runPipelines([&](){ return getFreshIrTree(jsonPath.parent_path().string() + "/", jsonPath.filename().string(), sqlFile); }, "plan", sqlFile);
-    runPipelines([&](){ return getFreshIrTreeFromAst(jsonPath.parent_path().string() + "/", sqlFile); }, "ast", sqlFile);
-}
-
 ClientAction DBClient::readQueryInput(std::string& outQuery) {
     static std::string buffer;
     char c;
-
-    std::string jsonFile;
-    bool jsonPlanFlag = false;
 
     // use read so we can use arrow keys for history
     // need to use flush to still write the output in raw mode
@@ -229,16 +215,6 @@ ClientAction DBClient::readQueryInput(std::string& outQuery) {
                 return ClientAction::Exit;
             }
 
-            if (jsonPlanFlag) {
-                if (vQuery.ends_with(".sql"))
-                    handleJsonPlanFile(jsonFile, std::string(vQuery));
-
-                jsonPlanFlag = false;
-                jsonFile.clear();
-                buffer.clear();
-                continue;
-            }
-
             if (!vQuery.empty()) {
                 // Handle .sql files
                 if (vQuery.ends_with(".sql")) {
@@ -246,15 +222,6 @@ ClientAction DBClient::readQueryInput(std::string& outQuery) {
 
                     buffer.clear();
                     return ClientAction::SqlFile;
-                }
-
-                // Handle .json files
-                if (vQuery.ends_with(".json")) {
-                    jsonFile = vQuery;
-                    jsonPlanFlag = true;
-
-                    buffer.clear();
-                    continue;
                 }
 
                 // Handle end of query with ;
@@ -306,23 +273,39 @@ ASTNode* DBClient::createASTRootNode(const std::string& query) {
     return root;
 }
 
-void DBClient::runOptimizerPipeline(ASTNode* root, uint64_t planId) {
+std::shared_ptr<PlanNode> DBClient::getIrRootJson(const std::string& query) {
+    std::shared_ptr<PlanNode> ir_root;
+    std::cout << "Processing JSON query plan " << clientConfig.jsonPlanFile << std::endl;
+
+    std::filesystem::path jsonPath(clientConfig.jsonPlanFile);
+
+    std::cout << jsonPath.parent_path().string() << " - " << jsonPath.filename().string() << std::endl;
+
+    Json::Value queryPlan = read_plan_to_json(jsonPath.parent_path().string() + "/", jsonPath.filename().string());
+    ir_root = std::make_shared<PlanNode>(queryPlan);
+    ir_root = pruneTree(ir_root);
+
+    SqlQueryData sqlQueryData = parseQuery(query);
+    ir_root = enrichTree(ir_root, sqlQueryData);
+    AbstractToIr::abstractToIr(ir_root);
+
+    clientConfig.jsonPlan = false;
+    clientConfig.jsonPlanFile.clear();
+
+    return ir_root;
+}
+
+void DBClient::runOptimizerPipeline(ASTNode* root, uint64_t planId, const std::string& query) {
     auto start = std::chrono::high_resolution_clock::now();
 
     // Generate IR tree for second optimizer
     std::shared_ptr<PlanNode> ir_root;
-    if (true) {   
+    if (clientConfig.jsonPlan && !clientConfig.jsonPlanFile.empty()) {
+        ir_root = getIrRootJson(query);
+    } else {
         ir_root = astToIr(root);
     }
-    else {
-        Json::Value queryPlan = read_plan_to_json(base_dir, json_file);
-        ir_root = std::make_shared<PlanNode>(queryPlan);
-        ir_root = pruneTree(ir_root);
-        SqlQueryData sqlQueryData = parseQuery(query);
-        ir_root = enrichTree(ir_root, sqlQueryData);
-        AbstractToIr::abstractToIr(ir_root);
-    }
-    
+
     ensureCorrectColumnSetup(ir_root);
     createPlanDotFile(*ir_root, "ir_plan.dot", DotContentType::IR_DATA);
 
@@ -417,7 +400,7 @@ void DBClient::mainClientLoop() {
                 std::cout << fileQuery << ";" << std::endl << std::endl;
                 threadPool.enqueue([this, fileQuery]() {
                     uint64_t planId = getNextWorkItemPlanId();
-                    runOptimizerPipeline(createASTRootNode(fileQuery), planId);
+                    runOptimizerPipeline(createASTRootNode(fileQuery), planId, fileQuery);
                 });
             }
         }
@@ -438,7 +421,7 @@ void DBClient::mainClientLoop() {
 
         if (action == ClientAction::SendQuery) {
             uint64_t planId = getNextWorkItemPlanId();
-            runOptimizerPipeline(createASTRootNode(query), planId);
+            runOptimizerPipeline(createASTRootNode(query), planId, query);
             saveHistory(query.substr(0, query.size() - 1));
         }
 
@@ -447,7 +430,7 @@ void DBClient::mainClientLoop() {
                 std::cout << fileQuery << ";" << std::endl << std::endl;
                 threadPool.enqueue([this, fileQuery]() {
                     uint64_t planId = getNextWorkItemPlanId();
-                    runOptimizerPipeline(createASTRootNode(fileQuery), planId);
+                    runOptimizerPipeline(createASTRootNode(fileQuery), planId, fileQuery);
                 });
             }
         }
