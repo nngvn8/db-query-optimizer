@@ -624,6 +624,84 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
 
     return node;
 }
+
+void ensureCorrectColumnSetup(std::shared_ptr<PlanNode> node, std::map<std::string, std::string> aliasToName, std::map<std::string, std::string> nameToAlias) {
+    if (!node) return;
+
+    // Collect aliases from current node 
+    if (auto selectV = node->irData.get_view_if<SelectView>()) {
+        for (const auto& col : selectV->resultCols()) {
+            if (!col.alias.value_or("").empty()) {
+                std::string alias = *col.alias;
+                aliasToName[alias] = col.columnName;
+                nameToAlias[col.columnName] = alias;
+            }
+        }
+    }
+
+    // Helper to apply aliases to a column
+    auto applyAlias = [&](BaseType::TableColumn& col) {
+        // If column name is an alias, resolve it
+        if (aliasToName.contains(col.columnName)) {
+            std::cout << "Alias found in: " << col.columnName << std::endl;
+            col.alias = col.columnName;
+            col.columnName = aliasToName[col.columnName];
+            std::cout << "New Column Name: " << col.columnName << " with Alias: " << col.alias.value() << std::endl << std::endl;
+        }
+        // If column name has a known alias, set it
+        if (nameToAlias.contains(col.columnName)) {
+            std::string prevAlias = col.alias.value_or("");
+            col.alias = nameToAlias[col.columnName];
+            if (prevAlias != col.alias.value())
+                std::cout << "Changed alias from " << (prevAlias.empty() ? "empty" : prevAlias) << " to " << col.alias.value() << std::endl << std::endl;
+        }
+
+        // Fix Table Names for Default/Empty tables if content looks like operation
+        bool isDefaultTable = col.table.name.empty() || col.table.name == "Default";
+        if (isDefaultTable) {
+            std::cout << "Default Table found in: " << col.columnName << std::endl;
+            if (IrTransformHelpers::mapStringToAggFunc(col.columnName)) {
+                col.table.name = "AGG";
+            } else if (col.columnName.find_first_of("+-*/%") != std::string::npos) {
+                col.table.name = "MAP";
+            }
+            std::cout << "New Table Name: " << col.table.name << std::endl << std::endl;
+        }
+    };
+
+    // Ensure correct table names (comment in if needed but should be fine without it)
+    // if (auto aggV = node->irData.get_view_if<AggView>()) {
+    //     aggV->aggResultCol().table.name = "AGG";
+    // }
+    // else if (auto mapV = node->irData.get_view_if<MapView>()) {
+    //     mapV->outputCol().table.name = "MAP";
+
+    // }
+    // else if (auto sortV = node->irData.get_view_if<SortOrderView>()) {
+    //     if (!node->irData.outputCols.empty()) node->irData.outputCols[0].table.name = "SORT";
+
+    // }
+    // else if (auto groupV = node->irData.get_view_if<GroupView>()) {
+    //     if (!node->irData.outputCols.empty()) node->irData.outputCols[0].table.name = "GROUP";
+    // }
+
+    // Ensure correct alias setup
+    for (auto& col : node->irData.inputColumns) applyAlias(col);
+    for (auto& col : node->irData.outputCols) {
+        applyAlias(col);
+    }
+
+    // ### Recurse
+    for (auto& child : node->children) {
+        // If child is a new Select scope (Subquery), do not propagate aliases from this scope
+        if (child->irData.get_view_if<SelectView>()) {
+            ensureCorrectColumnSetup(child, {}, {});
+        } else {
+            ensureCorrectColumnSetup(child, aliasToName, nameToAlias);
+        }
+    }
+}
+
 namespace {
 
     int detFilterColIdx(const BaseType::TableColumn& idxCol, const std::shared_ptr<PlanNode>& node) {

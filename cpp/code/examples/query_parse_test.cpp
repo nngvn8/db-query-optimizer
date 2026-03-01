@@ -26,19 +26,21 @@ int main(){
         // printPlanTree(*planNodeRoot, "", true);
         planNodeRoot = pruneTree(planNodeRoot);
         SqlQueryData sqlQueryData = parseQuery(query);
-        print_query_data(sqlQueryData);
+        // print_query_data(sqlQueryData);
         planNodeRoot = enrichTree(planNodeRoot, sqlQueryData);
         // printDebug(*planNodeRoot);
-        printPlanTree(*planNodeRoot, 1);
+        // printPlanTree(*planNodeRoot, 1);
 
         AbstractToIr::abstractToIr(planNodeRoot);
 
+        ensureCorrectColumnSetup(planNodeRoot);
+
         generatePlanDotFile(*planNodeRoot, "ir_plan.dot", DotContentType::IR_DATA);
 
-        std::cout << "\nSEQUENCE\n" << std::endl;
+        // std::cout << "\nSEQUENCE\n" << std::endl;
 
         std::vector<const PlanNode*> sequenced_plan = to_sequence_children_list<PlanNode>(planNodeRoot.get());
-        printSequencedPlan(sequenced_plan);
+        // printSequencedPlan(sequenced_plan);
 
         moveAggIntoGroup(planNodeRoot.get());
         fillMaterializes(planNodeRoot.get());
@@ -47,7 +49,7 @@ int main(){
         irToApiData(planNodeRoot.get());
 
         sequenced_plan = to_sequence_children_list<PlanNode>(planNodeRoot.get());
-        printSequencedPlan(sequenced_plan);
+        // printSequencedPlan(sequenced_plan);
 
     }
 }
