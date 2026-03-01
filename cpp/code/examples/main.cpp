@@ -44,6 +44,8 @@ int main() {
     // Generate IR tree for second optimizer
     ir_root = astToIr(root);
     generatePlanDotFile(*ir_root, "ir_plan.dot", DotContentType::IR_DATA);
+    
+    ensureCorrectColumnSetup(ir_root);
 
     // Place semi joins
     placeSemiJoins(ir_root.get());
@@ -79,6 +81,8 @@ int main() {
     // Generate IR tree for second optimizer
     ir_root = astToIr(root);
     generatePlanDotFile(*ir_root, "ir_plan.dot", DotContentType::IR_DATA);
+    
+    ensureCorrectColumnSetup(ir_root);
 
     // Place semi joins
     placeSemiJoins(ir_root.get());
@@ -119,6 +123,8 @@ int main() {
     ir_root = astToIr(root);
     generatePlanDotFile(*ir_root, "ir_plan.dot", DotContentType::IR_DATA);
 
+    ensureCorrectColumnSetup(ir_root);
+
     // Place semi joins
     placeSemiJoins(ir_root.get());
     generatePlanDotFile(*ir_root, "ir_plan_semi_j_l2.dot", DotContentType::IR_DATA);
@@ -157,6 +163,8 @@ int main() {
     // Generate IR tree for second optimizer
     ir_root = astToIr(root);
     generatePlanDotFile(*ir_root, "ir_plan.dot", DotContentType::IR_DATA);
+
+    ensureCorrectColumnSetup(ir_root);
 
     // Place semi joins
     placeSemiJoins(ir_root.get());

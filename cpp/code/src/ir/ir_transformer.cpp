@@ -483,9 +483,9 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
                     outColType = inColType;
                     break;
             }
-            BaseType::TableColumn aggColIn(e->table, e->column, inColType);
+            BaseType::TableColumn aggColIn(e->table, e->column, inColType, e->alias);
             std::string aggColOutName = e->aggregateFunction + "(" + e->column + ")";
-            BaseType::TableColumn aggColOut(BaseType::Table("AGG"), aggColOutName, outColType);
+            BaseType::TableColumn aggColOut(BaseType::Table("AGG"), aggColOutName, outColType, e->alias);
             node->irData = AggView::create(aggColIn, aggColOut, aggFunc.value());
         }
         else {
