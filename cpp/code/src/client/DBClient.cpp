@@ -163,88 +163,6 @@ void DBClient::handleSqlFile(std::string_view& filePath) {
     }
 }
 
-// JSON PLAN PROCESSING
-// Helper to get a fresh IR tree for a query
-std::shared_ptr<PlanNode> getFreshIrTree(const std::string& base_dir, const std::string& json_file, const std::string& sql_file) {
-    Json::Value queryPlan = read_plan_to_json(base_dir, json_file);
-    std::string query = read_ssb_query(base_dir, sql_file);
-
-    std::shared_ptr<PlanNode> planNodeRoot = std::make_shared<PlanNode>(queryPlan);
-    planNodeRoot = pruneTree(planNodeRoot);
-    SqlQueryData sqlQueryData = parseQuery(query);
-    planNodeRoot = enrichTree(planNodeRoot, sqlQueryData);
-    AbstractToIr::abstractToIr(planNodeRoot);
-    ensureCorrectColumnSetup(planNodeRoot);
-
-    std::string dot_name = "ir_json_" + sql_file + ".dot";
-    generatePlanDotFile(*planNodeRoot, dot_name, DotContentType::IR_DATA);
-
-    return planNodeRoot;
-}
-
-// Helper to get a fresh IR tree for a query (AST Based)
-std::shared_ptr<PlanNode> getFreshIrTreeFromAst(const std::string& base_dir, const std::string& sql_file) {
-    std::string query = read_ssb_query(base_dir, sql_file);
-    ASTNode* astRoot = generateASTNode(query);
-    std::shared_ptr<PlanNode> planNodeRoot = astToIr(astRoot);
-    ensureCorrectColumnSetup(planNodeRoot);
-    delete astRoot;
-
-    std::string dot_name = "ir_ast_" + sql_file + ".dot";
-    generatePlanDotFile(*planNodeRoot, dot_name, DotContentType::IR_DATA);
-
-    return planNodeRoot;
-}
-
-void DBClient::runPipelines(std::function<std::shared_ptr<PlanNode>()> getTree, const std::string& prefix, const std::string& sql_file) {
-    // 1. Standard Pipeline
-    if (clientConfig.matType == MaterializeOptTypes::fillMaterializes) {
-        auto root = getTree();
-
-        placeSemiJoins(root.get());
-        mergeSortIntoGroupIfSubset(&root);
-        moveAggIntoGroup(root.get());
-        fillMaterializes(root.get());
-        uniqueColNames(root.get());
-        irToApiData(root.get());
-
-        std::string dot_name = prefix + "_standard_" + sql_file + ".dot";
-        generatePlanDotFile(*root, dot_name, DotContentType::API_DATA);
-    }
-
-    // 2. Late Materialization V2
-    else if (clientConfig.matType == MaterializeOptTypes::putLateMaterialization) {
-        auto root = getTree();
-
-        placeSemiJoins(root.get());
-        mergeSortIntoGroupIfSubset(&root);
-        moveAggIntoGroup(root.get());
-        putLateMaterializationV2(root.get());
-        grandChildrenOptimization(root.get());
-        uniqueColNames(root.get());
-        irToApiData(root.get());
-
-        std::string dot_name = prefix + "_late_v2_" + sql_file + ".dot";
-        generatePlanDotFile(*root, dot_name, DotContentType::API_DATA);
-    }
-
-    // 3. Late Materialization Hybrid
-    else if (clientConfig.matType == MaterializeOptTypes::putLateMaterializationsHybrid) {
-        auto root = getTree();
-
-        placeSemiJoins(root.get());
-        mergeSortIntoGroupIfSubset(&root);
-        moveAggIntoGroup(root.get());
-        putLateMaterializationHybrid(root.get());
-        grandChildrenOptimization(root.get());
-        uniqueColNames(root.get());
-        irToApiData(root.get());
-
-        std::string dot_name = prefix + "_late_hybrid_" + sql_file + ".dot";
-        generatePlanDotFile(*root, dot_name, DotContentType::API_DATA);
-    }
-}
-
 void DBClient::handleJsonPlanFile(const std::string& jsonFilePath, const std::string& sqlFilePath) {
     std::cout << "Processing JSON query plan " << jsonFilePath << " with following query file: " << sqlFilePath << std::endl;
 
@@ -392,7 +310,19 @@ void DBClient::runOptimizerPipeline(ASTNode* root, uint64_t planId) {
     auto start = std::chrono::high_resolution_clock::now();
 
     // Generate IR tree for second optimizer
-    std::shared_ptr<PlanNode> ir_root = astToIr(root);
+    std::shared_ptr<PlanNode> ir_root;
+    if (true) {   
+        ir_root = astToIr(root);
+    }
+    else {
+        Json::Value queryPlan = read_plan_to_json(base_dir, json_file);
+        ir_root = std::make_shared<PlanNode>(queryPlan);
+        ir_root = pruneTree(ir_root);
+        SqlQueryData sqlQueryData = parseQuery(query);
+        ir_root = enrichTree(ir_root, sqlQueryData);
+        AbstractToIr::abstractToIr(ir_root);
+    }
+    
     ensureCorrectColumnSetup(ir_root);
     createPlanDotFile(*ir_root, "ir_plan.dot", DotContentType::IR_DATA);
 
