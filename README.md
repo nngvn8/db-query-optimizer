@@ -27,6 +27,8 @@ see python/requirements.txt
 - jsoncpp
 - hyrise sql-parser
 
+The libraries must be placed under cpp/external/
+
 ### Docker
 
 #### System Packages (Linux)
@@ -153,7 +155,7 @@ Files can contain multiple queries. Each query will be optimized parallel in a t
 
 ## DB Server
 
-The example implementation includes a `DBServer` class that accepts generated work items and prints them to the console. 
+The example implementation includes a `DBServer` class that accepts generated work items and prints them to the console.
 
 Key details of the implementation include:
 * **Network Communication:** It relies on a `TCPServer` to manage underlying connections.
