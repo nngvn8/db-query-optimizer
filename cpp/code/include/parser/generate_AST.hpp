@@ -1,3 +1,12 @@
+/**
+ * @file generate_AST.hpp
+ * @brief Defines the structure of the Abstract Syntax Tree (AST) and functions for its generation.
+ *
+ * This file contains the definitions for the various node types that make up the AST,
+ * which is a tree representation of a parsed SQL query. It also declares the functions
+ * responsible for parsing a SQL query string and constructing the corresponding AST.
+ */
+
 #ifndef GENERATE_AST_H
 #define GENERATE_AST_H
 
@@ -11,6 +20,10 @@
 #include <cctype>
 #include <memory>
 
+/**
+ * @class TableJoinNode
+ * @brief Represents a join between two tables in the AST.
+ */
 class TableJoinNode {
 public:
     std::string joinType;
@@ -32,6 +45,10 @@ public:
                 onRightTableColumn(onRightTableColumn){}
 };
 
+/**
+ * @class TableBaseNode
+ * @brief Represents a base table in the AST.
+ */
 class TableBaseNode {
 public:
     std::string tableName;
@@ -43,6 +60,10 @@ public:
                 tableAlias(tableAlias){}
 };
 
+/**
+ * @class WhereClauseNode
+ * @brief Represents a condition in the WHERE clause of a query in the AST.
+ */
 class WhereClauseNode {
     public:
         std::string table;
@@ -52,7 +73,6 @@ class WhereClauseNode {
         std::string column2;
         std::string value;
         std::string value2;
-
 
         WhereClauseNode(const std::string& table="",
                 const std::string& column="",
@@ -72,6 +92,10 @@ class WhereClauseNode {
                     {};
 };
 
+/**
+ * @struct SelectClauseDescription
+ * @brief Describes a single item in a SELECT clause.
+ */
 struct SelectClauseDescription {
     SelectClauseDescription() = default;
     SelectClauseDescription(const std::string tbl,const std::string col, const std::string alias = "")
@@ -82,6 +106,10 @@ struct SelectClauseDescription {
     std::string alias;
 };
 
+/**
+ * @class SelectClauseNode
+ * @brief Represents the SELECT clause of a query in the AST.
+ */
 class SelectClauseNode {
     public:
         std::vector<SelectClauseDescription> description;
@@ -91,6 +119,10 @@ class SelectClauseNode {
 };
 
 
+/**
+ * @class Map
+ * @brief Represents a mapping or computation in the AST.
+ */
 class Map {
     public:
         std::string table1;
@@ -117,6 +149,10 @@ class Map {
         {}
 };
 
+/**
+ * @class AggregateClauseNode
+ * @brief Represents an aggregate function call in the AST.
+ */
 class AggregateClauseNode {
     public:
         std::string aggregateFunction;
@@ -137,6 +173,10 @@ class AggregateClauseNode {
                     {};
 };
 
+/**
+ * @struct GroupByDescription
+ * @brief Describes a single item in a GROUP BY clause.
+ */
 struct GroupByDescription {
     GroupByDescription() = default;
     GroupByDescription(const std::string tbl,const std::string col)
@@ -148,6 +188,10 @@ struct GroupByDescription {
     std::string table;
 };
 
+/**
+ * @class GroupByClauseNode
+ * @brief Represents the GROUP BY clause of a query in the AST.
+ */
 class GroupByClauseNode {
 public:
     std::vector<GroupByDescription> description;
@@ -156,6 +200,10 @@ public:
         : description(description) {}
 };
 
+/**
+ * @struct OrderByDescription
+ * @brief Describes a single item in an ORDER BY clause.
+ */
 struct OrderByDescription {
     std::string column;
     std::string table;
@@ -174,6 +222,10 @@ struct OrderByDescription {
     {}
 };
 
+/**
+ * @class OrderByClauseNode
+ * @brief Represents the ORDER BY clause of a query in the AST.
+ */
 class OrderByClauseNode {
 public:
     std::vector<OrderByDescription> orderByList;
@@ -183,6 +235,10 @@ public:
     {}
 };
 
+/**
+ * @class LimitClauseNode
+ * @brief Represents the LIMIT clause of a query in the AST.
+ */
 class LimitClauseNode {
     public:
         std::string limit;
@@ -196,6 +252,10 @@ class LimitClauseNode {
         {}
 };
 
+/**
+ * @class SetOperationNode
+ * @brief Represents a set operation (e.g., UNION, INTERSECT) in the AST.
+ */
 class SetOperationNode {
     public:
         std::string setOperation;
@@ -205,6 +265,13 @@ class SetOperationNode {
         {}
 };
 
+/**
+ * @class ASTNode
+ * @brief The main node class for the Abstract Syntax Tree.
+ *
+ * Each ASTNode holds a variant that can be one of the specific node types,
+ * and it has pointers to its left and right children, forming a tree structure.
+ */
 class ASTNode {
 public:
     std::variant<
@@ -263,28 +330,79 @@ public:
     }
 };
 
+/**
+ * @brief Creates an AST node from a parser expression.
+ * @param expr The expression from the SQL parser.
+ * @return A pointer to the newly created ASTNode.
+ */
 ASTNode* makeExprNode(hsql::Expr* expr = nullptr);
 
+/**
+ * @brief Creates an AST node from a parser table reference.
+ * @param table The table reference from the SQL parser.
+ * @return A pointer to the newly created ASTNode.
+ */
 ASTNode* makeTableNode(hsql::TableRef* table = nullptr);
 
+/**
+ * @brief Prints the AST to the console for debugging.
+ * @param root The root of the AST to print.
+ */
 void printAST(ASTNode* root);
 
+/**
+ * @brief Parses a WHERE clause expression recursively.
+ * @param expr The expression from the SQL parser.
+ * @param q A queue to hold expressions to be processed.
+ */
 void parseWhere(hsql::Expr* expr, std::queue<hsql::Expr*> &q);
 
+/**
+ * @brief Parses a SELECT list expression.
+ * @param expr The expression from the SQL parser.
+ */
 void parseSelect(hsql::Expr* expr);
 
+/**
+ * @brief Explores a table reference recursively to build the table part of the AST.
+ * @param table The table reference from the SQL parser.
+ * @return A pointer to the root of the table-related subtree of the AST.
+ */
 ASTNode* exploreTable(hsql::TableRef* table);
 
+/**
+ * @brief Generates an AST from a SQL query string.
+ * @param query The SQL query string.
+ * @return A pointer to the root of the generated AST.
+ */
 ASTNode* generateASTNode(const std::string& query);
 
+/**
+ * @brief Creates a WHERE clause node from a parser expression.
+ * @param expr The expression from the SQL parser.
+ * @return A pointer to the newly created ASTNode.
+ */
 ASTNode* makeWhereNode(hsql::Expr* expr);
 
-ASTNode* makeTableNode(hsql::TableRef* table);
-
+/**
+ * @brief Creates an ORDER BY description from a parser order description.
+ * @param order The order description from the SQL parser.
+ * @return An OrderByDescription struct.
+ */
 OrderByDescription makeOrderNode(hsql::OrderDescription* order);
 
+/**
+ * @brief Creates a GROUP BY description from a parser expression.
+ * @param column The expression from the SQL parser.
+ * @return A GroupByDescription struct.
+ */
 GroupByDescription makeGroupByNode(hsql::Expr* column);
 
+/**
+ * @brief Parses a full select statement into an AST.
+ * @param selectStmt The select statement from the SQL parser.
+ * @return A pointer to the root of the generated AST.
+ */
 ASTNode* parseQueryExpression(const hsql::SelectStatement* selectStmt);
 
 #endif

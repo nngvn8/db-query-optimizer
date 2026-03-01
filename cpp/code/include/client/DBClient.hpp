@@ -1,3 +1,13 @@
+/**
+ * @file DBClient.hpp
+ * @brief Defines the main database client application.
+ *
+ * This file contains the declaration of the `DBClient` class, which is responsible for
+ * handling user input, parsing SQL queries, running the optimizer pipeline,
+ * and communicating with the database server. It also defines the necessary
+ * data structures for client configuration and actions.
+ */
+
 #include <iostream>
 #include <string>
 #include <unistd.h>
@@ -22,6 +32,7 @@
 #include "ir/plan_node_to_dot.hpp"
 #include "client/thread_pool.hpp"
 
+/// A list of fields related to the general execution of the client.
 static std::vector<std::pair<std::string, std::string>> runFields {
     // GENERAL FLAGS
     {"-ip", "Server IP. If no IP is given use 127.0.0.1"},
@@ -32,6 +43,7 @@ static std::vector<std::pair<std::string, std::string>> runFields {
     {"-debug", "Display debug information"}
 };
 
+/// A list of fields related to the configuration of the optimizer.
 static std::vector<std::pair<std::string, std::string>> configFields {
     // CONFIGURATIONS
     {"-planDot", "Generate plan dot files"},
@@ -41,12 +53,20 @@ static std::vector<std::pair<std::string, std::string>> configFields {
     {"-gChildOpt", "Use grand children optimization"}
 };
 
+/**
+ * @enum MaterializeOptTypes
+ * @brief An enum for the different materialization optimization types.
+ */
 enum class MaterializeOptTypes {
     fillMaterializes,
     putLateMaterialization,
     putLateMaterializationsHybrid
 };
 
+/**
+ * @struct ClientConfiguration
+ * @brief A struct to hold the client configuration.
+ */
 struct ClientConfiguration {
     std::string ip;
     size_t port;
@@ -63,6 +83,10 @@ struct ClientConfiguration {
     bool grandChildOpt = false;
 
     MaterializeOptTypes matType = MaterializeOptTypes::fillMaterializes;
+    /**
+     * @brief Sets the materialization optimization type from a string.
+     * @param type The string representation of the materialization type.
+     */
     void setMatType(const std::string& type) {
         if (type == "lateMaterialize") {
             matType = MaterializeOptTypes::putLateMaterialization;
@@ -74,6 +98,10 @@ struct ClientConfiguration {
     }
 };
 
+/**
+ * @enum ClientAction
+ * @brief An enum for the different actions the client can take.
+ */
 enum class ClientAction {
     Continue,
     SendQuery,
@@ -81,11 +109,19 @@ enum class ClientAction {
     SqlFile
 };
 
+/**
+ * @class DBClient
+ * @brief The main database client class.
+ */
 class DBClient {
 private:
     const ClientConfiguration clientConfig;
 
 public:
+    /**
+     * @brief Constructs a DBClient object.
+     * @param config The client configuration.
+     */
     DBClient(const ClientConfiguration& config)
     : clientConfig(config),
       tcpClient(!config.standalone
@@ -93,6 +129,9 @@ public:
                 : std::nullopt),
       threadPool(config.threadPoolSize) {}
 
+    /**
+     * @brief Destroys the DBClient object.
+     */
     ~DBClient() {
         disableRawMode();
         fileQueries.clear();
@@ -103,23 +142,71 @@ public:
         std::remove(HISTORY_FILE);
     }
 
+    /**
+     * @brief Shows the help instructions for the client.
+     */
     static void showHelpInstructions();
+
+    /**
+     * @brief Shows the debug information.
+     */
     void showDebug();
 
+    /**
+     * @brief Initializes the client callbacks.
+     */
     void initCallbacks();
 
+    /// Whether the client is running in standalone mode.
     bool standalone;
 
+    /**
+     * @brief Reads a query from the user input.
+     * @param outQuery A reference to a string to store the query.
+     * @return The action the client should take.
+     */
     ClientAction readQueryInput(std::string& outQuery);
+
+    /**
+     * @brief Runs the client.
+     */
     void run();
+
+    /**
+     * @brief Runs the client in standalone mode.
+     */
     void runStandalone();
+
+    /**
+     * @brief Runs the client with a server connection.
+     */
     void runWithServerConnection();
 
+    /**
+     * @brief Handles a SQL file.
+     * @param filePath The path to the SQL file.
+     */
     void handleSqlFile(std::string_view& filePath);
 
+    /**
+     * @brief Runs the optimizer pipeline on a given AST.
+     * @param root The root of the AST.
+     */
     void runOptimizerPipeline(ASTNode* root);
+
+    /**
+     * @brief Creates a dot file for a given query plan.
+     * @param root The root of the query plan.
+     * @param filename The name of the dot file.
+     * @param contentType The type of content to include in the dot file.
+     */
     void createPlanDotFile(const PlanNode& root, const std::string& filename, DotContentType contentType);
 
+    /**
+     * @brief Creates an AST root node from a given query string.
+     * @param query The SQL query string.
+     * @return The root of the generated AST.
+     */
     ASTNode* createASTRootNode(const std::string& query);
 
     static constexpr const char* EXIT_CMD = "exit";
