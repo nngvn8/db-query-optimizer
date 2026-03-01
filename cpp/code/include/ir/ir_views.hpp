@@ -299,6 +299,27 @@ public:
         }
     }
 
+    // Helpers
+    static std::string generateOutColString(const std::vector<BaseType::TableColumn>& groupingCols) {
+        std::vector<BaseType::TableColumn> groups;
+        std::stringstream ss;
+        ss << "GROUP_";
+        int i = 0;
+        for (const auto& gCol : groupingCols) {
+            // Extend grouping string
+            char tablePrefix = gCol.table.name.empty() ? '?' : gCol.table.name[0];
+            ss << tablePrefix << "." << gCol.columnName;
+            if (i < groupingCols.size() - 1) ss << "_";
+            i++;
+        }
+        std::string groupingColString = ss.str();
+        return groupingColString;
+    }
+
+    static BaseType::TableColumn generateOutCol(const std::vector<BaseType::TableColumn>& groupingCols) {
+        BaseType::TableColumn outCol(BaseType::Table("GROUP"), generateOutColString(groupingCols), ColumnType::TYPE_INTEGER);
+        return outCol;
+    }
 };
 
 class SortOrderView {

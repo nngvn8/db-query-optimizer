@@ -283,6 +283,7 @@ std::set<std::string> enrichTreeSub(PlanNode* node, SqlQueryData& queryData){
         agg->agg_type = agg_from_query.func;
         agg->agg_mapping = agg_from_query.mapping;
         agg->agg_alias = agg_from_query.alias;
+        agg->grouping_cols = queryData.groupBys;
     }
 
     // CASE join node
@@ -445,23 +446,16 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
     }
     // Group By
     else if (auto e = std::get_if<GroupByClauseNode>(&ast->val)) {
+        
+        // Transform to list of table columns
         std::vector<BaseType::TableColumn> groups;
-        std::stringstream ss;
-        ss << "GROUP_";
-        int i = 0;
         for (const auto& desc : e->description) {
             ColumnType type = Catalog::getSSBColumnType(desc.table, desc.column);
             groups.emplace_back(desc.table, desc.column, type);
-
-            // Extend grouping string
-            char tablePrefix = desc.table.empty() ? '?' : desc.table[0];
-            ss << tablePrefix << "." << desc.column;
-            if (i < e->description.size() - 1) ss << "_";
-
-            i++;
         }
-        std::string groupingColString = ss.str();
-        BaseType::TableColumn outCol(BaseType::Table("GROUP"), groupingColString, ColumnType::TYPE_INTEGER);
+
+        // Generate grouping ir data
+        BaseType::TableColumn outCol = GroupView::generateOutCol(groups);
         node->irData = GroupView::create(groups, outCol);
     }
     // Aggregation

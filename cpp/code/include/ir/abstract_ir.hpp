@@ -19,6 +19,7 @@ struct AbstractAgg {
     std::string agg_type;
     std::string agg_mapping;
     std::string agg_alias;
+    std::vector<std::string> grouping_cols;
 };
 
 struct AbstractSort {

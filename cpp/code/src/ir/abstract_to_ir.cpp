@@ -78,7 +78,7 @@ parseJoinCondition(const std::string& input) {
     throw std::invalid_argument("Unsupported condition");
 }
 
-bool containsAggOperator(const std::string& str) {
+bool containsArithMapOp(const std::string& str) {
     return str.find_first_of("+-*/%") != std::string::npos;
 }
 
@@ -314,15 +314,13 @@ std::shared_ptr<PlanNode> AbstractToIr::abstractToIr(std::shared_ptr<PlanNode> n
     // ==================== AGGREGATION ====================
     const AbstractAgg* agg = std::get_if<AbstractAgg>(&node->abstractData);
     if (agg) {
-        const std::string& firstColName = ConditionParser::getFirstTokenString(agg->agg_mapping);
-        BaseType::TableColumn aggInCol(BaseType::Table(Catalog::getTableName(firstColName)), firstColName, Catalog::getSSBColumnType("", firstColName));
 
-        BaseType::TableColumn prevOutCol = aggInCol;
+        std::optional<BaseType::TableColumn> mapOutCol;
 
         std::vector<IrData> abstractAggItems;
 
-        // ==================== MAP ====================
-        if (containsAggOperator(agg->agg_mapping)) {
+        // Generate map irData if map data present
+        if (containsArithMapOp(agg->agg_mapping)) {
             auto [aggIn1, op, aggIn2] = parseMapping(agg->agg_mapping);
 
             const std::string aggTable1 = Catalog::getTableName(aggIn1);
@@ -348,18 +346,23 @@ std::shared_ptr<PlanNode> AbstractToIr::abstractToIr(std::shared_ptr<PlanNode> n
                 mapOutColType = ColumnType::TYPE_INTEGER;
             }
 
-            BaseType::TableColumn mapOutCol(BaseType::Table("MAP"), aggIn1 + opStr + aggIn2, mapOutColType);
-            IrData mapIrData = MapView::create(aggInCol1, aggOp, aggInCol2, mapOutCol);
+            BaseType::TableColumn mapOut(BaseType::Table("MAP"), aggIn1 + opStr + aggIn2, mapOutColType);
+            IrData mapIrData = MapView::create(aggInCol1, aggOp, aggInCol2, mapOut);
 
             abstractAggItems.push_back(mapIrData);
-
-            prevOutCol = mapOutCol;
+            mapOutCol = mapOut;
         } 
 
-        // ==================== AGGREGATION ====================
+        // generate aggregation IrData if aggregation present
         if (auto aggFunc = IrTransformHelpers::mapStringToAggFunc(agg->agg_type)) {
 
-            BaseType::TableColumn inCol = prevOutCol;
+            BaseType::TableColumn inCol;
+            if (mapOutCol.has_value()) {
+                inCol = mapOutCol.value();
+            } else {
+                const std::string& firstColName = ConditionParser::getFirstTokenString(agg->agg_mapping);
+                inCol = BaseType::TableColumn(BaseType::Table(Catalog::getTableName(firstColName)), firstColName, Catalog::getSSBColumnType("", firstColName));
+            }
 
             // Compute type of output column of aggFunc
             ColumnType outColType;
@@ -374,10 +377,26 @@ std::shared_ptr<PlanNode> AbstractToIr::abstractToIr(std::shared_ptr<PlanNode> n
             IrData aggIrData = AggView::create(inCol, aggOutCol, *aggFunc);
 
             abstractAggItems.push_back(aggIrData);
-
-            prevOutCol = aggOutCol;
         }
 
+        // Generate grouping IrData if grouping information is present
+        if (!agg->grouping_cols.empty()) {
+
+            // Generate list of table columns            
+            std::vector<BaseType::TableColumn> groups;
+            for (const auto& colName : agg->grouping_cols) {
+                std::string tableName = Catalog::getTableName(colName);
+                ColumnType type = Catalog::getSSBColumnType(tableName, colName);
+                groups.emplace_back(tableName, colName, type);
+            }
+
+            // Generate grouping ir data
+            BaseType::TableColumn outCol = GroupView::generateOutCol(groups);
+            IrData groupByIrData = GroupView::create(groups, outCol);
+            abstractAggItems.push_back(groupByIrData);
+        }
+
+        // Build and wire nodes
         if (node->children.size() != 1) 
             throw std::runtime_error("Abstract aggregation must always have exactly one child");
 
