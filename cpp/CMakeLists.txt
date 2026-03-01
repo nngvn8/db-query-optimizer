@@ -69,9 +69,6 @@ add_executable(optimizer-compute-unit "${CMAKE_CURRENT_SOURCE_DIR}/code/examples
 add_executable(optimizer-db-client "${CMAKE_CURRENT_SOURCE_DIR}/code/examples/DBClient_example.cpp" ${PROJECT_SRC} ${PROJECT_HEADERS})
 add_executable(optimizer-db-server "${CMAKE_CURRENT_SOURCE_DIR}/code/examples/DBServer_example.cpp" ${PROJECT_SRC} ${PROJECT_HEADERS})
 
-# Main - Remove later
-add_executable(optimizer-tmp "${CMAKE_CURRENT_SOURCE_DIR}/code/examples/main.cpp" ${PROJECT_SRC} ${PROJECT_HEADERS})
-
 # Public include paths so consumers (and your own sources) can do #include "c.pb.h"
 target_include_directories(optimizer-server
     PUBLIC
@@ -99,13 +96,6 @@ target_include_directories(optimizer-db-server
         ${CMAKE_CURRENT_SOURCE_DIR}/generated/include
 )
 
-# remove
-target_include_directories(optimizer-tmp
-    PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/code/include
-        ${CMAKE_CURRENT_SOURCE_DIR}/generated/include
-)
-
 # Link against Protobuf. Prefer full lib; fall back to lite if that's what is available.
 if(TARGET protobuf::libprotobuf)
   target_link_libraries(optimizer-server PRIVATE protobuf::libprotobuf PRIVATE sqlparser PRIVATE jsoncpp_lib absl::log_internal_check_op)
@@ -115,9 +105,6 @@ if(TARGET protobuf::libprotobuf)
   target_link_libraries(optimizer-db-client PRIVATE protobuf::libprotobuf PRIVATE sqlparser PRIVATE jsoncpp_lib absl::log_internal_check_op)
   target_link_libraries(optimizer-db-server PRIVATE protobuf::libprotobuf PRIVATE sqlparser PRIVATE jsoncpp_lib absl::log_internal_check_op)
 
-  # remove
-  target_link_libraries(optimizer-tmp PRIVATE protobuf::libprotobuf PRIVATE sqlparser PRIVATE jsoncpp_lib absl::log_internal_check_op)
-
 elseif(TARGET protobuf::libprotobuf-lite)
   target_link_libraries(optimizer-server PRIVATE protobuf::libprotobuf-lite PRIVATE sqlparser PRIVATE jsoncpp_lib absl::log_internal_check_op)
   target_link_libraries(optimizer-client PRIVATE protobuf::libprotobuf-lite PRIVATE sqlparser PRIVATE jsoncpp_lib absl::log_internal_check_op)
@@ -126,8 +113,6 @@ elseif(TARGET protobuf::libprotobuf-lite)
   target_link_libraries(optimizer-db-client PRIVATE protobuf::libprotobuf-lite PRIVATE sqlparser PRIVATE jsoncpp_lib absl::log_internal_check_op)
   target_link_libraries(optimizer-db-server PRIVATE protobuf::libprotobuf-lite PRIVATE sqlparser PRIVATE jsoncpp_lib absl::log_internal_check_op)
 
-  # remove
-  target_link_libraries(optimizer-tmp PRIVATE protobuf::libprotobuf-lite PRIVATE sqlparser PRIVATE jsoncpp_lib absl::log_internal_check_op)
 else()
   message(FATAL_ERROR "Protobuf library target not found. Is Protobuf installed correctly?")
 endif()
@@ -141,8 +126,6 @@ if(MSVC)
   target_compile_options(optimizer-db-client PRIVATE /W4 /permissive-)
   target_compile_options(optimizer-db-server PRIVATE /W4 /permissive-)
 
-  # remove
-  target_compile_options(optimizer-tmp PRIVATE /W4 /permissive-)
 else()
   target_compile_options(optimizer-server PRIVATE -Wall -Wextra -Wpedantic)
   target_compile_options(optimizer-client PRIVATE -Wall -Wextra -Wpedantic)
@@ -151,6 +134,4 @@ else()
   target_compile_options(optimizer-db-client PRIVATE -Wall -Wextra -Wpedantic)
   target_compile_options(optimizer-db-server PRIVATE -Wall -Wextra -Wpedantic)
 
-  # remove
-  target_compile_options(optimizer-tmp PRIVATE -Wall -Wextra -Wpedantic)
 endif()
