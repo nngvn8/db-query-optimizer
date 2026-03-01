@@ -27,7 +27,7 @@ see python/requirements.txt
 - jsoncpp
 - hyrise sql-parser
 
-The libraries must be placed under cpp/external/
+The libraries must be placed under `cpp/external/`. You can use the `get_libs.sh` script in `cpp` to download them automatically.
 
 ### Docker
 

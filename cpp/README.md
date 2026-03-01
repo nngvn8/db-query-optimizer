@@ -2,6 +2,10 @@
 
 This directory contains the C++ part of the optimizer project.
 
+## Library Installation
+
+The `get_libs.sh` downloads the necessary libraries (hyrise sql parser and jsoncpp).
+
 ## Debug Build
 
 The `debug_build.sh` script is provided as a convenient way to create a debug build of the project.
