@@ -104,7 +104,7 @@ pipenv run python execute_ssb.py
 
 You should be able to pull and push, etc. from inside the container.
 
-### Using the DB Client
+### DB Client
 
 To run the DB Client example with optional flags, execute the following command:
 ```bash
@@ -121,12 +121,29 @@ Once the client is running, it accepts three primary types of input:
 * **SQL Files:** Enter the name of an SQL file (e.g., `ssb-1.sql`) and press Enter.
 * **JSON Plan Files:** Enter the `.json` plan file name and press Enter, then input the corresponding `.sql` file name and press Enter again to apply the plan.
 
-After correct Input the Optimizer Pipeline will run.
-1. Generating an AST of the given query
+After correct input, the Optimizer Pipeline will run as follows:
+
+1. SQL Parsing: The SQL Parser uses Hyrise to process SQL Strings and Optimizer Configurations into an Abstract Syntax Tree (AST).
+
+2. Optimizer One: The AST is processed to create an Optimized AST.
+
+3. Translation: The system translates the Optimized AST into an Intermediate Representation (IR). Alternatively, external JSON Query Plans can be parsed using jsoncpp and fed into this stage.
+
+4. Optimizer Two: The IR is further processed by a second optimization layer.
+
+5. Output Generation: The pipeline produces Plan Dots and WorkItems.
+
+6. Execution: WorkItems are sent via TCP to the DB-Server for processing.
 
 Files can contain multiple queries. Each query will be optimized parallel in a thread pool and generate the corresponding work items.
 
-The Example implementation also contains a DB-Server that just accepts the generated work items and prints them.
+## DB Server
+
+The example implementation includes a `DBServer` class that accepts generated work items and prints them to the console. 
+
+Key details of the implementation include:
+* **Network Communication:** It relies on a `TCPServer` to manage underlying connections.
+* **Message Handling:** The server uses callbacks to listen for `NewTask` events, parsing the incoming payload into Protobuf `WorkItem` messages before logging them.
 
 ## Development
 
