@@ -298,13 +298,18 @@ std::set<std::string> enrichTreeSub(PlanNode* node, SqlQueryData& queryData){
             for (const std::string& cond : queryData.conditions) {
                 auto [t1, t2] = parseConditionTables(cond);
 
-                bool match = (leftSet.count(t1) && rightSet.count(t2)) ||
-                             (leftSet.count(t2) && rightSet.count(t1));
+                bool normal = leftSet.count(t1) && rightSet.count(t2);
+                bool swapped = leftSet.count(t2) && rightSet.count(t1);
 
-                if (match) {
+                if (normal || swapped) {
                     join->condition = cond;
                     join->left_table = t1;
                     join->right_table = t2;
+
+                    if (!normal) {
+                        std::swap(node->children[0], node->children[1]);
+                    }
+
                     break; // don't process any other conditions, as we found the one for the join
                 } // additionally pop the condition?
             }
