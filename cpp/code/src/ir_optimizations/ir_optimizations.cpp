@@ -332,7 +332,7 @@ LateMaterializationData putLateMaterialization(PlanNode* node, std::set<BaseType
             }
             // This should not happen
             else {
-                std::cout << "scream" << std::endl;
+                std::cout << "Error: Column " << idxCol.table.name << "." << idxCol.columnName << " required but not found in materialization process (matType: standard - deprecated)." << std::endl;
             }
         }
     }
@@ -505,7 +505,7 @@ LateMaterializationData putLateMaterializationV2(PlanNode* node, std::set<BaseTy
             } 
             // This should not happen
             else {
-                std::cout << "scream " << std::endl;
+                std::cout << "Error: Column " << idxCol.table.name << "." << idxCol.columnName << " required but not found in materialization process (matType: late)." << std::endl;
             }
         }
     }
@@ -681,7 +681,7 @@ LateMaterializationData putLateMaterializationHybrid(PlanNode* node, std::set<Ba
             } 
             // This should not happen
             else {
-                std::cout << "scream " << std::endl;
+                std::cout << "Error: Column " << idxCol.table.name << "." << idxCol.columnName << " required but not found in materialization process (matType: late-hybrid)." << std::endl;
             }
         }
     }
