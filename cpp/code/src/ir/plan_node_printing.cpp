@@ -102,8 +102,11 @@ namespace {
         if (sort) {
             std::cout << " [";
             for (size_t i = 0; i < sort->column_names.size(); ++i) {
-                std::cout << (i > 0 ? ", " : "") << sort->column_names[i]
-                        << (sort->asc[i] ? " ASC" : " DESC");
+                std::cout << (i > 0 ? ", " : "") << sort->column_names[i];
+                if (i < sort->aliases.size() && !sort->aliases[i].empty()) {
+                    std::cout << " AS " << sort->aliases[i];
+                }
+                std::cout << (sort->asc[i] ? " ASC" : " DESC");
             }
             std::cout << "]";
         }
@@ -117,6 +120,7 @@ namespace {
             std::cout << "]";
         }
     }
+
     void printNodeJson(const PlanNode& node){
         std::cout << node.rawJson->nodeType;
     }

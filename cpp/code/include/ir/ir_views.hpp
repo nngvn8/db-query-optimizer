@@ -299,6 +299,26 @@ public:
         }
     }
 
+    // Helpers
+    static std::string generateOutColString(const std::vector<BaseType::TableColumn>& groupingCols) {
+        std::vector<BaseType::TableColumn> groups;
+        std::stringstream ss;
+        int i = 0;
+        for (const auto& gCol : groupingCols) {
+            // Extend grouping string
+            char tablePrefix = gCol.table.name.empty() ? '?' : gCol.table.name[0];
+            ss << tablePrefix << "." << gCol.columnName;
+            if (i < groupingCols.size() - 1) ss << "_";
+            i++;
+        }
+        std::string groupingColString = ss.str();
+        return groupingColString;
+    }
+
+    static BaseType::TableColumn generateOutCol(const std::vector<BaseType::TableColumn>& groupingCols) {
+        BaseType::TableColumn outCol(BaseType::Table("GROUP"), generateOutColString(groupingCols), ColumnType::TYPE_INTEGER);
+        return outCol;
+    }
 };
 
 class SortOrderView {
@@ -337,6 +357,23 @@ public:
     BaseType::TableColumn& idxOutput() { return data.outputCols[0]; }
     std::optional<BaseType::TableColumn>& existingIdx() { return op.existingIdx; }
 
+    // Helpers
+    static std::string generateOutColString(const std::vector<BaseType::TableColumn>& sortCols) {
+        std::stringstream ss;
+        int i = 0;
+        for (const auto& col : sortCols) {
+            char tablePrefix = col.table.name.empty() ? '?' : col.table.name[0];
+            ss << tablePrefix << "." << col.columnName;
+            if (i < sortCols.size() - 1) ss << "_";
+            i++;
+        }
+        return ss.str();
+    }
+
+    static BaseType::TableColumn generateOutCol(const std::vector<BaseType::TableColumn>& sortCols) {
+        BaseType::TableColumn outCol(BaseType::Table("SORT"), generateOutColString(sortCols), ColumnType::TYPE_INTEGER);
+        return outCol;
+    }
 };
 
 // class Limit - omitted !! (not supported by system)

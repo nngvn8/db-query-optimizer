@@ -78,6 +78,24 @@ void removeDeepAggregate(std::shared_ptr<PlanNode>& node) {
     }
 }
 
+void removeDeepSort(std::shared_ptr<PlanNode>& node) {
+    // Pointer to the shared_ptr we are currently inspecting
+    std::shared_ptr<PlanNode>* currentPtr = &node;
+
+    // Find sort
+    while (*currentPtr && !isNodeType(currentPtr->get(), SORT)) {
+        if ((*currentPtr)->children.empty()) return;
+        currentPtr = &((*currentPtr)->children[0]);
+    }
+
+    // Replace the sort with its own child
+    if (*currentPtr && isNodeType(currentPtr->get(), SORT)) {
+        if ((*currentPtr)->children.size() == 1) {
+            *currentPtr = (*currentPtr)->children[0];
+        }
+    }
+}
+
 std::shared_ptr<PlanNode> pruneTree(std::shared_ptr<PlanNode> node) {
     if (!node) return nullptr;
 
@@ -116,6 +134,14 @@ std::shared_ptr<PlanNode> pruneTree(std::shared_ptr<PlanNode> node) {
         }
     }
 
+    // Remove Sort below Sort
+    if (SORT.count(currentType)) {
+        if (node->children.size() == 1) {
+            removeDeepSort(node->children[0]);
+        }
+    }
+
+
     // Collapse bitmap
     if (BITMAP.count(currentType) && node->children.size() == 1) {
         PlanNode* childPtr = node->children[0].get();
@@ -138,6 +164,17 @@ std::shared_ptr<PlanNode> pruneTree(std::shared_ptr<PlanNode> node) {
 
     // Generate abstract representation and fill with needed raw data
     node->abstractData = convertToAbstract(node->rawJson.value());
+
+    // Swap Agg and Sort if Sort is below Agg
+    if (std::holds_alternative<AbstractAgg>(node->abstractData)) {
+        if (!node->children.empty()) {
+            PlanNode* child = node->children[0].get();
+            if (std::holds_alternative<AbstractSort>(child->abstractData)) {
+                std::swap(node->abstractData, child->abstractData);
+                std::swap(node->rawJson, child->rawJson);
+            }
+        }
+    }
 
     return node; // Return the modified (but same pointer) node
 }
@@ -215,12 +252,28 @@ std::set<std::string> enrichTreeSub(PlanNode* node, SqlQueryData& queryData){
     // Case sort node
     if (AbstractSort* sort = std::get_if<AbstractSort>(&node->abstractData)) {
         std::vector<std::string> col_names;
+        std::vector<std::string> aliases;
         std::vector<bool> sort_orders;
+        std::map<std::string, std::string> aliasMap;
+
+        for (const Selection& col : queryData.selections) {
+            if (!col.alias.empty()) {
+                aliasMap[col.alias] = col.content;
+            }
+        }
+
         for (int i=0; i < queryData.sorting.size(); ++i){
-            col_names.push_back(queryData.sorting[i].field);
+            std::string sorting_entry = queryData.sorting[i].field;
+            bool sorting_entry_is_alias = aliasMap.contains(sorting_entry);
+            std::string col_name = !sorting_entry_is_alias ? sorting_entry : aliasMap[sorting_entry];
+            std::string alias = sorting_entry_is_alias ? sorting_entry : "";
+
+            col_names.push_back(col_name);
+            aliases.push_back(alias);
             sort_orders.push_back(queryData.sorting[i].asc);
         }
         sort->column_names = col_names;
+        sort->aliases = aliases;
         sort->asc = sort_orders;
     }
 
@@ -230,6 +283,7 @@ std::set<std::string> enrichTreeSub(PlanNode* node, SqlQueryData& queryData){
         agg->agg_type = agg_from_query.func;
         agg->agg_mapping = agg_from_query.mapping;
         agg->agg_alias = agg_from_query.alias;
+        agg->grouping_cols = queryData.groupBys;
     }
 
     // CASE join node
@@ -244,13 +298,18 @@ std::set<std::string> enrichTreeSub(PlanNode* node, SqlQueryData& queryData){
             for (const std::string& cond : queryData.conditions) {
                 auto [t1, t2] = parseConditionTables(cond);
 
-                bool match = (leftSet.count(t1) && rightSet.count(t2)) ||
-                             (leftSet.count(t2) && rightSet.count(t1));
+                bool normal = leftSet.count(t1) && rightSet.count(t2);
+                bool swapped = leftSet.count(t2) && rightSet.count(t1);
 
-                if (match) {
+                if (normal || swapped) {
                     join->condition = cond;
                     join->left_table = t1;
                     join->right_table = t2;
+
+                    if (!normal) {
+                        std::swap(node->children[0], node->children[1]);
+                    }
+
                     break; // don't process any other conditions, as we found the one for the join
                 } // additionally pop the condition?
             }
@@ -272,7 +331,11 @@ std::shared_ptr<PlanNode> enrichTree(std::shared_ptr<PlanNode> root, SqlQueryDat
     // Add data from query into the result
     std::vector<std::string> select_cols;
     for (const Selection& col : queryData.selections) {
-        select_cols.push_back(col.content);
+        std::string name = col.content;
+        if (!col.alias.empty())
+            name += " AS " + col.alias;
+
+        select_cols.push_back(name);
     }
 
     // Fill result node and set it as new root of the tree
@@ -283,7 +346,7 @@ std::shared_ptr<PlanNode> enrichTree(std::shared_ptr<PlanNode> root, SqlQueryDat
     return resultNode;
 }
 
-namespace {
+namespace IrTransformHelpers {
 
     // --- Helper Functions for Enum Mapping ---
 
@@ -367,51 +430,45 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
     // Order By
     else if (auto e = std::get_if<OrderByClauseNode>(&ast->val)) {
         std::vector<BaseType::OrderDescription> orders;
-        int i = 0;
-        std::string orderColString = "ORDER_";
+        std::vector<BaseType::TableColumn> sortCols;
+
         for (const auto& desc : e->orderByList) {
             ColumnType type = Catalog::getSSBColumnType(desc.table, desc.column);
             bool isAsc = (desc.ordertype != "DESC");
             bool isNullsFirst = (desc.nullordering == "FIRST");
 
+            BaseType::TableColumn sortCol(desc.table, desc.column, type);
+
             orders.emplace_back(
-                BaseType::TableColumn(desc.table, desc.column, type),
+                sortCol,
                 isAsc,
                 isNullsFirst
             );
 
-            orderColString += std::string(1, desc.table[0]) + "." + desc.column + (i < e->orderByList.size() - 1 ? "_" : "");
-            i++;
+            sortCols.push_back(sortCol);
         }
-        BaseType::TableColumn outCol(BaseType::Table(""), orderColString, ColumnType::TYPE_INTEGER);
+        BaseType::TableColumn outCol = SortOrderView::generateOutCol(sortCols);
         node->irData = SortOrderView::create(orders, outCol);
     }
     // Group By
     else if (auto e = std::get_if<GroupByClauseNode>(&ast->val)) {
+        
+        // Transform to list of table columns
         std::vector<BaseType::TableColumn> groups;
-        std::stringstream ss;
-        ss << "GROUP_";
-        int i = 0;
         for (const auto& desc : e->description) {
             ColumnType type = Catalog::getSSBColumnType(desc.table, desc.column);
             groups.emplace_back(desc.table, desc.column, type);
-
-            // Extend grouping string
-            char tablePrefix = desc.table.empty() ? '?' : desc.table[0];
-            ss << tablePrefix << "." << desc.column;
-            if (i < e->description.size() - 1) ss << "_";
-
-            i++;
         }
-        std::string groupingColString = ss.str();
-        BaseType::TableColumn outCol(BaseType::Table("GROUP"), groupingColString, ColumnType::TYPE_INTEGER);
+
+        // Generate grouping ir data
+        BaseType::TableColumn outCol = GroupView::generateOutCol(groups);
         node->irData = GroupView::create(groups, outCol);
     }
     // Aggregation
     else if (auto e = std::get_if<AggregateClauseNode>(&ast->val)) {
-        std::optional<AggFunc> aggFunc = mapStringToAggFunc(e->aggregateFunction);
+        std::optional<AggFunc> aggFunc = IrTransformHelpers::mapStringToAggFunc(e->aggregateFunction);
         if (aggFunc.has_value()) {
-            ColumnType inColType = Catalog::getSSBColumnType(e->table, e->column);            
+            ColumnType inColType = Catalog::getSSBColumnType(e->table, e->column);
             ColumnType outColType;
             switch (aggFunc.value()) {
                 case AGG_COUNT:
@@ -439,8 +496,8 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
     else if (auto e = std::get_if<Map>(&ast->val)) {
         ColumnType colTypeInput1 = Catalog::getSSBColumnType(e->table1, e->column1);
         ColumnType colTypeInput2 = Catalog::getSSBColumnType(e->table2, e->column2);
-        ArithOp op = mapStringToArithOp(e->operatorType);
-        
+        ArithOp op = IrTransformHelpers::mapStringToArithOp(e->operatorType);
+
         ColumnType outColType;
         if (colTypeInput1 == ColumnType::TYPE_STRING || colTypeInput2 == ColumnType::TYPE_STRING
             || (op == ARITH_MOD && !(colTypeInput1 == ColumnType::TYPE_INTEGER && colTypeInput2 == ColumnType::TYPE_INTEGER))) {
@@ -466,22 +523,22 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
         std::optional<BaseType::TableColumn> col2 = std::nullopt;
 
         std::vector<std::variant<uint64_t, float, std::string>> filterArgs;
-        CompType opType = mapStringToCompType(e->operatorType);
+        CompType opType = IrTransformHelpers::mapStringToCompType(e->operatorType);
 
         // TODO: Or capabilities limited by ast parsing: Always or of two equalities
         if (e->operatorType == "OR") {
             opType = CompType::COMP_IN;
 
-            filterArgs.push_back(parseValueByType(e->value, colType));
+            filterArgs.push_back(IrTransformHelpers::parseValueByType(e->value, colType));
             if (!e->value2.empty()) {
-                filterArgs.push_back(parseValueByType(e->value2, colType));
+                filterArgs.push_back(IrTransformHelpers::parseValueByType(e->value2, colType));
             }
         }
         else if (e->operatorType == "BETWEEN") {
             opType = CompType::COMP_BETWEEN;
 
-            filterArgs.push_back(parseValueByType(e->value, colType));
-            filterArgs.push_back(parseValueByType(e->value2, colType));
+            filterArgs.push_back(IrTransformHelpers::parseValueByType(e->value, colType));
+            filterArgs.push_back(IrTransformHelpers::parseValueByType(e->value2, colType));
         }
         // Column based filter (or join)
         else if (!e->column.empty() && !e->column2.empty()) {
@@ -491,7 +548,7 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
         }
         // Single value filter
         else {
-            filterArgs.push_back(parseValueByType(e->value, colType));
+            filterArgs.push_back(IrTransformHelpers::parseValueByType(e->value, colType));
         }
 
         node->irData = FilterView::create(
@@ -506,7 +563,7 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
     // JOIN Node
     else if (auto e = std::get_if<TableJoinNode>(&ast->val)) {
         ColumnType leftType = Catalog::getSSBColumnType(e->onLeftTable, e->onLeftTableColumn);
-        
+
         // TODO: proper type inference as right value might not be column
         ColumnType rightType = Catalog::getSSBColumnType(e->onRightTable, e->onRightTableColumn);
 
@@ -518,7 +575,7 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
             leftCol,
             rightCol,
             outCol,
-            mapStringToJoinType(e->joinType),
+            IrTransformHelpers::mapStringToJoinType(e->joinType),
             CompType::COMP_EQ
         );
     }
@@ -538,7 +595,7 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
             dummy,
             dummy,
             outCol,
-            mapStringToRelOp(e->setOperation)
+            IrTransformHelpers::mapStringToRelOp(e->setOperation)
         );
     }
     // Base Table
@@ -615,14 +672,14 @@ MaterializationData fillMaterializes(PlanNode* node, std::set<BaseType::TableCol
     if (!node) return MaterializationData();
 
     // Previous materializations available (collected from children, possibly updated here)
-    std::map<BaseType::TableColumn, std::shared_ptr<PlanNode>> pMat; 
-    
+    std::map<BaseType::TableColumn, std::shared_ptr<PlanNode>> pMat;
+
     // Tables below this node (union of tables found below all children)
     std::set<BaseType::Table> allTablesBelow;
 
      // Columns this node needs
     std::set<BaseType::TableColumn> columnsThisNode(node->irData.inputColumns.begin(), node->irData.inputColumns.end());
-    
+
     // Add columns needed by this node to columns needed later
     columnsToMaterializeOn.insert(columnsThisNode.begin(), columnsThisNode.end());
 
