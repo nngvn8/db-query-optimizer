@@ -1,8 +1,28 @@
+/**
+ * @file ir_views.hpp
+ * @brief Defines view classes for accessing and manipulating different IR operator types.
+ *
+ * This file provides a set of classes that act as "views" into an `IrData` object.
+ * Each view corresponds to a specific operator type (e.g., Join, Filter, Group)
+ * and provides a type-safe and convenient API for accessing and modifying the
+ * operator's parameters. This avoids manual and error-prone `std::get` calls on
+ * the `IrData::opInfo` variant.
+ *
+ * Each view class typically provides:
+ * - A constructor that takes a reference to an `IrData` object.
+ * - A static `create` factory function to construct a new `IrData` object for that operator type.
+ * - Accessor methods for the operator's specific fields.
+ */
+
 #pragma once
 
 #include "ir/ir_types.hpp"
 #include "ir/plan_node.hpp"
 
+/**
+ * @class JoinView
+ * @brief A view for the Join operator.
+ */
 class JoinView {
     IrData& data;
     JoinOp& op;
@@ -10,10 +30,22 @@ class JoinView {
 public:
     using OpType = JoinOp;
 
+    /**
+     * @brief Constructs a JoinView from an IrData object.
+     * @param data The IrData object, which must contain a JoinOp.
+     */
     explicit JoinView(IrData& data)
         : data(data), op(std::get<JoinOp>(data.opInfo)) {}
 
-    // Factory to create data
+    /**
+     * @brief Creates an IrData object for a Join operation.
+     * @param inner The inner join column.
+     * @param outer The outer join column.
+     * @param out The output column.
+     * @param joinType The type of join.
+     * @param joinPredicate The join predicate.
+     * @return An IrData object representing the Join operation.
+     */
     static IrData create(const BaseType::TableColumn& inner,
                          const BaseType::TableColumn& outer,
                          const BaseType::TableColumn& out,
@@ -38,6 +70,10 @@ public:
     CompType& joinPredicate() { return op.joinPredicate; }
 };
 
+/**
+ * @class SemiJoinView
+ * @brief A view for the SemiJoin operator.
+ */
 class SemiJoinView {
     IrData& data;
     SemiJoinOp& op;
@@ -48,7 +84,9 @@ public:
     explicit SemiJoinView(IrData& data)
         : data(data), op(std::get<SemiJoinOp>(data.opInfo)) {}
 
-    // Factory to create data
+    /**
+     * @brief Creates an IrData object for a SemiJoin operation.
+     */
     static IrData create(const BaseType::TableColumn& inner,
                          const BaseType::TableColumn& outer,
                          const BaseType::TableColumn& out,
@@ -63,7 +101,9 @@ public:
         return irData;
     }
 
-    // Factory to create Semi Join data based on Join Data
+    /**
+     * @brief Creates an IrData object for a SemiJoin operation based on an existing Join operation.
+     */
     static IrData create(IrData& data) {
         IrData irData;
         irData.outputsPosList = true;
@@ -85,6 +125,10 @@ public:
     CompType& joinPredicate() { return op.joinPredicate; }
 };
 
+/**
+ * @class SelectView
+ * @brief A view for the Select operator.
+ */
 class SelectView {
     IrData& data;
     SelectOp& op;
@@ -95,7 +139,9 @@ public:
     explicit SelectView(IrData& data)
         : data(data), op(std::get<SelectOp>(data.opInfo)) {}
 
-    // Factory to create data
+    /**
+     * @brief Creates an IrData object for a Select operation.
+     */
     static IrData create(const std::vector<BaseType::TableColumn>& resultCols,
                          std::string fileName = "",
                          std::optional<BaseType::TableColumn> resultIdx = std::nullopt,
@@ -122,6 +168,10 @@ public:
     std::optional<BaseType::TableColumn>& resultIdx() { return op.resultIdx; }
 };
 
+/**
+ * @class AggView
+ * @brief A view for the Aggregation operator.
+ */
 class AggView {
     IrData& data;
     AggOp& op;
@@ -132,7 +182,9 @@ public:
     explicit AggView(IrData& data)
         : data(data), op(std::get<AggOp>(data.opInfo)) {}
 
-    // Factory to create data
+    /**
+     * @brief Creates an IrData object for an Aggregation operation.
+     */
     static IrData create(const BaseType::TableColumn& inputCol,
                          const BaseType::TableColumn& outputCol,
                          AggFunc aggFunc) {
@@ -152,6 +204,10 @@ public:
 
 };
 
+/**
+ * @class FetchView
+ * @brief A view for the Fetch operator.
+ */
 class FetchView {
     IrData& data;
     FetchOp& op;
@@ -162,7 +218,9 @@ public:
     explicit FetchView(IrData& data)
         : data(data), op(std::get<FetchOp>(data.opInfo)) {}
 
-    // Factory to create data
+    /**
+     * @brief Creates an IrData object for a Fetch operation.
+     */
     static IrData create(const BaseType::TableColumn& inputCol, bool wasTableBaseNode = false) {
         IrData irData;
         irData.outputsPosList = false;
@@ -181,6 +239,10 @@ public:
 
 };
 
+/**
+ * @class FilterView
+ * @brief A view for the Filter operator.
+ */
 class FilterView {
     IrData& data;
     FilterOp& op;
@@ -191,7 +253,9 @@ public:
     explicit FilterView(IrData& data)
         : data(data), op(std::get<FilterOp>(data.opInfo)) {}
 
-    // Factory to create data
+    /**
+     * @brief Creates an IrData object for a Filter operation.
+     */
     static IrData create(
         const BaseType::TableColumn& col1,
         const CompType& filterType,
@@ -221,7 +285,10 @@ public:
 
 };
 
-
+/**
+ * @class GroupView
+ * @brief A view for the Group operator.
+ */
 class GroupView {
     IrData& data;
     GroupOp& op;
@@ -233,7 +300,9 @@ public:
         : data(data), op(std::get<GroupOp>(data.opInfo)) {}
 
 
-    // Factory to create data (no aggregation)
+    /**
+     * @brief Creates an IrData object for a Group operation without aggregation.
+     */
     static IrData create(const std::vector<BaseType::TableColumn>& groupingCols, const BaseType::TableColumn& outputCol) {
         IrData irData;
         irData.outputsPosList = true;
@@ -249,7 +318,9 @@ public:
         return irData;
     }
 
-    // Factory to create data (with aggregation)
+    /**
+     * @brief Creates an IrData object for a Group operation with aggregation.
+     */
     static IrData create(const std::vector<BaseType::TableColumn>& groupingCols, const BaseType::TableColumn& outputCol, const BaseType::TableColumn& aggCol, const BaseType::TableColumn& aggResultCol) {
         IrData irData;
         irData.outputsPosList = true;
@@ -273,14 +344,27 @@ public:
     BaseType::TableColumn& outputCluster() { return data.outputCols[2]; }
     std::vector<bool>& sortOrders() { return op.sortOrders; }
     bool& storeExtends() { return op.storeExtends; }
-    BaseType::TableColumn* aggCol() { 
+    /**
+     * @brief Gets the aggregation column, if it exists.
+     * @return A pointer to the aggregation column, or nullptr if there is no aggregation.
+     */
+    BaseType::TableColumn* aggCol() {
         if (op.hasAgg && !data.inputColumns.empty()) return &data.inputColumns.back();
         return nullptr;
     }
-    BaseType::TableColumn* aggResultCol() { 
+    /**
+     * @brief Gets the aggregation result column, if it exists.
+     * @return A pointer to the aggregation result column, or nullptr if there is no aggregation.
+     */
+    BaseType::TableColumn* aggResultCol() {
         if (op.hasAgg && !data.outputCols.empty()) return &data.outputCols.back();
         return nullptr;
     }
+    /**
+     * @brief Sets or updates the aggregation for this Group operation.
+     * @param aggCol The column to aggregate.
+     * @param aggResultCol The column to store the aggregation result.
+     */
     void setAgg(const BaseType::TableColumn& aggCol, const BaseType::TableColumn& aggResultCol) {
         if (op.hasAgg) {
             data.inputColumns.back() = aggCol;
@@ -291,6 +375,9 @@ public:
             data.outputCols.push_back(aggResultCol);
         }
     }
+    /**
+     * @brief Removes the aggregation from this Group operation.
+     */
     void removeAgg() {
         if (op.hasAgg) {
             op.hasAgg = false;
@@ -299,7 +386,9 @@ public:
         }
     }
 
-    // Helpers
+    /**
+     * @brief Generates a string for the output column based on the grouping columns.
+     */
     static std::string generateOutColString(const std::vector<BaseType::TableColumn>& groupingCols) {
         std::vector<BaseType::TableColumn> groups;
         std::stringstream ss;
@@ -315,12 +404,19 @@ public:
         return groupingColString;
     }
 
+    /**
+     * @brief Generates an output column for the group operation.
+     */
     static BaseType::TableColumn generateOutCol(const std::vector<BaseType::TableColumn>& groupingCols) {
         BaseType::TableColumn outCol(BaseType::Table("GROUP"), generateOutColString(groupingCols), ColumnType::TYPE_INTEGER);
         return outCol;
     }
 };
 
+/**
+ * @class SortOrderView
+ * @brief A view for the Sort operator.
+ */
 class SortOrderView {
     IrData& data;
     SortOp& op;
@@ -331,7 +427,9 @@ public:
     explicit SortOrderView(IrData& data)
         : data(data), op(std::get<SortOp>(data.opInfo)) {}
 
-    // Factory to create data
+    /**
+     * @brief Creates an IrData object for a Sort operation.
+     */
     static IrData create(const std::vector<BaseType::OrderDescription>& orderDescriptions, const BaseType::TableColumn& idxOutput, std::optional<BaseType::TableColumn> existingIdx = std::nullopt) {
         IrData irData;
         irData.outputsPosList = true;
@@ -357,7 +455,9 @@ public:
     BaseType::TableColumn& idxOutput() { return data.outputCols[0]; }
     std::optional<BaseType::TableColumn>& existingIdx() { return op.existingIdx; }
 
-    // Helpers
+    /**
+     * @brief Generates a string for the output column based on the sort columns.
+     */
     static std::string generateOutColString(const std::vector<BaseType::TableColumn>& sortCols) {
         std::stringstream ss;
         int i = 0;
@@ -370,6 +470,9 @@ public:
         return ss.str();
     }
 
+    /**
+     * @brief Generates an output column for the sort operation.
+     */
     static BaseType::TableColumn generateOutCol(const std::vector<BaseType::TableColumn>& sortCols) {
         BaseType::TableColumn outCol(BaseType::Table("SORT"), generateOutColString(sortCols), ColumnType::TYPE_INTEGER);
         return outCol;
@@ -378,7 +481,10 @@ public:
 
 // class Limit - omitted !! (not supported by system)
 
-
+/**
+ * @class SetOpView
+ * @brief A view for Set operations (e.g., UNION, INTERSECT, EXCEPT).
+ */
 class SetOpView {
     IrData& data;
     SetOp& op;
@@ -389,7 +495,9 @@ public:
     explicit SetOpView(IrData& data)
         : data(data), op(std::get<SetOp>(data.opInfo)) {}
 
-    // Factory to create data
+    /**
+     * @brief Creates an IrData object for a Set operation.
+     */
     static IrData create(
         const BaseType::TableColumn& inner,
         const BaseType::TableColumn& outer,
@@ -413,6 +521,10 @@ public:
 
 };
 
+/**
+ * @class MaterializeView
+ * @brief A view for the Materialize operator.
+ */
 class MaterializeView {
     IrData& data;
     MatOp& op;
@@ -423,6 +535,9 @@ public:
     explicit MaterializeView(IrData& data)
         : data(data), op(std::get<MatOp>(data.opInfo)) {}
 
+    /**
+     * @brief Creates an IrData object for a Materialize operation.
+     */
     static IrData create(const BaseType::TableColumn& idxCol, const BaseType::TableColumn& filterCol, const BaseType::TableColumn& outputCol, bool outputsPosList = true) {
         IrData irData;
         irData.outputsPosList = outputsPosList;
@@ -440,6 +555,10 @@ public:
 
 };
 
+/**
+ * @class MapView
+ * @brief A view for the Map operator (arithmetic operations).
+ */
 class MapView {
     IrData& data;
     MapOp& op;
@@ -450,6 +569,9 @@ public:
     explicit MapView(IrData& data)
         : data(data), op(std::get<MapOp>(data.opInfo)) {}
 
+    /**
+     * @brief Creates an IrData object for a Map operation.
+     */
     static IrData create(
         const BaseType::TableColumn& column,
         const ArithOp& operatorType,

@@ -1,3 +1,9 @@
+/**
+ * @file unique_col_names.hpp
+ * @brief Provides functionality to rename columns in a query plan to ensure uniqueness.
+ * This is crucial for query execution engines where ambiguous column names can lead to incorrect results.
+ */
+
 #include <vector>
 #include <set>
 #include <map>
@@ -10,44 +16,43 @@
 #include "ir/ir_views.hpp"
 #include "util/name_generator.hpp"
 
-// void uniqueColNamesSub(PlanNode* node, std::set<const PlanNode*>& visited, NameGenerator& nameGenerator, std::map<BaseType::TableColumn, int>& colNamesMap) {
-//     if (visited.contains(node)) return;
-
-//     visited.insert(node);
-
-//     for (const auto& child : node->children) {
-//         uniqueColNamesSub(child.get(), visited, nameGenerator, colNamesMap);
-//     }
-
-//     if (node->children.empty()) {
-//         for (auto& col : node->irData.outputCols) {
-//             colNamesMap[col] = nameGenerator.next_int();
-//             col.columnName = nameGenerator.cur(col.columnName);
-//         }
-//     }
-//     else {
-//         for (auto& col : node->irData.inputColumns) {
-//             col.columnName = col.columnName + "_" + std::to_string(colNamesMap[col]);
-//         }
-//         for (auto& col : node->irData.outputCols) {
-//             colNamesMap[col] = nameGenerator.next_int();
-//             col.columnName = nameGenerator.cur(col.columnName);
-//         }
-//     }
-// }
-
+/**
+ * @brief Extracts the raw column name from a TableColumn object.
+ * @param col The TableColumn object.
+ * @return The raw column name as a string.
+ */
 inline std::string getRawKey(const BaseType::TableColumn& col) {
     return col.columnName;
 }
 
+/**
+ * @class Renamer
+ * @brief A class that traverses a query plan and renames columns to ensure uniqueness.
+ *
+ * The Renamer uses a NameGenerator to create new, unique names for columns.
+ * It caches the renamed columns for each node to avoid redundant processing.
+ */
 class Renamer {
     NameGenerator& gen;
     // Cache: Node -> { OriginalName -> UniqueName }
     std::map<const PlanNode*, std::map<std::string, std::string>> nodeOutputRegistry;
 
 public:
+    /**
+     * @brief Constructs a Renamer object.
+     * @param g A reference to a NameGenerator object.
+     */
     Renamer(NameGenerator& g) : gen(g) {}
 
+    /**
+     * @brief Processes a query plan node to rename its columns.
+     *
+     * This method recursively processes the children of the given node,
+     * then renames the input and output columns of the current node.
+     *
+     * @param node A pointer to the PlanNode to process.
+     * @return A map from original column names to their new unique names.
+     */
     std::map<std::string, std::string> process(PlanNode* node) {
         // Check if already renamed output cols
         if (nodeOutputRegistry.count(node)) {
@@ -110,6 +115,10 @@ public:
     }
 };
 
+/**
+ * @brief A convenience function that renames all columns in a query plan to be unique.
+ * @param node The root of the query plan to process.
+ */
 inline void uniqueColNames(PlanNode* node) {
     NameGenerator nameGenerator;
     Renamer renamer(nameGenerator);
