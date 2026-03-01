@@ -23,6 +23,10 @@ Tested on Ubuntu 24.04.
 #### Python
 see python/requirements.txt
 
+#### Libraries
+- jsoncpp
+- hyrise sql-parser
+
 ### Docker
 
 #### System Packages (Linux)
@@ -67,6 +71,12 @@ cmake --build build --config Release        # Compiling the project
 # Execute the Compute Unit Dummy
 ./build/bin/optimizer-compute-unit
 
+# Execute the DB Client example
+./build/bin/optimizer-db-client
+
+# Exectute the DB Server example
+./build/bin/optimizer-db-server
+
 # Running the Python example TCP-Client
 cd python
 pipenv install -r requirements.txt
@@ -93,6 +103,30 @@ pipenv run python execute_ssb.py
 ```
 
 You should be able to pull and push, etc. from inside the container.
+
+### Using the DB Client
+
+```
+# Execute the DB Client example
+./build/bin/optimizer-db-client <flags>
+```
+
+```
+# Execute the DB Client example with help menu
+./build/bin/optimizer-db-client -help
+```
+
+When the client is running there are multiple possible inputs:
+- Queries: SELECT lo_ FROM ...
+- SQL-Files: Just put in the filename like ssb-1.sql and press enter
+- JSON-Plan-Files: First input the Plan File .json press enter and input the corresponding .sql file. Press enter again and the Plan will be used
+
+After correct Input the Optimizer Pipeline will run.
+1. Generating an AST of the given query
+
+Files can contain multiple queries. Each query will be optimized parallel in a thread pool and generate the corresponding work items.
+
+The Example implementation also contains a DB-Server that just accepts the generated work items and prints them.
 
 ## Development
 
