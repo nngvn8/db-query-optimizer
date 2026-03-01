@@ -94,6 +94,21 @@ pipenv run python execute_ssb.py
 
 You should be able to pull and push, etc. from inside the container.
 
+## Development
+
+This project contains several components and development environments.
+
+### C++ Project
+
+The main C++ project is located in the `cpp` directory. For information on the project structure and how to create a debug build, please see the README file in that directory:
+
+[C++ Project README](./cpp/README.md)
+
+### C++ Optimizer Core
+
+For developers working on the core C++ optimizer logic, there is a separate development environment inside the `cpp/code` directory. This includes a `Makefile` for quick compilation and testing, as well as helper scripts. For more details, please see the README file in that directory:
+
+[C++ Optimizer Development Environment](./cpp/code/README.md)
 
 ## Authors and acknowledgment
 Show your appreciation to those who have contributed to the project.
