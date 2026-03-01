@@ -26,6 +26,9 @@ std::shared_ptr<PlanNode> getFreshIrTree(const std::string& base_dir, const std:
     planNodeRoot = enrichTree(planNodeRoot, sqlQueryData);
     AbstractToIr::abstractToIr(planNodeRoot);
     ensureCorrectColumnSetup(planNodeRoot);
+
+    std::string dot_name = "ir_json_" + sql_file + ".dot";
+    generatePlanDotFile(*planNodeRoot, dot_name, DotContentType::IR_DATA);
     
     return planNodeRoot;
 }
@@ -37,6 +40,10 @@ std::shared_ptr<PlanNode> getFreshIrTreeFromAst(const std::string& base_dir, con
     std::shared_ptr<PlanNode> planNodeRoot = astToIr(astRoot);
     ensureCorrectColumnSetup(planNodeRoot);
     delete astRoot;
+
+    std::string dot_name = "ir_ast_" + sql_file + ".dot";
+    generatePlanDotFile(*planNodeRoot, dot_name, DotContentType::IR_DATA);
+
     return planNodeRoot;
 }
 

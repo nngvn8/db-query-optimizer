@@ -8,14 +8,16 @@
 namespace IrTransformHelpers {
 
     CompType mapStringToCompType(const std::string& op) {
-        if (op == "=") return COMP_EQ;
-        if (op == "<") return COMP_LT;
-        if (op == "<=") return COMP_LE;
-        if (op == ">") return COMP_GT;
-        if (op == ">=") return COMP_GE;
-        if (op == "!=" || op == "<>") return COMP_NE;
+        if (op == "EQUAL" || op == "=") return COMP_EQ;
+        if (op == "LESSTHEN" || op == "<") return COMP_LT;
+        if (op == "LESSTHENEQ" || op == "<=") return COMP_LE;
+        if (op == "GREATERTHEN" || op == ">") return COMP_GT;
+        if (op == "GREATERTHENEQ" || op == ">=") return COMP_GE;
+        if (op == "NOTEQUAL" || op == "!=" || op == "<>") return COMP_NE;
         if (op == "BETWEEN") return COMP_BETWEEN; // Simplification
         if (op == "IN") return COMP_IN;
+        if (op != "OR") // ors in where clauses are being dealt 
+            std::cout << "op" << std::endl;
         return COMP_EQ; // Default fallback
     }
 
@@ -24,6 +26,8 @@ namespace IrTransformHelpers {
         if (type.find("LEFT") != std::string::npos) return BaseType::LEFT_OUTER_JOIN;
         if (type.find("RIGHT") != std::string::npos) return BaseType::RIGHT_OUTER_JOIN;
         if (type.find("FULL") != std::string::npos) return BaseType::FULL_OUTER_JOIN;
+        if (type.find("INNER") != std::string::npos) return BaseType::INNER_JOIN;
+        std::cout << "type" << std::endl;
         return BaseType::INNER_JOIN;
     }
 
@@ -31,6 +35,7 @@ namespace IrTransformHelpers {
         std::transform(op.begin(), op.end(), op.begin(), ::toupper);
         if (op == "INTERSECT") return REL_INTERSECTION;
         if (op == "EXCEPT") return REL_NEGATION;
+        std::cout << "op" << std::endl;
         return REL_UNION;
     }
 
