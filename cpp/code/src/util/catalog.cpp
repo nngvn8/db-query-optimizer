@@ -1,4 +1,4 @@
-#include "ir/catalog.hpp"
+#include "util/catalog.hpp"
 
 namespace Catalog {
 

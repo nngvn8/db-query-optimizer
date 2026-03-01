@@ -2,7 +2,7 @@
 
 #include "ir/plan_node.hpp"
 #include "ir/abstract_ir.hpp"
-#include "ir/parse_query.hpp"
+#include "ir/get_query_info.hpp"
 #include "ir/base_types.hpp"
 #include "parser/generate_AST.hpp"
 #include <map>
@@ -17,6 +17,11 @@ std::shared_ptr<PlanNode> enrichTree(std::shared_ptr<PlanNode> root, SqlQueryDat
 // Use refined parsing of optimizer one
 std::shared_ptr<PlanNode> astToIr(ASTNode* ast);
 
+class AbstractToIr {
+public:
+    static std::shared_ptr<PlanNode> abstractToIr(std::shared_ptr<PlanNode> node);
+};
+
 void ensureCorrectColumnSetup(std::shared_ptr<PlanNode> node,
                               std::map<std::string, std::string> aliasToName = {},
                               std::map<std::string, std::string> nameToAlias = {});
@@ -30,12 +35,3 @@ struct MaterializationData {
 MaterializationData fillMaterializes(PlanNode* node, std::set<BaseType::TableColumn> columnsToMaterializeOn = {}, const std::set<BaseType::TableColumn>& inputOfParent = {});
 
 void irToApiData(PlanNode* node);
-
-// Helpers
-namespace IrTransformHelpers {
-    CompType mapStringToCompType(const std::string& op);
-    BaseType::Join mapStringToJoinType(std::string type);
-    RelOp mapStringToRelOp(std::string op);
-    std::optional<AggFunc> mapStringToAggFunc(std::string func);
-    ArithOp mapStringToArithOp(const std::string& op);
-}

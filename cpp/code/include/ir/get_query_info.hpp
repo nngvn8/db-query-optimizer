@@ -1,5 +1,5 @@
-#ifndef PARSE_QUERY_HPP
-#define PARSE_QUERY_HPP
+#ifndef GET_QUERY_INFO_HPP
+#define GET_QUERY_INFO_HPP
 
 #include <string>
 #include <vector>

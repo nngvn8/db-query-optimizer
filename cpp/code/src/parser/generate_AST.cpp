@@ -1,5 +1,5 @@
 #include <SQLParser.h>
-#include "ir/catalog.hpp"
+#include "util/catalog.hpp"
 #include "parser/generate_AST.hpp"
 #include "parser/optimizer_one.hpp"
 #include <iostream>

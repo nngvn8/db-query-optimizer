@@ -24,7 +24,7 @@
 #include "util/sequentializer.hpp"
 #include "ir/plan_node_to_dot.hpp"
 #include "util/unique_col_names.hpp"
-#include "col_opt/col_opt.hpp"
+#include "ir_optimizations/ir_optimizations.hpp"
 #include "WorkResponse.pb.h"
 #include "QueryPlan.pb.h"
 #include "util/Utility.hpp"

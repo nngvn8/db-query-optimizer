@@ -1,7 +1,7 @@
-#include "col_opt/col_opt.hpp"
+#include "ir_optimizations/ir_optimizations.hpp"
 
 #include "ir/ir_views.hpp"
-#include "ir/catalog.hpp"
+#include "util/catalog.hpp"
 
 #include <ranges>
 #include <deque>

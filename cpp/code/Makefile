@@ -19,7 +19,7 @@ BUILD_DIR := ./build
 
 # Source directories (.cpp files)
 SRC_DIRS := ./src
-#./src/col_opt ./src/ir ./src/parser ./src/translation ./src/util
+#./src/ir_optimizations ./src/ir ./src/parser ./src/translation ./src/util
 
 # Files to exclude as sources
 # EXCLUDES := %/item_builder_example.cpp \
@@ -29,7 +29,7 @@ SRC_DIRS := ./src
 SOURCES := $(shell find $(SRC_DIRS) -name '*.cpp')
 # SOURCES := $(filter-out $(EXCLUDES), $(SOURCES))
 SOURCES += $(PROTO_SRC)
-SOURCES += ./examples/benchmark_pipelines.cpp
+SOURCES += ./examples/all_ssbs_both_paths.cpp
 # SOURCES += ./examples/main.cpp
 # SOURCES += ./examples/query_parse_test.cpp
 

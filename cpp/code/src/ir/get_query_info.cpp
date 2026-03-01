@@ -1,4 +1,4 @@
-#include "ir/parse_query.hpp"
+#include "ir/get_query_info.hpp"
 #include <iostream>
 #include <regex>
 #include <sstream>

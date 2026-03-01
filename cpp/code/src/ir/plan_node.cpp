@@ -6,7 +6,7 @@
 #include <jsoncpp/json/json.h>
 #include <fstream>
 
-#include "ir/parse_query.hpp"
+#include "ir/get_query_info.hpp"
 #include "ir/abstract_ir.hpp"
 
 // --- Parsing Helpers ---
