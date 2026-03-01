@@ -245,7 +245,8 @@ class ItemBuilder {
         /**
          * @brief Creates a vector of WorkItems from a sequence of plan nodes.
          * @param nodes The sequence of plan nodes.
+         * @param planId The Id for the Item plan.
          * @return A vector of WorkItems.
          */
-        std::vector<WorkItem> createWorkItems(std::vector<const PlanNode*>& nodes);
+        std::vector<WorkItem> createWorkItems(std::vector<const PlanNode*>& nodes, int planId);
 };

@@ -346,52 +346,74 @@ WorkItem ItemBuilder::createResultItem(const std::string& file, const std::vecto
 }
 
 
-std::vector<WorkItem> ItemBuilder::createWorkItems(std::vector<const PlanNode*>& nodes) {
+std::vector<WorkItem> ItemBuilder::createWorkItems(std::vector<const PlanNode*>& nodes, int planId) {
 
     std::vector<WorkItem> workItems;
+    int itemId = 1;
 
     for (const auto& node : nodes) {
 
         if (auto* item = std::get_if<ItemBuilder::FetchNode>(&node->apiData)) {
             WorkItem w = ItemBuilder::createFetchItem(*item);
+            w.set_itemid(itemId);
+            w.set_planid(planId);
             workItems.push_back(w);
         }
         else if (auto* item = std::get_if<ItemBuilder::MaterializeNode>(&node->apiData)) {
             WorkItem w = ItemBuilder::createMaterializeItem(*item);
+            w.set_itemid(itemId);
+            w.set_planid(planId);
             workItems.push_back(w);
         }
         else if (auto* item = std::get_if<ItemBuilder::FilterNode>(&node->apiData)) {
             WorkItem w = ItemBuilder::createFilterItem(*item);
+            w.set_itemid(itemId);
+            w.set_planid(planId);
             workItems.push_back(w);
         }
         else if (auto* item = std::get_if<ItemBuilder::JoinNode>(&node->apiData)) {
             WorkItem w = ItemBuilder::createJoinItem(*item);
+            w.set_itemid(itemId);
+            w.set_planid(planId);
             workItems.push_back(w);
         }
         else if (auto* item = std::get_if<ItemBuilder::MapNode>(&node->apiData)) {
             WorkItem w = ItemBuilder::createMapItem(*item);
+            w.set_itemid(itemId);
+            w.set_planid(planId);
             workItems.push_back(w);
         }
         else if (auto* item = std::get_if<ItemBuilder::MultiGroupNode>(&node->apiData)) {
             WorkItem w = ItemBuilder::createMultiGroupItem(*item);
+            w.set_itemid(itemId);
+            w.set_planid(planId);
             workItems.push_back(w);
         }
         else if (auto* item = std::get_if<ItemBuilder::SetOperationNode>(&node->apiData)) {
             WorkItem w = ItemBuilder::createSetOperationItem(*item);
+            w.set_itemid(itemId);
+            w.set_planid(planId);
             workItems.push_back(w);
         }
         else if (auto* item = std::get_if<ItemBuilder::SortNode>(&node->apiData)) {
             WorkItem w = ItemBuilder::createSortItem(*item);
+            w.set_itemid(itemId);
+            w.set_planid(planId);
             workItems.push_back(w);
         }
         else if (auto* item = std::get_if<ItemBuilder::AggNode>(&node->apiData)) {
             WorkItem w = ItemBuilder::createAggItem(*item);
+            w.set_itemid(itemId);
+            w.set_planid(planId);
             workItems.push_back(w);
         }
         else if (auto* item = std::get_if<ItemBuilder::ResultNode>(&node->apiData)) {
             WorkItem w = ItemBuilder::createResultItem(*item);
+            w.set_itemid(itemId);
+            w.set_planid(planId);
             workItems.push_back(w);
         }
+        itemId++;
     }
 
     return workItems;

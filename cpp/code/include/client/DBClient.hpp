@@ -192,8 +192,9 @@ public:
     /**
      * @brief Runs the optimizer pipeline on a given AST.
      * @param root The root of the AST.
+     * @param planId PlanId for the work items.
      */
-    void runOptimizerPipeline(ASTNode* root);
+    void runOptimizerPipeline(ASTNode* root, uint64_t planId);
 
     /**
      * @brief Creates a dot file for a given query plan.
@@ -210,6 +211,14 @@ public:
      */
     ASTNode* createASTRootNode(const std::string& query);
 
+    /**
+     * @brief Runs the pipelines for json plan processing
+     * @param getTree how should the tree be generated
+     * @param prefix prefix for the type of result
+     * @param sql_file file to use
+     */
+    void runPipelines(std::function<std::shared_ptr<PlanNode>()> getTree, const std::string& prefix, const std::string& sql_file);
+
     static constexpr const char* EXIT_CMD = "exit";
     static constexpr const char* QUIT_CMD = "quit";
     static constexpr int PORT = 8080;
@@ -224,6 +233,13 @@ private:
     void mainClientLoop();
 
     std::vector<WorkItem> workItems;
+    std::atomic<uint64_t> workItemPlanId{1};
+
+    uint64_t getNextWorkItemPlanId() {
+        return workItemPlanId.fetch_add(1, std::memory_order_relaxed);
+    }
+
+    void handleJsonPlanFile(const std::string& jsonFilePath, const std::string& sqlFilePath);
 
     // client history global parameters
     static constexpr const char* HISTORY_FILE = ".client_history";

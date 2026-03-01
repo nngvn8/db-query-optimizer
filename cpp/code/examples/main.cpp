@@ -44,7 +44,7 @@ int main() {
     // Generate IR tree for second optimizer
     ir_root = astToIr(root);
     generatePlanDotFile(*ir_root, "ir_plan.dot", DotContentType::IR_DATA);
-    
+
     ensureCorrectColumnSetup(ir_root);
 
     // Place semi joins
@@ -75,19 +75,19 @@ int main() {
     // printSequencedPlan(sequenced_plan);
 
     // Create WorkItems
-    workItems = itemBuilder.createWorkItems(sequenced_plan);
+    workItems = itemBuilder.createWorkItems(sequenced_plan, 1);
 
     // ##################### LATE MATERIALIZATION APPROACH #################33
     // Generate IR tree for second optimizer
     ir_root = astToIr(root);
     generatePlanDotFile(*ir_root, "ir_plan.dot", DotContentType::IR_DATA);
-    
+
     ensureCorrectColumnSetup(ir_root);
 
     // Place semi joins
     placeSemiJoins(ir_root.get());
     generatePlanDotFile(*ir_root, "ir_plan_semi_j_l.dot", DotContentType::IR_DATA);
-    
+
     mergeSortIntoGroupIfSubset(&ir_root);
     generatePlanDotFile(*ir_root, "ir_plan_remove_sort.dot", DotContentType::IR_DATA);
 
@@ -116,7 +116,7 @@ int main() {
     // printSequencedPlan(sequenced_plan);
 
     // Create WorkItems
-    workItems = itemBuilder.createWorkItems(sequenced_plan);
+    workItems = itemBuilder.createWorkItems(sequenced_plan, 2);
 
     // ##################### LATE MATERIALIZATION V2 APPROACH #################33
     // Generate IR tree for second optimizer
@@ -128,7 +128,7 @@ int main() {
     // Place semi joins
     placeSemiJoins(ir_root.get());
     generatePlanDotFile(*ir_root, "ir_plan_semi_j_l2.dot", DotContentType::IR_DATA);
-    
+
     mergeSortIntoGroupIfSubset(&ir_root);
     generatePlanDotFile(*ir_root, "ir_plan_remove_sort.dot", DotContentType::IR_DATA);
 
@@ -157,7 +157,7 @@ int main() {
     // printSequencedPlan(sequenced_plan);
 
     // Create WorkItems
-    workItems = itemBuilder.createWorkItems(sequenced_plan);
+    workItems = itemBuilder.createWorkItems(sequenced_plan, 3);
 
     // ##################### LATE MATERIALIZATION HYBRID APPROACH #################33
     // Generate IR tree for second optimizer
@@ -169,7 +169,7 @@ int main() {
     // Place semi joins
     placeSemiJoins(ir_root.get());
     generatePlanDotFile(*ir_root, "ir_plan_semi_j_lh.dot", DotContentType::IR_DATA);
-    
+
     mergeSortIntoGroupIfSubset(&ir_root);
     generatePlanDotFile(*ir_root, "ir_plan_remove_sort.dot", DotContentType::IR_DATA);
 
@@ -198,7 +198,7 @@ int main() {
     // printSequencedPlan(sequenced_plan);
 
     // Create WorkItems
-    workItems = itemBuilder.createWorkItems(sequenced_plan);
+    workItems = itemBuilder.createWorkItems(sequenced_plan, 4);
 
     return 0;
 }

@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
+#include <filesystem>
 
 // HISTORY AND FILEHANDLING
 #include <fstream>
@@ -29,6 +30,7 @@
 #include "QueryPlan.pb.h"
 #include "util/Utility.hpp"
 #include "UnitDefinition.pb.h"
+#include "util/file_reader.hpp"
 
 // TIMING
 #include <chrono>
@@ -161,9 +163,106 @@ void DBClient::handleSqlFile(std::string_view& filePath) {
     }
 }
 
+// JSON PLAN PROCESSING
+// Helper to get a fresh IR tree for a query
+std::shared_ptr<PlanNode> getFreshIrTree(const std::string& base_dir, const std::string& json_file, const std::string& sql_file) {
+    Json::Value queryPlan = read_plan_to_json(base_dir, json_file);
+    std::string query = read_ssb_query(base_dir, sql_file);
+
+    std::shared_ptr<PlanNode> planNodeRoot = std::make_shared<PlanNode>(queryPlan);
+    planNodeRoot = pruneTree(planNodeRoot);
+    SqlQueryData sqlQueryData = parseQuery(query);
+    planNodeRoot = enrichTree(planNodeRoot, sqlQueryData);
+    AbstractToIr::abstractToIr(planNodeRoot);
+    ensureCorrectColumnSetup(planNodeRoot);
+
+    std::string dot_name = "ir_json_" + sql_file + ".dot";
+    generatePlanDotFile(*planNodeRoot, dot_name, DotContentType::IR_DATA);
+
+    return planNodeRoot;
+}
+
+// Helper to get a fresh IR tree for a query (AST Based)
+std::shared_ptr<PlanNode> getFreshIrTreeFromAst(const std::string& base_dir, const std::string& sql_file) {
+    std::string query = read_ssb_query(base_dir, sql_file);
+    ASTNode* astRoot = generateASTNode(query);
+    std::shared_ptr<PlanNode> planNodeRoot = astToIr(astRoot);
+    ensureCorrectColumnSetup(planNodeRoot);
+    delete astRoot;
+
+    std::string dot_name = "ir_ast_" + sql_file + ".dot";
+    generatePlanDotFile(*planNodeRoot, dot_name, DotContentType::IR_DATA);
+
+    return planNodeRoot;
+}
+
+void DBClient::runPipelines(std::function<std::shared_ptr<PlanNode>()> getTree, const std::string& prefix, const std::string& sql_file) {
+    // 1. Standard Pipeline
+    if (clientConfig.matType == MaterializeOptTypes::fillMaterializes) {
+        auto root = getTree();
+
+        placeSemiJoins(root.get());
+        mergeSortIntoGroupIfSubset(&root);
+        moveAggIntoGroup(root.get());
+        fillMaterializes(root.get());
+        uniqueColNames(root.get());
+        irToApiData(root.get());
+
+        std::string dot_name = prefix + "_standard_" + sql_file + ".dot";
+        generatePlanDotFile(*root, dot_name, DotContentType::API_DATA);
+    }
+
+    // 2. Late Materialization V2
+    else if (clientConfig.matType == MaterializeOptTypes::putLateMaterialization) {
+        auto root = getTree();
+
+        placeSemiJoins(root.get());
+        mergeSortIntoGroupIfSubset(&root);
+        moveAggIntoGroup(root.get());
+        putLateMaterializationV2(root.get());
+        grandChildrenOptimization(root.get());
+        uniqueColNames(root.get());
+        irToApiData(root.get());
+
+        std::string dot_name = prefix + "_late_v2_" + sql_file + ".dot";
+        generatePlanDotFile(*root, dot_name, DotContentType::API_DATA);
+    }
+
+    // 3. Late Materialization Hybrid
+    else if (clientConfig.matType == MaterializeOptTypes::putLateMaterializationsHybrid) {
+        auto root = getTree();
+
+        placeSemiJoins(root.get());
+        mergeSortIntoGroupIfSubset(&root);
+        moveAggIntoGroup(root.get());
+        putLateMaterializationHybrid(root.get());
+        grandChildrenOptimization(root.get());
+        uniqueColNames(root.get());
+        irToApiData(root.get());
+
+        std::string dot_name = prefix + "_late_hybrid_" + sql_file + ".dot";
+        generatePlanDotFile(*root, dot_name, DotContentType::API_DATA);
+    }
+}
+
+void DBClient::handleJsonPlanFile(const std::string& jsonFilePath, const std::string& sqlFilePath) {
+    std::cout << "Processing JSON query plan " << jsonFilePath << " with following query file: " << sqlFilePath << std::endl;
+
+    std::filesystem::path jsonPath(jsonFilePath);
+    std::filesystem::path sqlPath(sqlFilePath);
+
+    std::string sqlFile = sqlPath.filename().string();
+
+    runPipelines([&](){ return getFreshIrTree(jsonPath.parent_path().string() + "/", jsonPath.filename().string(), sqlFile); }, "plan", sqlFile);
+    runPipelines([&](){ return getFreshIrTreeFromAst(jsonPath.parent_path().string() + "/", sqlFile); }, "ast", sqlFile);
+}
+
 ClientAction DBClient::readQueryInput(std::string& outQuery) {
     static std::string buffer;
     char c;
+
+    std::string jsonFile;
+    bool jsonPlanFlag = false;
 
     // use read so we can use arrow keys for history
     // need to use flush to still write the output in raw mode
@@ -212,6 +311,16 @@ ClientAction DBClient::readQueryInput(std::string& outQuery) {
                 return ClientAction::Exit;
             }
 
+            if (jsonPlanFlag) {
+                if (vQuery.ends_with(".sql"))
+                    handleJsonPlanFile(jsonFile, std::string(vQuery));
+
+                jsonPlanFlag = false;
+                jsonFile.clear();
+                buffer.clear();
+                continue;
+            }
+
             if (!vQuery.empty()) {
                 // Handle .sql files
                 if (vQuery.ends_with(".sql")) {
@@ -219,6 +328,15 @@ ClientAction DBClient::readQueryInput(std::string& outQuery) {
 
                     buffer.clear();
                     return ClientAction::SqlFile;
+                }
+
+                // Handle .json files
+                if (vQuery.ends_with(".json")) {
+                    jsonFile = vQuery;
+                    jsonPlanFlag = true;
+
+                    buffer.clear();
+                    continue;
                 }
 
                 // Handle end of query with ;
@@ -270,7 +388,7 @@ ASTNode* DBClient::createASTRootNode(const std::string& query) {
     return root;
 }
 
-void DBClient::runOptimizerPipeline(ASTNode* root) {
+void DBClient::runOptimizerPipeline(ASTNode* root, uint64_t planId) {
     auto start = std::chrono::high_resolution_clock::now();
 
     // Generate IR tree for second optimizer
@@ -327,7 +445,7 @@ void DBClient::runOptimizerPipeline(ASTNode* root) {
 
     // Create WorkItems
     ItemBuilder itemBuilder;
-    std::vector<WorkItem> workItems = itemBuilder.createWorkItems(sequenced_plan);
+    std::vector<WorkItem> workItems = itemBuilder.createWorkItems(sequenced_plan, planId);
 
     for (WorkItem item : workItems) {
         tuddbs::TCPMetaInfo info;
@@ -352,7 +470,6 @@ void DBClient::runOptimizerPipeline(ASTNode* root) {
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> duration = end - start;
         std::cout << "\nStart time: " << start << " Duration: " << duration.count() << "ms" << std::endl;
-        std::cout << "\n--------------------------------------------------------------------------------------" << std::endl;
     }
 }
 
@@ -361,14 +478,17 @@ void DBClient::mainClientLoop() {
     enableRawMode();
 
     if (!clientConfig.inputFile.empty()) {
-        std::string_view inFile = clientConfig.inputFile;
-        handleSqlFile(inFile);
+        if (clientConfig.inputFile.ends_with(".sql")) {
+            std::string_view inFile = clientConfig.inputFile;
+            handleSqlFile(inFile);
 
-        for (const std::string& fileQuery : fileQueries) {
-            std::cout << fileQuery << ";" << std::endl << std::endl;
-            threadPool.enqueue([this, fileQuery]() {
-                runOptimizerPipeline(createASTRootNode(fileQuery));
-            });
+            for (const std::string& fileQuery : fileQueries) {
+                std::cout << fileQuery << ";" << std::endl << std::endl;
+                threadPool.enqueue([this, fileQuery]() {
+                    uint64_t planId = getNextWorkItemPlanId();
+                    runOptimizerPipeline(createASTRootNode(fileQuery), planId);
+                });
+            }
         }
     }
 
@@ -386,7 +506,8 @@ void DBClient::mainClientLoop() {
             break;
 
         if (action == ClientAction::SendQuery) {
-            runOptimizerPipeline(createASTRootNode(query));
+            uint64_t planId = getNextWorkItemPlanId();
+            runOptimizerPipeline(createASTRootNode(query), planId);
             saveHistory(query.substr(0, query.size() - 1));
         }
 
@@ -394,7 +515,8 @@ void DBClient::mainClientLoop() {
             for (std::string fileQuery : fileQueries) {
                 std::cout << fileQuery << ";" << std::endl << std::endl;
                 threadPool.enqueue([this, fileQuery]() {
-                    runOptimizerPipeline(createASTRootNode(fileQuery));
+                    uint64_t planId = getNextWorkItemPlanId();
+                    runOptimizerPipeline(createASTRootNode(fileQuery), planId);
                 });
             }
         }
