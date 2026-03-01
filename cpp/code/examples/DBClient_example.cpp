@@ -27,6 +27,15 @@ int main(int argc, char* argv[]) {
 
     const bool help = parser.takeParseFlag("-help");
 
+    // Uncomment for flexible thread pool size
+    // config.threadPoolSize = std::thread::hardware_concurrency();
+    // if (config.threadPoolSize == 0)
+    //     config.threadPoolSize = 4;
+
+    config.threadPoolSize = 4;
+    if (config.debug)
+        std::cout << "Using Thread pool with " << config.threadPoolSize << " threads" << std::endl;
+
     if (help) {
         DBClient::showHelpInstructions();
         return 0;

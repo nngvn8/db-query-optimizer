@@ -5,7 +5,7 @@
 #include <mutex>
 #include <condition_variable>
 #include <functional>
-#include "server/thread_pool.hpp"
+#include "client/thread_pool.hpp"
 
 ThreadPool::ThreadPool(size_t numberOfThreads) {
     stop = false;

@@ -366,9 +366,9 @@ void DBClient::mainClientLoop() {
         std::string_view inFile = clientConfig.inputFile;
         handleSqlFile(inFile);
 
-        for (std::string fileQuery : fileQueries) {
+        for (const std::string& fileQuery : fileQueries) {
             std::cout << fileQuery << ";" << std::endl;
-            runOptimizerPipeline(createASTRootNode(fileQuery));
+            threadPool.enqueue([this, fileQuery]() { runOptimizerPipeline(createASTRootNode(fileQuery)); });
         }
     }
 
@@ -394,7 +394,7 @@ void DBClient::mainClientLoop() {
         if (action == ClientAction::SqlFile) {
             for (std::string fileQuery : fileQueries) {
                 std::cout << fileQuery << ";" << std::endl;
-                runOptimizerPipeline(createASTRootNode(fileQuery));
+                threadPool.enqueue([this, fileQuery]() { runOptimizerPipeline(createASTRootNode(fileQuery)); });
             }
         }
     }

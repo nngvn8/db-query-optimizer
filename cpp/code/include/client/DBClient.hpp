@@ -20,6 +20,7 @@
 #include "QueryPlan.pb.h"
 #include "ir/plan_node.hpp"
 #include "ir/plan_node_to_dot.hpp"
+#include "client/thread_pool.hpp"
 
 static std::vector<std::pair<std::string, std::string>> runFields {
     // GENERAL FLAGS
@@ -54,6 +55,8 @@ struct ClientConfiguration {
     bool standalone = false;
     bool debug = false;
 
+    int threadPoolSize = 4;
+
     bool planDot = false;
     bool semiJoins = false;
     bool mergeSubsetSort = false;
@@ -87,7 +90,8 @@ public:
     : clientConfig(config),
       tcpClient(!config.standalone
                 ? std::make_optional<tuddbs::TCPClient>(config.ip, config.port)
-                : std::nullopt) {}
+                : std::nullopt),
+      threadPool(config.threadPoolSize) {}
 
     ~DBClient() {
         disableRawMode();
@@ -125,6 +129,8 @@ public:
 
 private:
     std::optional<tuddbs::TCPClient> tcpClient;
+
+    ThreadPool threadPool;
 
     void mainClientLoop();
 
