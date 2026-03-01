@@ -106,20 +106,20 @@ You should be able to pull and push, etc. from inside the container.
 
 ### Using the DB Client
 
-```
-# Execute the DB Client example
+To run the DB Client example with optional flags, execute the following command:
+```bash
 ./build/bin/optimizer-db-client <flags>
 ```
 
-```
-# Execute the DB Client example with help menu
+To display the help menu, use:
+```bash
 ./build/bin/optimizer-db-client -help
 ```
 
-When the client is running there are multiple possible inputs:
-- Queries: SELECT lo_ FROM ...
-- SQL-Files: Just put in the filename like ssb-1.sql and press enter
-- JSON-Plan-Files: First input the Plan File .json press enter and input the corresponding .sql file. Press enter again and the Plan will be used
+Once the client is running, it accepts three primary types of input:
+* **Direct Queries:** Type a standard SQL query directly into the prompt (e.g., `SELECT lo_ FROM ...`).
+* **SQL Files:** Enter the name of an SQL file (e.g., `ssb-1.sql`) and press Enter.
+* **JSON Plan Files:** Enter the `.json` plan file name and press Enter, then input the corresponding `.sql` file name and press Enter again to apply the plan.
 
 After correct Input the Optimizer Pipeline will run.
 1. Generating an AST of the given query
