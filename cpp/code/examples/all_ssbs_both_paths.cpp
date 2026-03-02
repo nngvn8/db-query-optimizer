@@ -28,7 +28,7 @@ std::shared_ptr<PlanNode> getFreshIrTree(const std::string& base_dir, const std:
     ensureCorrectColumnSetup(planNodeRoot);
 
     std::string dot_name = "ir_json_" + sql_file + ".dot";
-    generatePlanDotFile(*planNodeRoot, dot_name, DotContentType::IR_DATA);
+    generatePlanDotFileV2(*planNodeRoot, dot_name, DotContentType::IR_DATA);
     
     return planNodeRoot;
 }
@@ -42,7 +42,7 @@ std::shared_ptr<PlanNode> getFreshIrTreeFromAst(const std::string& base_dir, con
     delete astRoot;
 
     std::string dot_name = "ir_ast_" + sql_file + ".dot";
-    generatePlanDotFile(*planNodeRoot, dot_name, DotContentType::IR_DATA);
+    generatePlanDotFileV2(*planNodeRoot, dot_name, DotContentType::IR_DATA);
 
     return planNodeRoot;
 }
@@ -60,7 +60,7 @@ void runPipelines(std::function<std::shared_ptr<PlanNode>()> getTree, const std:
         irToApiData(root.get());
         
         std::string dot_name = prefix + "_standard_" + sql_file + ".dot";
-        generatePlanDotFile(*root, dot_name, DotContentType::API_DATA);
+        generatePlanDotFileV2(*root, dot_name, DotContentType::API_DATA);
     }
 
     // 2. Late Materialization V2
@@ -76,7 +76,7 @@ void runPipelines(std::function<std::shared_ptr<PlanNode>()> getTree, const std:
         irToApiData(root.get());
 
         std::string dot_name = prefix + "_late_v2_" + sql_file + ".dot";
-        generatePlanDotFile(*root, dot_name, DotContentType::API_DATA);
+        generatePlanDotFileV2(*root, dot_name, DotContentType::API_DATA);
     }
 
     // 3. Late Materialization Hybrid
@@ -92,7 +92,7 @@ void runPipelines(std::function<std::shared_ptr<PlanNode>()> getTree, const std:
         irToApiData(root.get());
 
         std::string dot_name = prefix + "_late_hybrid_" + sql_file + ".dot";
-        generatePlanDotFile(*root, dot_name, DotContentType::API_DATA);
+        generatePlanDotFileV2(*root, dot_name, DotContentType::API_DATA);
     }
 }
 
