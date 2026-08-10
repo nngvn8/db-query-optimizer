@@ -359,16 +359,18 @@ void DBClient::runOptimizerPipeline(ASTNode* root, uint64_t planId, const std::s
     ItemBuilder itemBuilder;
     std::vector<WorkItem> workItems = itemBuilder.createWorkItems(sequenced_plan, planId);
 
-    for (WorkItem item : workItems) {
-        tuddbs::TCPMetaInfo info;
-        info.package_type = tuddbs::TCPPackageType::NewTask;
-        info.payload_size = item.ByteSizeLong();
+    if (!clientConfig.standalone) {
+        for (WorkItem item : workItems) {
+            tuddbs::TCPMetaInfo info;
+            info.package_type = tuddbs::TCPPackageType::NewTask;
+            info.payload_size = item.ByteSizeLong();
 
-        void* out_mem = malloc(sizeof(tuddbs::TCPMetaInfo) + info.payload_size);
-        const size_t message_size = tuddbs::Utility::serializeItemToMemory(out_mem, item, info);
+            void* out_mem = malloc(sizeof(tuddbs::TCPMetaInfo) + info.payload_size);
+            const size_t message_size = tuddbs::Utility::serializeItemToMemory(out_mem, item, info);
 
-        tcpClient->notifyHost(out_mem, message_size);
-        free(out_mem);
+            tcpClient->notifyHost(out_mem, message_size);
+            free(out_mem);
+        }
     }
 
     if (clientConfig.debug) {

@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cctype>
 #include <memory>
+#include <mutex>
 
 /**
  * @class TableJoinNode
