@@ -263,7 +263,8 @@ ClientAction DBClient::readQueryInput(std::string& outQuery) {
 
 void DBClient::createPlanDotFile(const PlanNode& root, const std::string& filename, DotContentType contentType) {
     if (clientConfig.planDot)
-        generatePlanDotFile(root, filename, contentType);
+        generatePlanDotFileV2(root, filename, contentType, true, false);
+
 }
 
 ASTNode* DBClient::createASTRootNode(const std::string& query) {

@@ -101,7 +101,20 @@ namespace {
             case COMP_LE: return "<=";
             case COMP_GT: return ">";
             case COMP_GE: return ">=";
-            default: return "";
+            case COMP_IN: return "IN";
+            case COMP_BETWEEN: return "BETWEEN";
+            default: return CompType_Name(type);
+        }
+    }
+
+    std::string getArithSymbol(ArithOp op) {
+        switch (op) {
+            case ARITH_ADD: return "+";
+            case ARITH_SUB: return "-";
+            case ARITH_MUL: return "*";
+            case ARITH_DIV: return "/";
+            case ARITH_MOD: return "%";
+            default: return ArithOp_Name(op);
         }
     }
 
@@ -115,6 +128,7 @@ namespace {
         void setTitle(const std::string& t) { title = escapeHtml(t); }
         
         void addDetail(const std::string& d) { details.push_back(escapeHtml(d)); }
+        void addRawDetail(const std::string& d) { details.push_back(d); }
         
         void setInput(const std::string& i) { inputStr = escapeHtml(i); }
         void setOutput(const std::string& o) { outputStr = escapeHtml(o); }
@@ -178,12 +192,8 @@ namespace {
             }
             ss << "\n";
 
-            for(size_t i=0; i<view.resultCols().size(); ++i) {
-                ss << view.resultCols()[i];
-                if (i < view.resultHeaders().size()) {
-                    ss << " AS " << view.resultHeaders()[i];
-                }
-                ss << (i < view.resultCols().size() - 1 ? ", " : "");
+            for(size_t i=0; i<view.resultHeaders().size(); ++i) {
+                ss << view.resultHeaders()[i] << (i < view.resultHeaders().size() - 1 ? ", " : "");
             }
         }
         else if (node.irData.is<AggOp>()) {
@@ -193,18 +203,19 @@ namespace {
         else if (node.irData.is<JoinOp>()) {
             JoinView view(mutableIr);
             ss << "Join " << joinTypeToString(view.joinType()) << "\nON "
-               << view.inner() << " " << CompType_Name(view.joinPredicate())
+               << view.inner() << " " << getCompSymbol(view.joinPredicate())
                << " " << view.outer();
         }
         else if (node.irData.is<SemiJoinOp>()) {
             SemiJoinView view(mutableIr);
             ss << "SemiJoin " << joinTypeToString(view.joinType()) << "\nON "
-               << view.inner() << " " << CompType_Name(view.joinPredicate())
+               << view.inner() << " " << getCompSymbol(view.joinPredicate())
                << " " << view.outer();
         }
         else if (node.irData.is<FilterOp>()) {
             FilterView view(mutableIr);
-            ss << "Filter " << CompType_Name(view.filterType()) << "\n" << view.col1() << " ";
+            ss << "Filter " << view.col1() << " ";
+            ss << getCompSymbol(view.filterType()) << " ";
 
             if (view.col2() != nullptr) {
                 ss << *view.col2();
@@ -251,7 +262,7 @@ namespace {
         }
         else if (node.irData.is<MapOp>()) {
             MapView view(mutableIr);
-            ss << "Map " << view.inputCol() << " " << ArithOp_Name(view.operatorType()) << " ";
+            ss << "Map " << view.inputCol() << " " << getArithSymbol(view.operatorType()) << " ";
             std::visit(streamVal, view.partnerVal());
         }
         else if (node.irData.is<SetOp>()) {
@@ -260,11 +271,14 @@ namespace {
         }
         else if (node.irData.is<MatOp>()) {
             MaterializeView view(mutableIr);
-            ss << "Mat\nIdx: " << view.idxCol() << "\nFilter: " << view.filterCol() << "\nPosList: " << node.irData.outputsPosList;
+            ss << "Mat\nIdx: " << view.idxCol() << "\nFilter: " << view.filterCol();
         }
         else {
             ss << "[Empty/Unknown IR]";
         }
+
+        if (node.irData.outputsPosList) ss << "\nPOSLIST-OUT";
+        if (node.irData.outputsMatVals) ss << "\nMATDATA-OUT";
 
         // Input Columns
         if (!node.irData.inputColumns.empty()) {
@@ -302,7 +316,7 @@ namespace {
 
         if (node.irData.is<FetchOp>()) {
              FetchView view(mutableIr);
-             builder.setTitle("Fetch");
+             builder.setTitle("IR Fetch");
              std::stringstream ss;
              ss << ColumnPrinter(view.inputCol(), shortColumns);
              if (view.wasTableBaseNode()) ss << " [TBN]";
@@ -310,51 +324,45 @@ namespace {
         }
         else if (node.irData.is<SelectOp>()) {
             SelectView view(mutableIr);
-            builder.setTitle("Select");
+            builder.setTitle("IR Select");
             if (view.resultIdx().has_value()){
                 std::stringstream ss; ss << "Idx: " << ColumnPrinter(view.resultIdx().value(), shortColumns); builder.addDetail(ss.str());
             }
             
             std::stringstream ss;
-            for(size_t i=0; i<view.resultCols().size(); ++i) {
-                ss << ColumnPrinter(view.resultCols()[i], shortColumns);
-                if (i < view.resultHeaders().size()) {
-                    ss << " AS " << view.resultHeaders()[i];
-                }
-                ss << (i < view.resultCols().size() - 1 ? ", " : "");
+            for(size_t i=0; i<view.resultHeaders().size(); ++i) {
+                ss << view.resultHeaders()[i] << (i < view.resultHeaders().size() - 1 ? ", " : "");
             }
             builder.addDetail(ss.str());
         }
         else if (node.irData.is<AggOp>()) {
             AggView view(mutableIr);
-            builder.setTitle("Agg " + AggFunc_Name(view.aggFunc()));
+            builder.setTitle("IR Agg " + AggFunc_Name(view.aggFunc()));
             std::stringstream ss;
             ss << "(" << view.colToAgg() << ")";
             builder.addDetail(ss.str());
         }
         else if (node.irData.is<JoinOp>()) {
             JoinView view(mutableIr);
-            builder.setTitle("Join " + joinTypeToString(view.joinType()));
+            builder.setTitle("IR Join " + joinTypeToString(view.joinType()));
             std::stringstream ss;
-            ss << "ON " << ColumnPrinter(view.inner(), shortColumns) << " " << CompType_Name(view.joinPredicate()) << " " << ColumnPrinter(view.outer(), shortColumns);
+            ss << "ON " << ColumnPrinter(view.inner(), shortColumns) << " " << getCompSymbol(view.joinPredicate()) << " " << ColumnPrinter(view.outer(), shortColumns);
             builder.addDetail(ss.str());
         }
         else if (node.irData.is<SemiJoinOp>()) {
             SemiJoinView view(mutableIr);
-            builder.setTitle("SemiJoin " + joinTypeToString(view.joinType()));
+            builder.setTitle("IR SemiJoin " + joinTypeToString(view.joinType()));
             std::stringstream ss;
-            ss << "ON " << ColumnPrinter(view.inner(), shortColumns) << " " << CompType_Name(view.joinPredicate()) << " " << ColumnPrinter(view.outer(), shortColumns);
+            ss << "ON " << ColumnPrinter(view.inner(), shortColumns) << " " << getCompSymbol(view.joinPredicate()) << " " << ColumnPrinter(view.outer(), shortColumns);
             builder.addDetail(ss.str());
         }
         else if (node.irData.is<FilterOp>()) {
             FilterView view(mutableIr);
-            builder.setTitle("Filter");
+            builder.setTitle("IR Filter");
             std::stringstream ss;
             ss << ColumnPrinter(view.col1(), shortColumns) << " ";
             if (view.col2() != nullptr) {
-                std::string symbol = getCompSymbol(view.filterType());
-                if (symbol.empty()) symbol = CompType_Name(view.filterType());
-                ss << symbol << " " << ColumnPrinter(*view.col2(), shortColumns);
+                ss << getCompSymbol(view.filterType()) << " " << ColumnPrinter(*view.col2(), shortColumns);
             } else if (!view.filterArgs().empty()) {
                 if (view.filterType() == CompType::COMP_BETWEEN && view.filterArgs().size() >= 2) {
                     ss << "BETWEEN ";
@@ -363,7 +371,7 @@ namespace {
                     std::visit([&](const auto& v){ ss << v; }, view.filterArgs()[1]);
                 }
                 else if (view.filterType() == CompType::COMP_IN) {
-                    ss << "(";
+                    ss << "IN (";
                     for (size_t i = 0; i < view.filterArgs().size(); ++i) {
                         std::visit([&](const auto& v){ ss << v; }, view.filterArgs()[i]);
                         if (i < view.filterArgs().size() - 1) ss << ", ";
@@ -371,9 +379,7 @@ namespace {
                     ss << ")";
                 }
                 else {
-                    std::string symbol = getCompSymbol(view.filterType());
-                    if (symbol.empty()) symbol = CompType_Name(view.filterType());
-                    ss << symbol << " ";
+                    ss << getCompSymbol(view.filterType()) << " ";
                     std::visit([&](const auto& v){ ss << v; }, view.filterArgs()[0]);
                 }
             }
@@ -381,7 +387,7 @@ namespace {
         }
         else if (node.irData.is<GroupOp>()) {
             GroupView view(mutableIr);
-            builder.setTitle("GroupBy");
+            builder.setTitle("IR GroupBy");
             std::stringstream ss;
             ss << "(";
             const auto& cols = view.groupingCols();
@@ -398,7 +404,7 @@ namespace {
         }
         else if (node.irData.is<SortOp>()) {
             SortOrderView view(mutableIr);
-            builder.setTitle("Sort");
+            builder.setTitle("IR Sort");
             std::stringstream ss;
             ss << "(";
             const auto& descs = view.orderDescriptions();
@@ -410,27 +416,29 @@ namespace {
         }
         else if (node.irData.is<MapOp>()) {
             MapView view(mutableIr);
-            builder.setTitle("Map");
+            builder.setTitle("IR Map");
             std::stringstream ss;
-            ss << ColumnPrinter(view.inputCol(), shortColumns) << " " << ArithOp_Name(view.operatorType()) << " ";
+            ss << ColumnPrinter(view.inputCol(), shortColumns) << " " << getArithSymbol(view.operatorType()) << " ";
             std::visit([&](const auto& v){ ss << v; }, view.partnerVal());
             builder.addDetail(ss.str());
         }
         else if (node.irData.is<SetOp>()) {
             SetOpView view(mutableIr);
-            builder.setTitle("SetOp");
+            builder.setTitle("IR SetOp");
             builder.addDetail("[" + std::to_string((int)view.operation()) + "]");
         }
         else if (node.irData.is<MatOp>()) {
             MaterializeView view(mutableIr);
-            builder.setTitle("Mat");
+            builder.setTitle("IR Mat");
             std::stringstream ss; ss << "Idx: " << ColumnPrinter(view.idxCol(), shortColumns); builder.addDetail(ss.str());
             std::stringstream ss2; ss2 << "Filter: " << ColumnPrinter(view.filterCol(), shortColumns); builder.addDetail(ss2.str());
-            std::stringstream ss3; ss3 << "PosList: " << node.irData.outputsPosList; builder.addDetail(ss3.str());
         }
         else {
             builder.setTitle("Empty/Unknown IR");
         }
+
+        if (node.irData.outputsPosList) builder.addRawDetail("<FONT COLOR=\"blue\">POSLIST-OUT</FONT>");
+        if (node.irData.outputsMatVals) builder.addRawDetail("<FONT COLOR=\"blue\">MATDATA-OUT</FONT>");
 
         return builder.build();
     }
@@ -471,7 +479,7 @@ namespace {
             else if constexpr (std::is_same_v<T, ItemBuilder::FilterNode>) {
                 ss << "API Filter\n";
                 ss << data.inputColumn << " -> " << data.outputColumn << "\n";
-                ss << "[" << CompType_Name(data.filterType) << "] (";
+                ss << "[" << getCompSymbol(data.filterType) << "] (";
                 for (size_t i = 0; i < data.filterArgVals.size(); ++i) {
                     std::visit(streamVal, data.filterArgVals[i]);
                     if (i < data.filterArgVals.size() - 1) ss << ", ";
@@ -492,10 +500,10 @@ namespace {
             }
             else if constexpr (std::is_same_v<T, ItemBuilder::MapNode>) {
                 ss << "API Map\n";
-                ss << data.inputColumn << " -> " << data.outputColumn;
+                ss << data.outputColumn;
             }
             else if constexpr (std::is_same_v<T, ItemBuilder::MaterializeNode>) {
-                ss << "API Mat\nIdx: " << data.idxColumn << "\nFilter: " << data.filterColumn << "\nPosList: " << node.irData.outputsPosList;
+                ss << "API Mat\nIdx: " << data.idxColumn << "\nFilter: " << data.filterColumn;
             }
             else if constexpr (std::is_same_v<T, ItemBuilder::MultiGroupNode>) {
                 ss << "API MultiGroup\n(";
@@ -523,10 +531,21 @@ namespace {
                 ss << ")";
             }
             else if constexpr (std::is_same_v<T, ItemBuilder::ResultNode>) {
-                ss << "API Result\n-> " << data.filename;
+                ss << "API Result";
+                if (node.irData.is<SelectOp>()) {
+                     SelectView view(const_cast<IrData&>(node.irData));
+                     ss << "\n";
+                     for(size_t i=0; i<view.resultHeaders().size(); ++i) {
+                        ss << view.resultHeaders()[i] << (i < view.resultHeaders().size() - 1 ? ", " : "");
+                     }
+                } else {
+                    ss << "\n-> " << data.filename;
+                }
             }
         }, node.apiData);
 
+        if (node.irData.outputsPosList) ss << "\nPOSLIST-OUT";
+        if (node.irData.outputsMatVals) ss << "\nMATDATA-OUT";
 
         // Input Columns
         if (!node.irData.inputColumns.empty()) {
@@ -605,9 +624,7 @@ namespace {
                      ss << ")";
                 }
                 else {
-                    std::string symbol = getCompSymbol(data.filterType);
-                    if (symbol.empty()) symbol = CompType_Name(data.filterType);
-                    ss << symbol << " ";
+                    ss << getCompSymbol(data.filterType) << " ";
                     if (!data.filterArgVals.empty()) {
                          std::visit([&](const auto& v){ ss << v; }, data.filterArgVals[0]);
                     }
@@ -631,14 +648,13 @@ namespace {
             else if constexpr (std::is_same_v<T, ItemBuilder::MapNode>) {
                 builder.setTitle("API Map");
                 std::stringstream ss;
-                ss << ColumnPrinter(data.inputColumn, shortColumns) << " -> " << ColumnPrinter(data.outputColumn, shortColumns);
+                ss << ColumnPrinter(data.outputColumn, shortColumns);
                 builder.addDetail(ss.str());
             }
             else if constexpr (std::is_same_v<T, ItemBuilder::MaterializeNode>) {
                 builder.setTitle("API Mat");
                 std::stringstream ss; ss << "Idx: " << ColumnPrinter(data.idxColumn, shortColumns); builder.addDetail(ss.str());
                 std::stringstream ss2; ss2 << "Filter: " << ColumnPrinter(data.filterColumn, shortColumns); builder.addDetail(ss2.str());
-                std::stringstream ss3; ss3 << "PosList: " << node.irData.outputsPosList; builder.addDetail(ss3.str());
             }
             else if constexpr (std::is_same_v<T, ItemBuilder::MultiGroupNode>) {
                 builder.setTitle("API MultiGroup");
@@ -677,16 +693,28 @@ namespace {
             }
             else if constexpr (std::is_same_v<T, ItemBuilder::ResultNode>) {
                 builder.setTitle("API Result");
-                std::stringstream ss;
-                ss << "-> " << data.filename;
-                builder.addDetail(ss.str());
+                if (node.irData.is<SelectOp>()) {
+                     SelectView view(const_cast<IrData&>(node.irData));
+                     std::stringstream ss;
+                     for(size_t i=0; i<view.resultHeaders().size(); ++i) {
+                        ss << view.resultHeaders()[i] << (i < view.resultHeaders().size() - 1 ? ", " : "");
+                     }
+                     builder.addDetail(ss.str());
+                } else {
+                    std::stringstream ss;
+                    ss << "-> " << data.filename;
+                    builder.addDetail(ss.str());
+                }
             }
         }, node.apiData);
+
+        if (node.irData.outputsPosList) builder.addRawDetail("<FONT COLOR=\"blue\">POSLIST-OUT</FONT>");
+        if (node.irData.outputsMatVals) builder.addRawDetail("<FONT COLOR=\"blue\">MATDATA-OUT</FONT>");
 
         return builder.build();
     }
 
-    void writePlanNodeDot(const PlanNode* node, std::ofstream& file, DotContentType contentType, std::unordered_set<const PlanNode*>& visited, bool useV2, bool shortColumns) {
+    void writePlanNodeDot(const PlanNode* node, std::ofstream& file, DotContentType contentType, std::unordered_set<const PlanNode*>& visited, bool useV2, bool shortColumns, bool ignoreFetch) {
         if (!node) return;
 
         // Handle DAG/Cycles: If already visited, stop.
@@ -718,11 +746,15 @@ namespace {
                 std::ostringstream childId;
                 childId << reinterpret_cast<std::uintptr_t>(child.get());
 
+                if (ignoreFetch && contentType == DotContentType::IR_DATA && child->irData.is<FetchOp>()) {
+                    continue;
+                }
+
                 // Write Edge
-                file << "    " << id.str() << " -> " << childId.str() << ";\n";
+                file << "    " << id.str() << " -> " << childId.str() << " [dir=back];\n";
 
                 // Recurse
-                writePlanNodeDot(child.get(), file, contentType, visited, useV2, shortColumns);
+                writePlanNodeDot(child.get(), file, contentType, visited, useV2, shortColumns, ignoreFetch);
             }
         }
     }
@@ -739,13 +771,13 @@ void generatePlanDotFile(const PlanNode& root, const std::string& filename, DotC
     file << "    node [shape=box, fontname=\"Helvetica\"];\n";
 
     std::unordered_set<const PlanNode*> visited;
-    writePlanNodeDot(&root, file, contentType, visited, false, false);
+    writePlanNodeDot(&root, file, contentType, visited, false, false, false);
 
     file << "}\n";
     file.close();
 }
 
-void generatePlanDotFileV2(const PlanNode& root, const std::string& filename, DotContentType contentType, bool shortColumns) {
+void generatePlanDotFileV2(const PlanNode& root, const std::string& filename, DotContentType contentType, bool shortColumns, bool ignoreFetch) {
     std::ofstream file(filename);
     if (!file.is_open()) {
         std::cerr << "Error: could not open file " << filename << std::endl;
@@ -753,10 +785,10 @@ void generatePlanDotFileV2(const PlanNode& root, const std::string& filename, Do
     }
 
     file << "digraph PlanNode {\n";
-    file << "    node [shape=none, fontname=\"Helvetica\"];\n";
+    file << "    node [shape=none, fontname=\"Helvetica\", margin=0];\n";
 
     std::unordered_set<const PlanNode*> visited;
-    writePlanNodeDot(&root, file, contentType, visited, true, shortColumns);
+    writePlanNodeDot(&root, file, contentType, visited, true, shortColumns, ignoreFetch);
 
     file << "}\n";
     file.close();

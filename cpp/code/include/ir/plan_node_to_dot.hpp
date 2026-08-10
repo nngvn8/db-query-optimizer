@@ -40,4 +40,4 @@ void generatePlanDotFile(const PlanNode& root, const std::string& filename, DotC
  * @param filename The output filename for the DOT file.
  * @param contentType The type of data to visualize (IR or API).
  */
-void generatePlanDotFileV2(const PlanNode& root, const std::string& filename, DotContentType contentType = DotContentType::IR_DATA, bool shortColumns = false);
+void generatePlanDotFileV2(const PlanNode& root, const std::string& filename, DotContentType contentType = DotContentType::IR_DATA, bool shortColumns = false, bool ignoreFetch = false);

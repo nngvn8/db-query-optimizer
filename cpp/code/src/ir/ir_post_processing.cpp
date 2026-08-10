@@ -169,7 +169,7 @@ MaterializationData fillMaterializes(PlanNode* node, std::set<BaseType::TableCol
 
                     // Create materialization node
                     std::shared_ptr<PlanNode> matNode = std::make_shared<PlanNode>();
-                    matNode->irData = MaterializeView::create(idxCol, filterCol, idxCol);
+                    matNode->irData = MaterializeView::create(idxCol, filterCol, idxCol, false);
 
                     // Left child is Source/Data (Materialization or Fetch)
                     if (auto& mat = pMat[idxCol]){
