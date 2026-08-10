@@ -1,5 +1,9 @@
 # C++ Optimizer Development Environment
 
+NOT INTENDED FOR RUNNING THE OPTIMIZER AS A WHOLE OR IN PRODUCTION MANNER!
+
+Dependencies for the following might be missing and not documented.
+
 This directory contains a separate development and testing environment for the C++ optimizer components. The tools here are intended for developers working on the core optimizer logic.
 
 ## Makefile

@@ -11,102 +11,47 @@ Tested on Ubuntu 24.04.
 
 ## Requirements
 
-### Direct on Host
-
-#### System Packages (Linux)
+### System Packages (Linux)
 - protobuf-compiler
 - git
 - build-essential
 - cmake
 - pipenv  # suggestion
+- abseil(-dev/-cpp) (name depending on operating system)
 
-#### Python
+
+### C++ Compilation
+- CMake ≥ 3.20
+- C++23-capable compiler (GCC ≥ 11 or Clang ≥ 14)
+
+### Python
 see python/requirements.txt
 
-#### Libraries
+### Libraries
 - jsoncpp
 - hyrise sql-parser
 
-The libraries must be placed under `cpp/external/`. You can use the `get_libs.sh` script in `cpp` to download them automatically.
+The libraries must be placed under `cpp/external/`. You can use the `get_libs.sh` script in `cpp` to download and place them in the correct directory automatically.
 
-### Docker
-
-#### System Packages (Linux)
-
-- docker
-- ssh-agent
-
-#### What to do
-
-- generate SSH-Key on Host and make known to GitLab
-- add your user to docker group so that you can use docker without sudo
-
-```
-eval "$(ssh-agent -s)"
-ssh-add ~/.ssh/id_ed25519           # filename depends on type of key; private key
-
-export DOCKER_BUILDKIT=1
-docker build --ssh default -t optimizer:latest .
-docker run -dit -e SSH_AUTH_SOCK=/ssh-agent -v "$SSH_AUTH_SOCK":/ssh-agent optimizer:latest bash       # suggestion on how to run it
-```
-
-Now you should be able to connect to this docker container (e.g. through VS Code) and work directly inside of it.
-
-## Usage
-
-### Direct on System
+## Deployment
 
 ```
 ./regenerate_proto.sh                       # Generate the protobuf files for C++ and Python
 
 # Building the C++ Server
 cd cpp
+./get_libs.sh                               # Fetch external dependencies
 cmake -S . -B build                         # Generating the Buildfiles
 cmake --build build --config Release        # Compiling the project
-
-# Executing the C++ example server
-./build/bin/optimizer-server
-
-# Executing the C++ example client
-./build/bin/optimizer-client
-
-# Execute the Compute Unit Dummy
-./build/bin/optimizer-compute-unit
 
 # Execute the DB Client example
 ./build/bin/optimizer-db-client
 
-# Exectute the DB Server example
+# Execute the DB Server example
 ./build/bin/optimizer-db-server
-
-# Running the Python example TCP-Client
-cd python
-pipenv install -r requirements.txt
-pipenv run python execute_ssb.py
 ```
 
-### Docker
-
-Most is already done. To run anything:
-
-```
-# Executing the C++ example server
-./build/bin/optimizer-server
-
-# Executing the C++ example client
-./build/bin/optimizer-client
-
-# Execute the Compute Unit Dummy
-./build/bin/optimizer-compute-unit
-
-# Running the Python example TCP-Client
-cd python
-pipenv run python execute_ssb.py
-```
-
-You should be able to pull and push, etc. from inside the container.
-
-### DB Client
+## DB Client
 
 To run the DB Client example with optional flags, execute the following command:
 ```bash
@@ -173,7 +118,7 @@ The main C++ project is located in the `cpp` directory. For information on the p
 
 ### C++ Optimizer Core
 
-For developers working on the core C++ optimizer logic, there is a separate development environment inside the `cpp/code` directory. This includes a `Makefile` for quick compilation and testing, as well as helper scripts. For more details, please see the README file in that directory:
+For developers working on the core C++ optimizer logic, there is a separate development environment inside the `cpp/code` directory. This includes a `Makefile` for quick compilation and testing of the optimizer logic (not the optimizer as a whole!), as well as helper scripts. For more details, please see the README file in that directory:
 
 [C++ Optimizer Development Environment](./cpp/code/README.md)
 
@@ -184,4 +129,4 @@ Show your appreciation to those who have contributed to the project.
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+Project has been stopped.

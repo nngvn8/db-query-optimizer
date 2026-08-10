@@ -24,7 +24,31 @@ if(NOT Protobuf_FOUND)
   find_package(Protobuf 3.0 REQUIRED)  # module mode
 endif()
 
-find_package(absl REQUIRED)
+function(require_dev_package PKG_NAME DEB_PKG ARCH_PKG BREW_PKG)
+    find_package(${PKG_NAME} QUIET)
+    if(NOT ${PKG_NAME}_FOUND)
+        message(FATAL_ERROR
+            "\n[ERROR] '${PKG_NAME}' development files were not found.\n"
+            "If the package is already installed, make sure you have the '-dev' / development version installed:\n"
+            "  - Debian/Ubuntu: sudo apt install ${DEB_PKG}\n"
+            "  - Arch/Manjaro:  sudo pacman -S ${ARCH_PKG}\n"
+            "  - macOS:         brew install ${BREW_PKG}\n"
+        )
+    endif()
+endfunction()
+
+# ---- Abseil ----
+require_dev_package(absl "libabsl-dev" "abseil-cpp" "abseil")
+
+# ---- JsonCpp (System with bundled fallback) ----
+find_package(jsoncpp QUIET)
+if(NOT jsoncpp_FOUND)
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/jsoncpp/CMakeLists.txt")
+        add_subdirectory(external/jsoncpp)
+    else()
+        require_dev_package(jsoncpp "libjsoncpp-dev" "jsoncpp" "jsoncpp")
+    endif()
+endif()
 
 # Collect sources generically (no hardcoded file names).
 # CONFIGURE_DEPENDS makes CMake re-scan when files are added/removed.
@@ -55,9 +79,6 @@ add_library(sqlparser STATIC ${SQLPARSER_SOURCES})
 target_include_directories(sqlparser
     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/external/sql-parser/src
 )
-
-# JsonCpp
-add_subdirectory(external/jsoncpp)
 
 # ---- Single target only ----
 # Build a library (switch to add_executable if you actually have a main()).
