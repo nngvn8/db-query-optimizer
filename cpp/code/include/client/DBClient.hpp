@@ -52,7 +52,8 @@ static std::vector<std::pair<std::string, std::string>> configFields {
     {"-mergeSort", "Merge sort into group if all sort-columns in group-columns."},
     {"-semiJoins", "Replace joins with semi-joins if possible."},
     {"-gChildOpt", "Enable grand children optimization (reuse materializations for operation after)."},
-    {"-jsonPlan", "Use a given JSON plan file for a query. The next input is expected to be either the query or a sql file containing it."}
+    {"-jsonPlan", "Use a given JSON plan file for a query. The next input is expected to be either the query or a sql file containing it."},
+    {"-writeProto", "Write protobuf plan to binary file"}
 };
 
 /**
@@ -85,6 +86,7 @@ struct ClientConfiguration {
     bool grandChildOpt = false;
 
     bool jsonPlan = false;
+    bool writeProto = false;
     std::string jsonPlanFile;
 
     MaterializeOptTypes matType = MaterializeOptTypes::fillMaterializes;

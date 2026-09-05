@@ -374,6 +374,21 @@ void DBClient::runOptimizerPipeline(ASTNode* root, uint64_t planId, const std::s
         }
     }
 
+    if (clientConfig.writeProto) {
+        QueryPlan queryPlan;
+        queryPlan.set_planid(planId);
+        for (const auto& item : workItems) {
+            *queryPlan.add_planitems() = item;
+        }
+
+        std::string outFileName = clientConfig.inputFile.empty()
+                                  ? "plan_" + std::to_string(planId) + ".pb"
+                                  : clientConfig.inputFile + "_" + std::to_string(planId) + ".pb";
+
+        std::ofstream out(outFileName, std::ios::binary);
+        queryPlan.SerializeToOstream(&out);
+    }
+
     if (clientConfig.debug) {
         std::lock_guard<std::mutex> lock(coutMutex);
 

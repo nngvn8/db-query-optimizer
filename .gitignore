@@ -2,6 +2,7 @@ cpp/generated
 cpp/build/
 cpp/external/
 .vscode
+.antigravity
 python/generated
 
 **/a.out
@@ -11,4 +12,5 @@ runner
 cpp/code/src/build
 *.png
 *.dot
+*.pb
 

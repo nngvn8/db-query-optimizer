@@ -24,6 +24,7 @@ int main(int argc, char* argv[]) {
 
     config.jsonPlanFile = parser.takeParseArg<std::string>("-jsonPlan", "", "", false);
     config.jsonPlan = !config.jsonPlanFile.empty();
+    config.writeProto = parser.takeParseFlag("-writeProto");
 
     const std::string& materialize = parser.takeParseArg<std::string>("-matType", "", "std", false);
     config.setMatType(materialize);
