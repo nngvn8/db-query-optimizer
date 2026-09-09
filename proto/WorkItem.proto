@@ -32,6 +32,7 @@ enum OperatorType {
   OP_MAP = 9;
   OP_MATERIALIZE = 10; // Takes  bitmask/position list and a column --> produces a column whose entries match the positions
   OP_GROUPBY = 11;
+  OP_RESULT = 12;
 }
 
 enum AggFunc {
@@ -90,6 +91,7 @@ message ColumnMessage {
   optional string tabName = 1;
   optional string colName = 2;
   optional ColumnType colType = 3;
+  optional bool isBase = 4 [default = false];
 }
 
 message FilterItem {
@@ -102,12 +104,11 @@ message FilterItem {
 message MultiGroupItem {
   repeated ColumnMessage groupColumns = 1; // The columns are expected to be in the correct order
   optional ColumnMessage outputIndex = 2;
-  optional ColumnMessage outputSortIndex = 3;
-  optional ColumnMessage outputClusters = 4;
-  optional ColumnMessage aggregationColumn = 5; // If we should do a SUM-aggregation with these clusters
-  optional ColumnMessage aggregationResultColumn = 6; 
-  optional bool storeExtends = 7 [default = false];
-  repeated bool sortOrders = 8; // true == Ascending, false == Descending
+  optional ColumnMessage outputClusters = 3;
+  optional ColumnMessage aggregationColumn = 4; // If we should do a SUM-aggregation with these clusters
+  optional ColumnMessage aggregationResultColumn = 5; 
+  optional bool storeExtends = 6 [default = false];
+  repeated bool sortOrders = 7; // true == Ascending, false == Descending
 }
 
 message JoinItem {

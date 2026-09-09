@@ -212,13 +212,11 @@ WorkItem ItemBuilder::createMultiGroupItem(const std::vector<BaseType::TableColu
     }
 
     ColumnMessage* outputIdx = multiGrpItem->mutable_outputindex();
-    ColumnMessage* outSortIdxMsg = multiGrpItem->mutable_outputsortindex();
     ColumnMessage* outputClusters = multiGrpItem->mutable_outputclusters();
     ColumnMessage* aggCol = multiGrpItem->mutable_aggregationcolumn();
     ColumnMessage* aggResultCol = multiGrpItem->mutable_aggregationresultcolumn();
 
     setTableColumnType(outputIdx, outIdx);
-    setTableColumnType(outSortIdxMsg, outputSortIndex);
     setTableColumnType(outputClusters, outCluster);
     setTableColumnType(aggCol, aggColumn);
     setTableColumnType(aggResultCol, aggResultColumn);
