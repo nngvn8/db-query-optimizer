@@ -98,6 +98,7 @@ namespace BaseType {
         std::string columnName;
         ColumnType columnType;
         std::optional<std::string> alias;
+        bool isBaseColumn = false;
         TableColumn(){}; // TODO remove later
         /**
          * @brief Constructs a TableColumn object.

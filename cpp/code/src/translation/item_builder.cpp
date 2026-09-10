@@ -22,17 +22,11 @@ void setTableColumnType(ColumnMessage* columnMessage, const BaseType::TableColum
 
 // TODO only for debug, remove in prod
 WorkItem ItemBuilder::createWorkItem() {
-    return createWorkItem(currentPlanId, currentItemId++, static_cast<OperatorType>(1));
+    return createWorkItem(static_cast<OperatorType>(1));
 }
 
 WorkItem ItemBuilder::createWorkItem(const OperatorType& operatorType) {
-    return createWorkItem(currentPlanId, currentItemId++, operatorType);
-}
-
-WorkItem ItemBuilder::createWorkItem(const uint32_t& planId, const uint32_t& itemId, const OperatorType& operatorType) {
     WorkItem workItem;
-    workItem.set_planid(planId);
-    workItem.set_itemid(itemId);
     workItem.set_operatorid(operatorType);
     return workItem;
 }
@@ -324,7 +318,7 @@ WorkItem ItemBuilder::createResultItem(const ResultNode& node) {
 WorkItem ItemBuilder::createResultItem(const std::string& file, const std::vector<BaseType::TableColumn*>& resultColumns,
     const BaseType::TableColumn* resultIdx, const std::vector<std::string>& headers)
 {
-    WorkItem workItem = createWorkItem();
+    WorkItem workItem = createWorkItem(OperatorType::OP_RESULT);
     ResultItem* resultItem = workItem.mutable_resultdata();
 
     uint idx = 0;
@@ -345,72 +339,78 @@ WorkItem ItemBuilder::createResultItem(const std::string& file, const std::vecto
 
 
 std::vector<WorkItem> ItemBuilder::createWorkItems(std::vector<const PlanNode*>& nodes, int planId) {
-
+    
+    std::map<const BaseType::TableColumn, int> columnProducerMap;
     std::vector<WorkItem> workItems;
     int itemId = 1;
 
     for (const auto& node : nodes) {
+        WorkItem w;
 
         if (auto* item = std::get_if<ItemBuilder::FetchNode>(&node->apiData)) {
-            WorkItem w = ItemBuilder::createFetchItem(*item);
-            w.set_itemid(itemId);
-            w.set_planid(planId);
-            workItems.push_back(w);
+            w = ItemBuilder::createFetchItem(*item);
         }
         else if (auto* item = std::get_if<ItemBuilder::MaterializeNode>(&node->apiData)) {
-            WorkItem w = ItemBuilder::createMaterializeItem(*item);
-            w.set_itemid(itemId);
-            w.set_planid(planId);
-            workItems.push_back(w);
+            w = ItemBuilder::createMaterializeItem(*item);
         }
         else if (auto* item = std::get_if<ItemBuilder::FilterNode>(&node->apiData)) {
-            WorkItem w = ItemBuilder::createFilterItem(*item);
-            w.set_itemid(itemId);
-            w.set_planid(planId);
-            workItems.push_back(w);
+            w = ItemBuilder::createFilterItem(*item);
         }
         else if (auto* item = std::get_if<ItemBuilder::JoinNode>(&node->apiData)) {
-            WorkItem w = ItemBuilder::createJoinItem(*item);
-            w.set_itemid(itemId);
-            w.set_planid(planId);
-            workItems.push_back(w);
+            w = ItemBuilder::createJoinItem(*item);
         }
         else if (auto* item = std::get_if<ItemBuilder::MapNode>(&node->apiData)) {
-            WorkItem w = ItemBuilder::createMapItem(*item);
-            w.set_itemid(itemId);
-            w.set_planid(planId);
-            workItems.push_back(w);
+            w = ItemBuilder::createMapItem(*item);
         }
         else if (auto* item = std::get_if<ItemBuilder::MultiGroupNode>(&node->apiData)) {
-            WorkItem w = ItemBuilder::createMultiGroupItem(*item);
-            w.set_itemid(itemId);
-            w.set_planid(planId);
-            workItems.push_back(w);
+            w = ItemBuilder::createMultiGroupItem(*item);
         }
         else if (auto* item = std::get_if<ItemBuilder::SetOperationNode>(&node->apiData)) {
-            WorkItem w = ItemBuilder::createSetOperationItem(*item);
-            w.set_itemid(itemId);
-            w.set_planid(planId);
-            workItems.push_back(w);
+            w = ItemBuilder::createSetOperationItem(*item);
         }
         else if (auto* item = std::get_if<ItemBuilder::SortNode>(&node->apiData)) {
-            WorkItem w = ItemBuilder::createSortItem(*item);
-            w.set_itemid(itemId);
-            w.set_planid(planId);
-            workItems.push_back(w);
+            w = ItemBuilder::createSortItem(*item);
         }
         else if (auto* item = std::get_if<ItemBuilder::AggNode>(&node->apiData)) {
-            WorkItem w = ItemBuilder::createAggItem(*item);
-            w.set_itemid(itemId);
-            w.set_planid(planId);
-            workItems.push_back(w);
+            w = ItemBuilder::createAggItem(*item);
         }
         else if (auto* item = std::get_if<ItemBuilder::ResultNode>(&node->apiData)) {
-            WorkItem w = ItemBuilder::createResultItem(*item);
-            w.set_itemid(itemId);
-            w.set_planid(planId);
-            workItems.push_back(w);
+            w = ItemBuilder::createResultItem(*item);
         }
+
+        w.set_itemid(itemId);
+        w.set_planid(planId);
+
+        // Deduplication in case node has multiple input columns from same producer (e.g. joins)
+        std::set<int> dependencies;
+        for (const auto& col : node->irData.inputColumns) {
+            // if (!col.isBaseColumn){
+            //     dependencies.insert(columnProducerMap[col]);
+            auto it = columnProducerMap.find(col);
+            if (it != columnProducerMap.end()) {
+                dependencies.insert(it->second);
+            }
+            // else {
+                // Hard error: Plan wiring bug!
+                // throw std::runtime_error(
+                //     "Plan error: Intermediate column '" + col.table.name + "." + col.columnName + 
+                //     "' is consumed by node with itemId " + std::to_string(itemId) + 
+                //     ", but was never produced by any preceding WorkItem!"
+                // );
+            // }
+        }
+
+        // Add dependencies of this node
+        for (const auto& dep : dependencies){
+            w.add_dependson(dep);
+        }
+
+        // Register columns this node produces
+        for (const auto& col : node->irData.outputCols) {
+            columnProducerMap[col] = itemId;
+        }
+
+        workItems.push_back(w);
         itemId++;
     }
 

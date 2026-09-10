@@ -13,7 +13,6 @@
 #include <vector>
 #include <WorkItem.pb.h>
 #include <variant>
-#include <memory>
 
 #include "ir/base_types.hpp"
 
@@ -166,10 +165,6 @@ class ItemBuilder {
          * @brief Creates a WorkItem with a specific operator type.
          */
         WorkItem createWorkItem(const OperatorType& operatorType);
-        /**
-         * @brief Creates a WorkItem with a plan ID, item ID, and operator type.
-         */
-        WorkItem createWorkItem(const uint32_t& planId, const uint32_t& itemId, const OperatorType& operatorType);
 
         /**
          * @brief Creates a WorkItem for a fetch operation.
