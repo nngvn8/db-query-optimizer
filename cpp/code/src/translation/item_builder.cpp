@@ -172,8 +172,10 @@ WorkItem ItemBuilder::createMaterializeItem(const BaseType::TableColumn* idxColu
     WorkItem workItem = createWorkItem(OperatorType::OP_MATERIALIZE);
     MaterializeItem* matItem = workItem.mutable_materializedata();
 
-    ColumnMessage* idxCol = matItem->mutable_indexcolumn();
-    ColumnMessage* filterCol = matItem->mutable_filtercolumn();
+    // TODO: if verified, change this from hotfix to proper fix
+    // idxCol and filterCol were most likely confused in the implementation logic (hotfix here)
+    ColumnMessage* idxCol = matItem->mutable_filtercolumn();
+    ColumnMessage* filterCol = matItem->mutable_indexcolumn();
     ColumnMessage* outputCol = matItem->mutable_outputcolumn();
 
     setTableColumnType(idxCol, idxColumn);
