@@ -584,9 +584,18 @@ public:
         irData.inputColumns = {column};
         if (std::holds_alternative<BaseType::TableColumn>(partnerVal)) {
             irData.inputColumns.push_back(std::get<BaseType::TableColumn>(partnerVal));
+            irData.opInfo = MapOp{operatorType, std::monostate{}};
+        } 
+        else if (std::holds_alternative<uint64_t>(partnerVal)) {
+            irData.opInfo = MapOp{operatorType, std::get<uint64_t>(partnerVal)};
+        } 
+        else if (std::holds_alternative<float>(partnerVal)) {
+            irData.opInfo = MapOp{operatorType, std::get<float>(partnerVal)};
+        } 
+        else {
+            irData.opInfo = MapOp{operatorType, std::get<std::string>(partnerVal)};
         }
         irData.outputCols = {outputCol};
-        irData.opInfo = MapOp{operatorType, partnerVal};
         return irData;
     }
 
@@ -594,5 +603,41 @@ public:
     BaseType::TableColumn& inputCol() { return data.inputColumns[0]; }
     BaseType::TableColumn& outputCol() { return data.outputCols[0]; }
     ArithOp& operatorType() { return op.operatorType; }
-    std::variant<BaseType::TableColumn, uint64_t, float, std::string>& partnerVal() { return op.partnerVal; }
+    
+    // Getter
+    std::variant<BaseType::TableColumn, uint64_t, float, std::string> partnerVal() const {
+        if (std::holds_alternative<std::monostate>(op.partnerVal)) {
+            return data.inputColumns.at(1);
+        }
+        if (std::holds_alternative<uint64_t>(op.partnerVal)) {
+            return std::get<uint64_t>(op.partnerVal);
+        }
+        if (std::holds_alternative<float>(op.partnerVal)) {
+            return std::get<float>(op.partnerVal);
+        }
+        return std::get<std::string>(op.partnerVal);
+    }
+
+    // Setter
+    void partnerVal(const std::variant<BaseType::TableColumn, uint64_t, float, std::string>& val) {
+        if (std::holds_alternative<BaseType::TableColumn>(val)) {
+            if (data.inputColumns.size() > 1) {
+                data.inputColumns[1] = std::get<BaseType::TableColumn>(val);
+            } else {
+                data.inputColumns.push_back(std::get<BaseType::TableColumn>(val));
+            }
+            op.partnerVal = std::monostate{};
+        } else {
+            if (data.inputColumns.size() > 1) {
+                data.inputColumns.erase(data.inputColumns.begin() + 1);
+            }
+            if (std::holds_alternative<uint64_t>(val)) {
+                op.partnerVal = std::get<uint64_t>(val);
+            } else if (std::holds_alternative<float>(val)) {
+                op.partnerVal = std::get<float>(val);
+            } else if (std::holds_alternative<std::string>(val)) {
+                op.partnerVal = std::get<std::string>(val);
+            }
+        }
+    }
 };

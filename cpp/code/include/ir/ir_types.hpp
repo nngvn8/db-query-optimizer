@@ -107,7 +107,7 @@ struct MapOp {
     /// The arithmetic operator to apply.
     ArithOp operatorType;
     /// The value to apply the operator with (can be a column or a literal).
-    std::variant<BaseType::TableColumn, uint64_t, float, std::string> partnerVal;
+    std::variant<std::monostate, uint64_t, float, std::string> partnerVal;
 };
 
 /**
