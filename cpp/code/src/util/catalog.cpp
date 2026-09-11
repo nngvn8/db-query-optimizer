@@ -60,7 +60,7 @@ namespace Catalog {
         }
 
         // 5. DATE (ddate in some versions)
-        if (tableName == "date" || tableName == "ddate" || tableName == "d") {
+        if (tableName == "date" || tableName == "dates" || tableName == "ddate" || tableName == "d") {
             if (columnName.find("key") != std::string::npos) return ColumnType::TYPE_INTEGER;
             if (columnName == "d_year") return ColumnType::TYPE_INTEGER;
             if (columnName == "d_yearmonthnum") return ColumnType::TYPE_INTEGER;
@@ -157,7 +157,7 @@ namespace Catalog {
             return "lineorder";
         }
         else if (dates.find(columnName) != dates.end()) {
-            return "dates";
+            return "date";
         }
         else if (part.find(columnName) != part.end()) {
             return "part";
