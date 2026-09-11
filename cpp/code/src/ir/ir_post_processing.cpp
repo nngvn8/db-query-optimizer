@@ -186,6 +186,11 @@ MaterializationData fillMaterializes(PlanNode* node, std::set<BaseType::TableCol
                     // Right child Filter
                     matNode->children.push_back(child);
 
+                    // Flag index column as base column, if coming from fetch node
+                    if (matNode->children[0]->irData.is<FetchOp>()) {
+                        MaterializeView(matNode->irData).idxCol().isBaseColumn = true;
+                    }
+
                     // Set this materialization as the most recent one
                     pMat[idxCol] = matNode;
                 }
@@ -228,8 +233,14 @@ MaterializationData fillMaterializes(PlanNode* node, std::set<BaseType::TableCol
         node->children = {};
         for (auto& idxCol : node->irData.inputColumns) {
             // Set most recent materialization of children as column
-            if (pMat.count(idxCol))
-                node->children.push_back(pMat[idxCol]);
+            if (const auto& matChild = pMat[idxCol]) {
+                node->children.push_back(matChild);
+
+                // Flag input column as base column, if coming from fetch node
+                if (matChild->irData.is<FetchOp>()) {
+                    idxCol.isBaseColumn = true;
+                }
+            }
             // This should not happen (currently ocuring because no proper map nodes)
             else {
                 std::cout << "Error: Column " << idxCol.table.name << "." << idxCol.columnName << " required but not found in materialization process (matType: standard)." << std::endl;

@@ -5,17 +5,11 @@
 uint32_t currentPlanId = 0;
 uint32_t currentItemId = 0;
 
-// TODO: remove if other version works
-void setTableColumnType(ColumnMessage* columnMessage, const std::string& tabName, const std::string& colName, int colType) {
-    columnMessage->set_tabname(tabName);
-    columnMessage->set_colname(colName);
-    columnMessage->set_coltype(static_cast<ColumnType>(colType));
-}
-
 void setTableColumnType(ColumnMessage* columnMessage, const BaseType::TableColumn* tableColumn) {
     columnMessage->set_tabname(tableColumn->table.name);
     columnMessage->set_colname(tableColumn->columnName);
     columnMessage->set_coltype(tableColumn->columnType);
+    columnMessage->set_isbase(tableColumn->isBaseColumn);
 }
 
 // WORK ITEM

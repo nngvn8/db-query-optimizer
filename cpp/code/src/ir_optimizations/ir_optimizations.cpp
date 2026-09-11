@@ -475,9 +475,16 @@ LateMaterializationData putLateMaterializationV2(PlanNode* node, std::set<BaseTy
         
         // Provide all materializations needed
         for (auto& idxCol : node->irData.inputColumns) {
+            
             // Set most recent materialization of children as column
-            if (const auto& matChild = curMat[idxCol])
+            if (const auto& matChild = curMat[idxCol]) {
                 node->children.push_back(matChild);
+
+                // Flag input column as base column, if coming from fetch node
+                if (matChild->irData.is<FetchOp>()) {
+                    idxCol.isBaseColumn = true;
+                }
+            }
             
             // Check if there is a position list we materialized on 
             else if (const auto& latestPosListNode = curPos[idxCol.table]) {
@@ -496,6 +503,9 @@ LateMaterializationData putLateMaterializationV2(PlanNode* node, std::set<BaseTy
                 matNode->irData = MaterializeView::create(idxCol, prevPosListCol, idxCol, matNodeOutputsPosList);
                 matNode->children.push_back(fetchNode);
                 matNode->children.push_back(latestPosListNode);
+                
+                // Flag index column as base column, becaus freshly retrieved
+                MaterializeView(matNode->irData).idxCol().isBaseColumn = true;
                 
                 // Make this input for child
                 node->children.push_back(matNode);
@@ -652,8 +662,14 @@ LateMaterializationData putLateMaterializationHybrid(PlanNode* node, std::set<Ba
         // Provide all materializations needed
         for (auto& idxCol : node->irData.inputColumns) {
             // Set most recent materialization of children as column
-            if (const auto& matChild = curMat[idxCol])
+            if (const auto& matChild = curMat[idxCol]) {
                 node->children.push_back(matChild);
+
+                // Flag input column as base column, if coming from fetch node
+                if (matChild->irData.is<FetchOp>()) {
+                    idxCol.isBaseColumn = true;
+                }
+            }
             
             // Check if there is a position list we materialized on 
             else if (const auto& latestPosListNode = curPos[idxCol.table]) {
@@ -672,6 +688,9 @@ LateMaterializationData putLateMaterializationHybrid(PlanNode* node, std::set<Ba
                 matNode->irData = MaterializeView::create(idxCol, prevPosListCol, idxCol, matNodeOutputsPosList);
                 matNode->children.push_back(fetchNode);
                 matNode->children.push_back(latestPosListNode);
+
+                // Flag index column as base column, becaus freshly retrieved
+                MaterializeView(matNode->irData).idxCol().isBaseColumn = true;                
                 
                 // Make this input for child
                 node->children.push_back(matNode);
