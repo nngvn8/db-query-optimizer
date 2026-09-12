@@ -559,11 +559,18 @@ public:
         irData.outputsPosList = outputsPosList;
         irData.outputsMatVals = !outputsPosList;
         irData.inputColumns = {idxCol, filterCol};
-        BaseType::TableColumn out = outputCol;
+        irData.outputCols = {outputCol};
+
+        // Set up column types
+        // filterCol is always a position list
+        irData.inputColumns[1].columnType = ColumnType::TYPE_POSLIST;
+        
+        // If materilize outputs a position list, filterCol and outputCol must also be a position list 
         if (outputsPosList) {
-            out.columnType = ColumnType::TYPE_POSLIST;
+            irData.outputCols[0].columnType = ColumnType::TYPE_POSLIST;
+            irData.inputColumns[0].columnType = ColumnType::TYPE_POSLIST;
         }
-        irData.outputCols = {out};
+        
         irData.opInfo = MatOp{};
         return irData;
     }
