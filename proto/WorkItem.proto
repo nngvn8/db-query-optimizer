@@ -18,6 +18,7 @@ enum CompType {
   COMP_NE = 5;
   COMP_BETWEEN = 6;
   COMP_IN = 7;
+  COMP_LIKE = 8;
 }
 
 enum OperatorType {
@@ -176,6 +177,14 @@ message ResultItem {
   optional ColumnMessage resultIndex = 4;
 }
 
+message DataTransferItem {
+  optional ColumnMessage source = 1;
+  optional ColumnMessage destination = 2;
+  optional double priority = 3;
+  optional bool highPriority = 4;
+  optional bool neededInLeave = 5;
+}
+
 message WorkItem {
   optional uint32 planId = 1;
   optional uint32 itemId = 2;
@@ -194,6 +203,8 @@ message WorkItem {
     FetchItem fetchData = 14;
     MultiGroupItem multiGroupData = 15;
     ResultItem resultData = 16;
+    DataTransferItem transferData = 17;
   }
-  repeated uint32 dependsOn = 17;
+  repeated uint32 dependsOn = 18;
+  optional bool returnExtendedResult = 19;
 }
