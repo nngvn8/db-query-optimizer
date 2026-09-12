@@ -104,7 +104,7 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
 
         BaseType::TableColumn inputCol(e->table1, e->column1, colTypeInput1);
         BaseType::TableColumn partnerVal(e->table2, e->column2, colTypeInput2);
-        BaseType::TableColumn outCol(BaseType::Table("MAP"), e->column1 + e->operatorType + e->column2, ColumnType::TYPE_INTEGER);
+        BaseType::TableColumn outCol(BaseType::Table("MAP"), e->column1 + e->operatorType + e->column2, outColType);
         node->irData = MapView::create(inputCol, op, partnerVal, outCol);
     }
     // WHERE / Filter Node
@@ -147,8 +147,7 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
             inputCol,
             opType,
             col2,
-            filterArgs,
-            inputCol
+            filterArgs
         );
 
     }
@@ -161,27 +160,21 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
 
         BaseType::TableColumn leftCol(e->onLeftTable, e->onLeftTableColumn, leftType);
         BaseType::TableColumn rightCol(e->onRightTable, e->onRightTableColumn, rightType);
-        BaseType::TableColumn outCol(BaseType::Table("JOIN"), e->onLeftTableColumn + "=" + e->onRightTableColumn, ColumnType::TYPE_INTEGER);
 
         node->irData = JoinView::create(
             leftCol,
             rightCol,
-            outCol,
             IrTransformHelpers::mapStringToJoinType(e->joinType),
             CompType::COMP_EQ
         );
     }
-    // Limit (don't support Limit for now)
-    // else if (auto e = std::get_if<LimitClauseNode>(&ast->val)) {
-    //     node->irData = IR::LimitNode(e->limit, e->offset);
-    // }
     // Set Ops
     else if (auto e = std::get_if<SetOperationNode>(&ast->val)) {
         BaseType::TableColumn dummy; // Still dummy as AST has no columns here
         BaseType::TableColumn outCol(
             BaseType::Table(""),
             e->setOperation,
-            ColumnType::TYPE_INTEGER
+            ColumnType::TYPE_POSLIST
         );
         node->irData = SetOpView::create(
             dummy,
@@ -212,6 +205,9 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
 
         // Propagate the type from the input to the output column (SetOps preserve type)
         node->irData.outputCols[0].columnType = inputColumns[0].columnType;
+        if (node->irData.outputCols[0].table.name.empty()) {
+            node->irData.outputCols[0].table = inputColumns[0].table;
+        }
     }
 
     return node;

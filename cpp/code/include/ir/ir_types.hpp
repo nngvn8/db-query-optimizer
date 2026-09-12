@@ -58,8 +58,6 @@ struct JoinOp {
     BaseType::Join joinType; // currently not processed by the system
     /// The join predicate.
     CompType joinPredicate;
-    /// The output column of the join.
-    BaseType::TableColumn outputCol;
 };
 
 /**

@@ -41,22 +41,26 @@ public:
      * @brief Creates an IrData object for a Join operation.
      * @param inner The inner join column.
      * @param outer The outer join column.
-     * @param out The output column.
      * @param joinType The type of join.
      * @param joinPredicate The join predicate.
      * @return An IrData object representing the Join operation.
      */
     static IrData create(const BaseType::TableColumn& inner,
                          const BaseType::TableColumn& outer,
-                         const BaseType::TableColumn& out,
                          const BaseType::Join& joinType,
                          const CompType& joinPredicate) {
         IrData irData;
         irData.outputsPosList = true;
         irData.outputsMatVals = false;
         irData.inputColumns = {inner, outer};
-        irData.outputCols = {inner, outer};
-        irData.opInfo = JoinOp{joinType, joinPredicate, out};
+
+        BaseType::TableColumn o_inner = inner;
+        BaseType::TableColumn o_outer = outer;
+        o_inner.columnType = ColumnType::TYPE_POSLIST;
+        o_outer.columnType = ColumnType::TYPE_POSLIST;
+
+        irData.outputCols = {o_inner, o_outer};
+        irData.opInfo = JoinOp{joinType, joinPredicate};
         return irData;
     }
 
@@ -65,7 +69,6 @@ public:
     BaseType::TableColumn& outer() { return data.inputColumns[1]; }
     BaseType::TableColumn& innerOut() { return data.outputCols[0]; }
     BaseType::TableColumn& outerOut() { return data.outputCols[1]; }
-    BaseType::TableColumn& output() { return op.outputCol; }
     BaseType::Join& joinType() { return op.joinType; }
     CompType& joinPredicate() { return op.joinPredicate; }
 };
@@ -89,15 +92,20 @@ public:
      */
     static IrData create(const BaseType::TableColumn& inner,
                          const BaseType::TableColumn& outer,
-                         const BaseType::TableColumn& out,
                          const BaseType::Join& joinType,
                          const CompType& joinPredicate) {
         IrData irData;
         irData.outputsPosList = true;
         irData.outputsMatVals = false;
         irData.inputColumns = {inner, outer};
-        irData.outputCols = {inner, outer};
-        irData.opInfo = SemiJoinOp{joinType, joinPredicate, out};
+
+        BaseType::TableColumn o_inner = inner;
+        BaseType::TableColumn o_outer = outer;
+        o_inner.columnType = ColumnType::TYPE_POSLIST;
+        o_outer.columnType = ColumnType::TYPE_POSLIST;
+
+        irData.outputCols = {o_inner, o_outer};
+        irData.opInfo = SemiJoinOp{joinType, joinPredicate};
         return irData;
     }
 
@@ -110,8 +118,15 @@ public:
         irData.outputsMatVals = false;
         irData.inputColumns = data.inputColumns;
         irData.outputCols = data.outputCols;
+
+        BaseType::TableColumn o_inner = irData.outputCols[0];
+        BaseType::TableColumn o_outer = irData.outputCols[1];
+        o_inner.columnType = ColumnType::TYPE_POSLIST;
+        o_outer.columnType = ColumnType::TYPE_POSLIST;
+        irData.outputCols = {o_inner, o_outer};
+
         JoinOp op = std::get<JoinOp>(data.opInfo);
-        irData.opInfo = SemiJoinOp{op.joinType, op.joinPredicate, op.outputCol};
+        irData.opInfo = SemiJoinOp{op.joinType, op.joinPredicate};
         return irData;
     }
 
@@ -120,7 +135,6 @@ public:
     BaseType::TableColumn& outer() { return data.inputColumns[1]; }
     BaseType::TableColumn& innerOut() { return data.outputCols[0]; }
     BaseType::TableColumn& outerOut() { return data.outputCols[1]; }
-    BaseType::TableColumn& output() { return op.outputCol; }
     BaseType::Join& joinType() { return op.joinType; }
     CompType& joinPredicate() { return op.joinPredicate; }
 };
@@ -261,16 +275,18 @@ public:
         const CompType& filterType,
         const std::optional<BaseType::TableColumn>& col2,
         const std::vector<std::variant<uint64_t, float, std::string>>& filterArgs,
-        const BaseType::TableColumn& outputCol
+        const ColumnType& outputType = ColumnType::TYPE_POSLIST
     ) {
         IrData irData;
         irData.outputsPosList = true;
         irData.outputsMatVals = false;
         irData.inputColumns = {col1};
         // TODO: should this be pushed as an input column??
-        if(col2.has_value()){
+        if (col2.has_value()) {
             irData.inputColumns.push_back(col2.value());
         }
+        BaseType::TableColumn outputCol = col1;
+        outputCol.columnType = outputType;
         irData.outputCols = {outputCol};
         irData.opInfo = FilterOp{filterType, filterArgs};
         return irData;
@@ -408,7 +424,7 @@ public:
      * @brief Generates an output column for the group operation.
      */
     static BaseType::TableColumn generateOutCol(const std::vector<BaseType::TableColumn>& groupingCols) {
-        BaseType::TableColumn outCol(BaseType::Table("GROUP"), generateOutColString(groupingCols), ColumnType::TYPE_INTEGER);
+        BaseType::TableColumn outCol(BaseType::Table("GROUP"), generateOutColString(groupingCols), ColumnType::TYPE_POSLIST);
         return outCol;
     }
 };
@@ -474,7 +490,7 @@ public:
      * @brief Generates an output column for the sort operation.
      */
     static BaseType::TableColumn generateOutCol(const std::vector<BaseType::TableColumn>& sortCols) {
-        BaseType::TableColumn outCol(BaseType::Table("SORT"), generateOutColString(sortCols), ColumnType::TYPE_INTEGER);
+        BaseType::TableColumn outCol(BaseType::Table("SORT"), generateOutColString(sortCols), ColumnType::TYPE_POSLIST);
         return outCol;
     }
 };
@@ -543,7 +559,11 @@ public:
         irData.outputsPosList = outputsPosList;
         irData.outputsMatVals = !outputsPosList;
         irData.inputColumns = {idxCol, filterCol};
-        irData.outputCols = {outputCol};
+        BaseType::TableColumn out = outputCol;
+        if (outputsPosList) {
+            out.columnType = ColumnType::TYPE_POSLIST;
+        }
+        irData.outputCols = {out};
         irData.opInfo = MatOp{};
         return irData;
     }

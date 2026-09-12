@@ -42,7 +42,7 @@ std::shared_ptr<PlanNode> AbstractToIr::abstractToIr(std::shared_ptr<PlanNode> n
             for (const std::string& arg : conditionFields.arguments)
                 args.push_back(arg);
 
-            filterNode->irData = FilterView::create(inputCol, comp, std::nullopt, args, inputCol);
+            filterNode->irData = FilterView::create(inputCol, comp, std::nullopt, args);
             filterNodes.push_back(filterNode);
         }
 
@@ -85,9 +85,13 @@ std::shared_ptr<PlanNode> AbstractToIr::abstractToIr(std::shared_ptr<PlanNode> n
 
         BaseType::TableColumn leftCol(BaseType::Table(join->left_table), leftColName, leftType);
         BaseType::TableColumn rightCol(BaseType::Table(join->right_table), rightColName, rightType);
-        BaseType::TableColumn outCol(BaseType::Table("JOIN"), leftColName + joinOp + rightColName, ColumnType::TYPE_INTEGER);
 
-        node->irData = JoinView::create(leftCol, rightCol, outCol, BaseType::Join::INNER_JOIN, IrTransformHelpers::mapStringToCompType(joinOp));
+        node->irData = JoinView::create(
+            leftCol,
+            rightCol,
+            BaseType::Join::INNER_JOIN,
+            IrTransformHelpers::mapStringToCompType(joinOp)
+        );
     }
 
     // ==================== AGGREGATION ====================
