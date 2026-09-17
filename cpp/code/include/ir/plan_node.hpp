@@ -16,7 +16,7 @@
 #include <memory>
 #include <optional>
 #include <variant>
-#include "jsoncpp/json/value.h"
+#include <json/value.h>
 #include "ir/abstract_ir.hpp"
 #include "ir/ir_types.hpp"
 #include "translation/item_builder.hpp"

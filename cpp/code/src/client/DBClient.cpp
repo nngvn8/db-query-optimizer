@@ -399,7 +399,8 @@ void DBClient::runOptimizerPipeline(ASTNode* root, uint64_t planId, const std::s
 
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> duration = end - start;
-        std::cout << "\nStart time: " << start << " Duration: " << duration.count() << "ms" << std::endl;
+        auto start_ms = std::chrono::duration_cast<std::chrono::milliseconds>(start.time_since_epoch()).count();
+        std::cout << "\nStart time: " << start_ms << "ms Duration: " << duration.count() << "ms" << std::endl;
     }
 }
 

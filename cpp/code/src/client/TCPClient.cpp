@@ -67,10 +67,12 @@ void TCPClient::start() {
     if (result != 0) {
         std::cout << "[Warning] Could not set TCP_NODELAY" << std::endl;
     }
+#ifdef TCP_QUICKACK
     result = setsockopt(serverHandle, IPPROTO_TCP, TCP_QUICKACK, reinterpret_cast<char*>(&yes), sizeof(int));  // 1 - on, 0 - off
     if (result != 0) {
         std::cout << "[Warning] Could not set TCP_QUICKACK" << std::endl;
     }
+#endif
     generateSessionUuid();
     t = std::thread(&TCPClient::listenLoop, this);
 }

@@ -3,7 +3,7 @@
 #include "ir/plan_node.hpp"
 
 #include <iostream>
-#include <jsoncpp/json/json.h>
+#include <json/json.h>
 #include <fstream>
 
 #include "ir/get_query_info.hpp"
