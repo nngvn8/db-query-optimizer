@@ -135,6 +135,7 @@ std::string trimFileQuery(const std::string& str) {
 
 void DBClient::handleSqlFile(std::string_view& filePath) {
     std::string fileName = std::string(filePath);
+    clientConfig.inputFile = fileName;
     std::cout << "Using SQL File: " << fileName << std::endl << std::endl;
 
     std::ifstream file(fileName);
@@ -437,6 +438,7 @@ void DBClient::mainClientLoop() {
             break;
 
         if (action == ClientAction::SendQuery) {
+            clientConfig.inputFile = "";
             uint64_t planId = getNextWorkItemPlanId();
             runOptimizerPipeline(createASTRootNode(query), planId, query);
             saveHistory(query.substr(0, query.size() - 1));
