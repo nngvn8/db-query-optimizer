@@ -221,6 +221,16 @@ ClientAction DBClient::readQueryInput(std::string& outQuery) {
             }
 
             if (!vQuery.empty()) {
+                // Handle .json plan files
+                if (vQuery.ends_with(".json")) {
+                    clientConfig.jsonPlanFile = std::string(vQuery);
+                    clientConfig.jsonPlan = true;
+                    std::cout << "Loaded JSON plan: " << clientConfig.jsonPlanFile
+                              << ". Enter corresponding SQL file or query:" << std::endl;
+                    buffer.clear();
+                    return ClientAction::Continue;
+                }
+
                 // Handle .sql files
                 if (vQuery.ends_with(".sql")) {
                     handleSqlFile(vQuery);

@@ -255,8 +255,6 @@ private:
 
     std::shared_ptr<PlanNode> getIrRootJson(const std::string& query, const ClientConfiguration& config);
 
-    void handleJsonPlanFile(const std::string& jsonFilePath, const std::string& sqlFilePath);
-
     // client history global parameters
     static constexpr const char* HISTORY_FILE = ".client_history";
     std::vector<std::string> history;
