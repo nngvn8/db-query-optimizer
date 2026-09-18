@@ -206,10 +206,21 @@ public:
     /**
      * @brief Creates a dot file for a given query plan.
      * @param root The root of the query plan.
-     * @param filename The name of the dot file.
      * @param contentType The type of content to include in the dot file.
+     * @param planId PlanId for the work items.
+     * @param filename Optional stage or suffix name for the generated DOT file (e.g., "ir_plan").
      */
-    void createPlanDotFile(const PlanNode& root, const std::string& filename, DotContentType contentType);
+    void createPlanDotFile(const PlanNode& root, DotContentType contentType, uint64_t planId, std::string filename = "");
+
+    /**
+     * @brief Computes the output file path for a given plan ID and directory tail string.
+     * @param planId The plan ID.
+     * @param outDirTailString The tail string for the output directory (e.g., "pb_plans").
+     * @param fileExt The file extension (e.g., ".pb", ".dot").
+     * @param filenameSuffix Optional suffix to append to the filename before the extension.
+     * @return The computed output file path.
+     */
+    std::filesystem::path computeOutfilePath(uint64_t planId, std::string outDirTailString, std::string fileExt = "", std::string filenameSuffix = "");
 
     /**
      * @brief Creates an AST root node from a given query string.
@@ -254,6 +265,11 @@ private:
 
     std::vector<std::string> fileQueries;
 
+    /**
+     * @brief Serializes work items of a query plan into a protobuf binary file.
+     * @param items The list of work items comprising the plan.
+     * @param planId The unique plan ID.
+     */
     void savePlanProto(const std::vector<WorkItem>& items, uint64_t planId);
     void saveHistory(const std::string& query);
     std::string_view trim(std::string_view s);

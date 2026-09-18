@@ -266,33 +266,44 @@ ClientAction DBClient::readQueryInput(std::string& outQuery) {
     return ClientAction::Exit;
 }
 
-void DBClient::createPlanDotFile(const PlanNode& root, const std::string& filename, DotContentType contentType) {
-    if (clientConfig.planDot)
-        generatePlanDotFileV2(root, filename, contentType, true, false);
-
-}
-
-
-void DBClient::savePlanProto(const std::vector<WorkItem>& items, uint64_t planId) {
-    QueryPlan queryPlan;
-    queryPlan.set_planid(planId);
-    for (const auto& item : items) {
-        *queryPlan.add_planitems() = item;
-    }
-
-    std::filesystem::path outDir = std::filesystem::path(PROJECT_ROOT_DIR) / "generated" / "pb_plans";
+std::filesystem::path DBClient::computeOutfilePath(uint64_t planId, std::string outDirTailString, std::string fileExt, std::string filenameSuffix) {
+    std::filesystem::path outDir = std::filesystem::path(PROJECT_ROOT_DIR) / "generated" / outDirTailString;
     std::error_code ec;
     std::filesystem::create_directories(outDir, ec);
     if (ec || !std::filesystem::exists(outDir)) {
-        outDir = std::filesystem::current_path() / "generated" / "pb_plans";
+        outDir = std::filesystem::current_path() / "generated" / outDirTailString;
         std::filesystem::create_directories(outDir, ec);
     }
 
     std::string stem = clientConfig.inputFile.empty()
                        ? "plan"
                        : std::filesystem::path(clientConfig.inputFile).stem().string();
-    std::filesystem::path outFilePath = outDir / (stem + "_" + std::to_string(planId) + ".pb");
+    filenameSuffix = filenameSuffix.empty() ? "" : "_" + filenameSuffix;
+    std::filesystem::path outFilePath = outDir / (stem + "_" + std::to_string(planId) + filenameSuffix + fileExt);
 
+    return outFilePath;
+}
+
+void DBClient::createPlanDotFile(const PlanNode& root, DotContentType contentType, uint64_t planId, std::string filename) {
+    if (!clientConfig.planDot) return;
+    filename = computeOutfilePath(planId, "pb_plans", ".dot", filename).string();
+    generatePlanDotFile(root, filename, contentType, true, false);
+}
+
+void DBClient::savePlanProto(const std::vector<WorkItem>& items, uint64_t planId) {
+    if (!clientConfig.writeProto) return;
+    
+    // Build Query Plan
+    QueryPlan queryPlan;
+    queryPlan.set_planid(planId);
+    for (const auto& item : items) {
+        *queryPlan.add_planitems() = item;
+    }
+    
+    // Compute out file path
+    std::filesystem::path outFilePath = computeOutfilePath(planId, "pb_plans", ".pb");
+
+    // Write proto plan to file
     std::ofstream out(outFilePath, std::ios::binary);
     if (out) {
         queryPlan.SerializeToOstream(&out);
@@ -340,22 +351,22 @@ void DBClient::runOptimizerPipeline(ASTNode* root, uint64_t planId, const std::s
     }
 
     ensureCorrectColumnSetup(ir_root);
-    createPlanDotFile(*ir_root, "ir_plan.dot", DotContentType::IR_DATA);
+    createPlanDotFile(*ir_root, DotContentType::IR_DATA, planId, "ir_plan");
 
     // Place semi joins
     if (clientConfig.semiJoins) {
         placeSemiJoins(ir_root.get());
-        createPlanDotFile(*ir_root, "ir_plan_semi_j.dot", DotContentType::IR_DATA);
+        createPlanDotFile(*ir_root, DotContentType::IR_DATA, planId, "ir_plan_semi_j");
     }
 
     if (clientConfig.mergeSubsetSort) {
         mergeSortIntoGroupIfSubset(&ir_root);
     }
-    createPlanDotFile(*ir_root, "ir_plan_merge_sort.dot", DotContentType::IR_DATA);
+    createPlanDotFile(*ir_root, DotContentType::IR_DATA, planId, "ir_plan_merge_sort");
 
     // Move single sum aggregations into group item
     moveAggIntoGroup(ir_root.get());
-    createPlanDotFile(*ir_root, "ir_plan_agg_opt.dot", DotContentType::IR_DATA);
+    createPlanDotFile(*ir_root, DotContentType::IR_DATA, planId, "ir_plan_agg_opt");
 
     // Fill Materializes
     switch (clientConfig.matType) {
@@ -371,21 +382,21 @@ void DBClient::runOptimizerPipeline(ASTNode* root, uint64_t planId, const std::s
     default:
         break;
     }
-    createPlanDotFile(*ir_root, "ir_plan_mat.dot", DotContentType::IR_DATA);
+    createPlanDotFile(*ir_root, DotContentType::IR_DATA, planId, "ir_plan_mat");
 
     // GrandchildrenOptimization
     if (clientConfig.grandChildOpt) {
         grandChildrenOptimization(ir_root.get());
-        createPlanDotFile(*ir_root, "ir_plan_mat_gco.dot", DotContentType::IR_DATA);
+        createPlanDotFile(*ir_root, DotContentType::IR_DATA, planId, "ir_plan_mat_gco");
     }
 
     // Rename columns
     uniqueColNames(ir_root.get());
-    createPlanDotFile(*ir_root, "ir_plan_mat_num.dot", DotContentType::IR_DATA);
+    createPlanDotFile(*ir_root, DotContentType::IR_DATA, planId, "ir_plan_mat_num");
 
     // Map to Api (Physical) Data
     irToApiData(ir_root.get());
-    createPlanDotFile(*ir_root, "api_plan.dot", DotContentType::API_DATA);
+    createPlanDotFile(*ir_root, DotContentType::API_DATA, planId, "api_plan");
 
     // Sequentialize
     std::vector<const PlanNode*> sequenced_plan = to_sequence_children_list<PlanNode>(ir_root.get());

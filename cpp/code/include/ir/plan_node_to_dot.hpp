@@ -25,19 +25,10 @@ enum class DotContentType {
 };
 
 /**
- * @brief Generates a DOT file from the PlanNode tree.
- *
- * @param root The root of the PlanNode tree.
- * @param filename The output filename for the DOT file.
- * @param contentType The type of data to visualize (IR or API).
- */
-void generatePlanDotFile(const PlanNode& root, const std::string& filename, DotContentType contentType = DotContentType::IR_DATA);
-
-/**
  * @brief Generates a DOT file from the PlanNode tree, but with improved formatting.
  *
  * @param root The root of the PlanNode tree.
  * @param filename The output filename for the DOT file.
  * @param contentType The type of data to visualize (IR or API).
  */
-void generatePlanDotFileV2(const PlanNode& root, const std::string& filename, DotContentType contentType = DotContentType::IR_DATA, bool shortColumns = false, bool ignoreFetch = false);
+void generatePlanDotFile(const PlanNode& root, const std::string& filename, DotContentType contentType = DotContentType::IR_DATA, bool shortColumns = false, bool ignoreFetch = false);
