@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROTO_SRC_DIR="proto"
-CPP_OUT_DIR="cpp/generated"
-PY_OUT_DIR="python/generated"     # Python package directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+PROTO_SRC_DIR="${ROOT_DIR}/proto"
+CPP_OUT_DIR="${ROOT_DIR}/cpp/generated"
+PY_OUT_DIR="${ROOT_DIR}/python/generated"     # Python package directory
 
 rm -rf "$CPP_OUT_DIR" "$PY_OUT_DIR"
 mkdir -p "$CPP_OUT_DIR" "$PY_OUT_DIR"
@@ -16,7 +19,7 @@ done < <(find "$PROTO_SRC_DIR" -name '*.proto' -print0)
 
 # Make headers available via include/ and sources via src/ for convenience
 mkdir -p "$CPP_OUT_DIR"/include "$CPP_OUT_DIR"/src
-find "$CPP_OUT_DIR" -name '*.pb.h' -exec mv {} "$CPP_OUT_DIR"/include/ \;
-find "$CPP_OUT_DIR" -name '*.pb.cc' -exec mv {} "$CPP_OUT_DIR"/src/ \;
+find "$CPP_OUT_DIR" -maxdepth 1 -name '*.pb.h' -exec mv {} "$CPP_OUT_DIR"/include/ \;
+find "$CPP_OUT_DIR" -maxdepth 1 -name '*.pb.cc' -exec mv {} "$CPP_OUT_DIR"/src/ \;
 
 echo "Regeneration complete."

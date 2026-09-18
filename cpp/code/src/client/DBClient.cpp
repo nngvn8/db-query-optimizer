@@ -286,7 +286,7 @@ std::filesystem::path DBClient::computeOutfilePath(uint64_t planId, std::string 
 
 void DBClient::createPlanDotFile(const PlanNode& root, DotContentType contentType, uint64_t planId, std::string filename) {
     if (!clientConfig.planDot) return;
-    filename = computeOutfilePath(planId, "pb_plans", ".dot", filename).string();
+    filename = computeOutfilePath(planId, "dot-files", ".dot", filename).string();
     generatePlanDotFile(root, filename, contentType, true, false);
 }
 

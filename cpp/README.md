@@ -4,22 +4,37 @@ This directory contains the C++ part of the optimizer project.
 
 ## Library Installation
 
-The `get_libs.sh` downloads the necessary libraries (hyrise sql parser and jsoncpp).
+The `../scripts/get_libs.sh` script downloads the necessary libraries (Hyrise SQL parser and jsoncpp) into `cpp/external/`.
 
-## Debug Build
+## Building the Project
 
-The `debug_build.sh` script is provided as a convenient way to create a debug build of the project.
+### Using the Build Script
 
-It performs the following steps:
-1.  Configures the project with CMake, setting the build type to `Debug`. This enables debug symbols and disables optimizations, which is useful for debugging with tools like GDB.
-2.  Compiles the project using all available processor cores to speed up the build process.
+The `../scripts/build.sh` script is provided as a convenient way to configure and compile the project using all available processor cores.
 
-### Usage
+- **Release Build** (default):
+  ```bash
+  # From project root:
+  ./scripts/build.sh
+  # Or from cpp/:
+  ../scripts/build.sh
+  ```
 
-To run the script, simply execute it from the `cpp` directory:
+- **Debug Build** (enables debug symbols and disables optimizations for GDB):
+  ```bash
+  # From project root:
+  ./scripts/build.sh --debug
+  # Or from cpp/:
+  ../scripts/build.sh --debug
+  ```
+
+### Manual Build via CMake
+
+Alternatively, configure and build manually from this directory:
 
 ```bash
-./debug_build.sh
+cmake -S . -B build                         # Configure
+cmake --build build --config Release        # Or --config Debug
 ```
 
-This will create a debug build in the `build` directory.
+Build outputs are placed in `cpp/build/bin` and `cpp/build/lib`. For more details on all available automation scripts, see [Scripts README](../scripts/README.md).

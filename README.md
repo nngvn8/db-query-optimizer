@@ -31,24 +31,29 @@ see python/requirements.txt
 - jsoncpp
 - hyrise sql-parser
 
-The libraries must be placed under `cpp/external/`. You can use the `get_libs.sh` script in `cpp` to download and place them in the correct directory automatically.
+The libraries must be placed under `cpp/external/`. You can use the `./scripts/get_libs.sh` script to download and place them in the correct directory automatically.
 
 ## Deployment
 
-```
-./regenerate_proto.sh                       # Generate the protobuf files for C++ and Python
+```bash
+./scripts/regenerate_proto.sh               # Generate the protobuf files for C++ and Python
+./scripts/get_libs.sh                       # Fetch external dependencies into cpp/external/
 
-# Building the C++ Server
+# Building the C++ Project:
+# Option 1: Automatic build using the build script (pass --debug for debug mode)
+./scripts/build.sh
+
+# Option 2: Manual build via CMake
 cd cpp
-./get_libs.sh                               # Fetch external dependencies
 cmake -S . -B build                         # Generating the Buildfiles
 cmake --build build --config Release        # Compiling the project
+cd ..
 
 # Execute the DB Client example
-./build/bin/optimizer-db-client
+./cpp/build/bin/optimizer-db-client
 
 # Execute the DB Server example
-./build/bin/optimizer-db-server
+./cpp/build/bin/optimizer-db-server
 ```
 
 ## DB Client
@@ -115,6 +120,12 @@ This project contains several components and development environments.
 The main C++ project is located in the `cpp` directory. For information on the project structure and how to create a debug build, please see the README file in that directory:
 
 [C++ Project README](./cpp/README.md)
+
+### Automation Scripts
+
+Helper and build scripts are located in the `scripts` directory. For a complete list and usage instructions, see:
+
+[Scripts README](./scripts/README.md)
 
 ### C++ Optimizer Core
 
