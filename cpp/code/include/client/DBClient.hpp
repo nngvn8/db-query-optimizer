@@ -254,6 +254,7 @@ private:
 
     std::vector<std::string> fileQueries;
 
+    void savePlanProto(const std::vector<WorkItem>& items, uint64_t planId);
     void saveHistory(const std::string& query);
     std::string_view trim(std::string_view s);
     bool equalsIgnoreCase(std::string_view a, std::string_view b);

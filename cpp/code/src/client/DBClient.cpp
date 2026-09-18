@@ -7,6 +7,10 @@
 #include <sys/socket.h>
 #include <filesystem>
 
+#ifndef PROJECT_ROOT_DIR
+#define PROJECT_ROOT_DIR "."
+#endif
+
 // HISTORY AND FILEHANDLING
 #include <fstream>
 #include <sstream>
@@ -268,6 +272,35 @@ void DBClient::createPlanDotFile(const PlanNode& root, const std::string& filena
 
 }
 
+
+void DBClient::savePlanProto(const std::vector<WorkItem>& items, uint64_t planId) {
+    QueryPlan queryPlan;
+    queryPlan.set_planid(planId);
+    for (const auto& item : items) {
+        *queryPlan.add_planitems() = item;
+    }
+
+    std::filesystem::path outDir = std::filesystem::path(PROJECT_ROOT_DIR) / "generated" / "pb_plans";
+    std::error_code ec;
+    std::filesystem::create_directories(outDir, ec);
+    if (ec || !std::filesystem::exists(outDir)) {
+        outDir = std::filesystem::current_path() / "generated" / "pb_plans";
+        std::filesystem::create_directories(outDir, ec);
+    }
+
+    std::string stem = clientConfig.inputFile.empty()
+                       ? "plan"
+                       : std::filesystem::path(clientConfig.inputFile).stem().string();
+    std::filesystem::path outFilePath = outDir / (stem + "_" + std::to_string(planId) + ".pb");
+
+    std::ofstream out(outFilePath, std::ios::binary);
+    if (out) {
+        queryPlan.SerializeToOstream(&out);
+    } else {
+        std::cerr << "Could not open file for writing proto plan: " << outFilePath << std::endl;
+    }
+}
+
 ASTNode* DBClient::createASTRootNode(const std::string& query) {
     auto root = generateASTNode(query, coutMutex);
     if (clientConfig.planDot)
@@ -376,18 +409,7 @@ void DBClient::runOptimizerPipeline(ASTNode* root, uint64_t planId, const std::s
     }
 
     if (clientConfig.writeProto) {
-        QueryPlan queryPlan;
-        queryPlan.set_planid(planId);
-        for (const auto& item : workItems) {
-            *queryPlan.add_planitems() = item;
-        }
-
-        std::string outFileName = clientConfig.inputFile.empty()
-                                  ? "plan_" + std::to_string(planId) + ".pb"
-                                  : clientConfig.inputFile + "_" + std::to_string(planId) + ".pb";
-
-        std::ofstream out(outFileName, std::ios::binary);
-        queryPlan.SerializeToOstream(&out);
+        savePlanProto(workItems, planId);
     }
 
     if (clientConfig.debug) {

@@ -13,6 +13,10 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 # (Optional) handy for tooling
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# Define project root directory (one level above cpp)
+get_filename_component(PROJECT_ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
+add_compile_definitions(PROJECT_ROOT_DIR="${PROJECT_ROOT_DIR}")
+
 # Let users toggle static/shared with -DBUILD_SHARED_LIBS=ON/OFF
 option(BUILD_SHARED_LIBS "Build shared libraries" ON)
 

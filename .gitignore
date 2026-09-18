@@ -3,9 +3,11 @@ cpp/build/
 cpp/external/
 .vscode
 .antigravity
+.clangd
 cpp/.cache
 python/generated
 .client_history
+generated/
 
 **/a.out
 *.o
