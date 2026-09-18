@@ -103,6 +103,27 @@ After correct input, the Optimizer Pipeline will run as follows:
 
 Files can contain multiple queries. Each query will be optimized parallel in a thread pool and generate the corresponding work items.
 
+## Batch Plan Generation
+
+For batch processing queries without interactive typing, automation scripts are provided in `scripts/`:
+
+```bash
+# Generate DOT plan files for all queries in ssb-queries/ (outputs to generated/dot-files/)
+./scripts/generate_dot_plans.sh
+
+# Generate Protobuf plan binary files for all queries in ssb-queries/ (outputs to generated/pb_plans/)
+./scripts/generate_pb_plans.sh
+
+# Target a custom directory containing SQL queries:
+./scripts/generate_dot_plans.sh path/to/queries
+
+# Run against JSON plans:
+./scripts/generate_dot_plans.sh --json
+```
+
+Both scripts use `-matType lateMatHybrid`, `-gChildOpt`, and `-mergeSort` by default, but support custom optimization flags (e.g. `--mat-type std`, `--no-gco`, `--no-merge-sort`). See the [Scripts README](./scripts/README.md) for full usage options.
+
+
 ## DB Server
 
 The example implementation includes a `DBServer` class that accepts generated work items and prints them to the console.
