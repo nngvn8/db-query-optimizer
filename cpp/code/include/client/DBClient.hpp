@@ -195,32 +195,36 @@ public:
      */
     void handleSqlFile(std::string_view& filePath);
 
+    ASTNode* runOptimizerPipelinePt1(const std::string& query);
+
     /**
      * @brief Runs the optimizer pipeline on a given AST.
      * @param root The root of the AST.
      * @param planId PlanId for the work items.
      * @param query query to use
      */
-    void runOptimizerPipeline(ASTNode* root, uint64_t planId, const std::string& query);
+    void runOptimizerPipelinePt2(ASTNode* root, uint64_t planId, const std::string& query, const ClientConfiguration& config);
 
     /**
      * @brief Creates a dot file for a given query plan.
      * @param root The root of the query plan.
      * @param contentType The type of content to include in the dot file.
      * @param planId PlanId for the work items.
+     * @param config The client configuration snapshot.
      * @param filename Optional stage or suffix name for the generated DOT file (e.g., "ir_plan").
      */
-    void createPlanDotFile(const PlanNode& root, DotContentType contentType, uint64_t planId, std::string filename = "");
+    void createPlanDotFile(const PlanNode& root, DotContentType contentType, uint64_t planId, const ClientConfiguration& config, std::string filename = "");
 
     /**
      * @brief Computes the output file path for a given plan ID and directory tail string.
      * @param planId The plan ID.
+     * @param config The client configuration snapshot.
      * @param outDirTailString The tail string for the output directory (e.g., "pb_plans").
      * @param fileExt The file extension (e.g., ".pb", ".dot").
      * @param filenameSuffix Optional suffix to append to the filename before the extension.
      * @return The computed output file path.
      */
-    std::filesystem::path computeOutfilePath(uint64_t planId, std::string outDirTailString, std::string fileExt = "", std::string filenameSuffix = "");
+    std::filesystem::path computeOutfilePath(uint64_t planId, const ClientConfiguration& config, std::string outDirTailString, std::string fileExt = "", std::string filenameSuffix = "");
 
     /**
      * @brief Creates an AST root node from a given query string.
@@ -249,7 +253,7 @@ private:
         return workItemPlanId.fetch_add(1, std::memory_order_relaxed);
     }
 
-    std::shared_ptr<PlanNode> getIrRootJson(const std::string& query);
+    std::shared_ptr<PlanNode> getIrRootJson(const std::string& query, const ClientConfiguration& config);
 
     void handleJsonPlanFile(const std::string& jsonFilePath, const std::string& sqlFilePath);
 
@@ -270,7 +274,7 @@ private:
      * @param items The list of work items comprising the plan.
      * @param planId The unique plan ID.
      */
-    void savePlanProto(const std::vector<WorkItem>& items, uint64_t planId);
+    void savePlanProto(const std::vector<WorkItem>& items, uint64_t planId, const ClientConfiguration& config);
     void saveHistory(const std::string& query);
     std::string_view trim(std::string_view s);
     bool equalsIgnoreCase(std::string_view a, std::string_view b);

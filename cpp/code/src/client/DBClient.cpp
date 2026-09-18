@@ -266,7 +266,7 @@ ClientAction DBClient::readQueryInput(std::string& outQuery) {
     return ClientAction::Exit;
 }
 
-std::filesystem::path DBClient::computeOutfilePath(uint64_t planId, std::string outDirTailString, std::string fileExt, std::string filenameSuffix) {
+std::filesystem::path DBClient::computeOutfilePath(uint64_t planId, const ClientConfiguration& config, std::string outDirTailString, std::string fileExt, std::string filenameSuffix) {
     std::filesystem::path outDir = std::filesystem::path(PROJECT_ROOT_DIR) / "generated" / outDirTailString;
     std::error_code ec;
     std::filesystem::create_directories(outDir, ec);
@@ -275,23 +275,23 @@ std::filesystem::path DBClient::computeOutfilePath(uint64_t planId, std::string 
         std::filesystem::create_directories(outDir, ec);
     }
 
-    std::string stem = clientConfig.inputFile.empty()
+    std::string stem = config.inputFile.empty()
                        ? "plan"
-                       : std::filesystem::path(clientConfig.inputFile).stem().string();
+                       : std::filesystem::path(config.inputFile).stem().string();
     filenameSuffix = filenameSuffix.empty() ? "" : "_" + filenameSuffix;
     std::filesystem::path outFilePath = outDir / (stem + "_" + std::to_string(planId) + filenameSuffix + fileExt);
 
     return outFilePath;
 }
 
-void DBClient::createPlanDotFile(const PlanNode& root, DotContentType contentType, uint64_t planId, std::string filename) {
-    if (!clientConfig.planDot) return;
-    filename = computeOutfilePath(planId, "dot-files", ".dot", filename).string();
+void DBClient::createPlanDotFile(const PlanNode& root, DotContentType contentType, uint64_t planId, const ClientConfiguration& config, std::string filename) {
+    if (!config.planDot) return;
+    filename = computeOutfilePath(planId, config, "dot-files", ".dot", filename).string();
     generatePlanDotFile(root, filename, contentType, true, false);
 }
 
-void DBClient::savePlanProto(const std::vector<WorkItem>& items, uint64_t planId) {
-    if (!clientConfig.writeProto) return;
+void DBClient::savePlanProto(const std::vector<WorkItem>& items, uint64_t planId, const ClientConfiguration& config) {
+    if (!config.writeProto) return;
     
     // Build Query Plan
     QueryPlan queryPlan;
@@ -301,7 +301,7 @@ void DBClient::savePlanProto(const std::vector<WorkItem>& items, uint64_t planId
     }
     
     // Compute out file path
-    std::filesystem::path outFilePath = computeOutfilePath(planId, "pb_plans", ".pb");
+    std::filesystem::path outFilePath = computeOutfilePath(planId, config, "pb_plans", ".pb");
 
     // Write proto plan to file
     std::ofstream out(outFilePath, std::ios::binary);
@@ -319,13 +319,14 @@ ASTNode* DBClient::createASTRootNode(const std::string& query) {
     return root;
 }
 
-std::shared_ptr<PlanNode> DBClient::getIrRootJson(const std::string& query) {
+std::shared_ptr<PlanNode> DBClient::getIrRootJson(const std::string& query, const ClientConfiguration& config) {
     std::shared_ptr<PlanNode> ir_root;
-    std::cout << "Using JSON query plan for processing " << clientConfig.jsonPlanFile << std::endl;
+    std::cout << "Using JSON query plan for processing " << config.jsonPlanFile << std::endl;
 
-    std::filesystem::path jsonPath(clientConfig.jsonPlanFile);
+    std::filesystem::path jsonPath(config.jsonPlanFile);
+    std::string baseDir = jsonPath.has_parent_path() ? (jsonPath.parent_path().string() + "/") : "./";
 
-    Json::Value queryPlan = read_plan_to_json(jsonPath.parent_path().string() + "/", jsonPath.filename().string());
+    Json::Value queryPlan = read_plan_to_json(baseDir, jsonPath.filename().string());
     ir_root = std::make_shared<PlanNode>(queryPlan);
     ir_root = pruneTree(ir_root);
 
@@ -333,43 +334,45 @@ std::shared_ptr<PlanNode> DBClient::getIrRootJson(const std::string& query) {
     ir_root = enrichTree(ir_root, sqlQueryData);
     AbstractToIr::abstractToIr(ir_root);
 
-    clientConfig.jsonPlan = false;
-    clientConfig.jsonPlanFile.clear();
-
     return ir_root;
 }
 
-void DBClient::runOptimizerPipeline(ASTNode* root, uint64_t planId, const std::string& query) {
+ASTNode* DBClient::runOptimizerPipelinePt1(const std::string& query) {
+    ASTNode* root = createASTRootNode(query);
+    return root;
+}
+
+void DBClient::runOptimizerPipelinePt2(ASTNode* root, uint64_t planId, const std::string& query, const ClientConfiguration& config) {
     auto start = std::chrono::high_resolution_clock::now();
 
     // Generate IR tree for second optimizer
     std::shared_ptr<PlanNode> ir_root;
-    if (clientConfig.jsonPlan && !clientConfig.jsonPlanFile.empty()) {
-        ir_root = getIrRootJson(query);
+    if (config.jsonPlan && !config.jsonPlanFile.empty()) {
+        ir_root = getIrRootJson(query, config);
     } else {
         ir_root = astToIr(root);
     }
 
     ensureCorrectColumnSetup(ir_root);
-    createPlanDotFile(*ir_root, DotContentType::IR_DATA, planId, "ir_plan");
+    createPlanDotFile(*ir_root, DotContentType::IR_DATA, planId, config, "ir_plan");
 
     // Place semi joins
-    if (clientConfig.semiJoins) {
+    if (config.semiJoins) {
         placeSemiJoins(ir_root.get());
-        createPlanDotFile(*ir_root, DotContentType::IR_DATA, planId, "ir_plan_semi_j");
+        createPlanDotFile(*ir_root, DotContentType::IR_DATA, planId, config, "ir_plan_semi_j");
     }
 
-    if (clientConfig.mergeSubsetSort) {
+    if (config.mergeSubsetSort) {
         mergeSortIntoGroupIfSubset(&ir_root);
     }
-    createPlanDotFile(*ir_root, DotContentType::IR_DATA, planId, "ir_plan_merge_sort");
+    createPlanDotFile(*ir_root, DotContentType::IR_DATA, planId, config, "ir_plan_merge_sort");
 
     // Move single sum aggregations into group item
     moveAggIntoGroup(ir_root.get());
-    createPlanDotFile(*ir_root, DotContentType::IR_DATA, planId, "ir_plan_agg_opt");
+    createPlanDotFile(*ir_root, DotContentType::IR_DATA, planId, config, "ir_plan_agg_opt");
 
     // Fill Materializes
-    switch (clientConfig.matType) {
+    switch (config.matType) {
     case MaterializeOptTypes::fillMaterializes:
         fillMaterializes(ir_root.get());
         break;
@@ -382,21 +385,21 @@ void DBClient::runOptimizerPipeline(ASTNode* root, uint64_t planId, const std::s
     default:
         break;
     }
-    createPlanDotFile(*ir_root, DotContentType::IR_DATA, planId, "ir_plan_mat");
+    createPlanDotFile(*ir_root, DotContentType::IR_DATA, planId, config, "ir_plan_mat");
 
     // GrandchildrenOptimization
-    if (clientConfig.grandChildOpt) {
+    if (config.grandChildOpt) {
         grandChildrenOptimization(ir_root.get());
-        createPlanDotFile(*ir_root, DotContentType::IR_DATA, planId, "ir_plan_mat_gco");
+        createPlanDotFile(*ir_root, DotContentType::IR_DATA, planId, config, "ir_plan_mat_gco");
     }
 
     // Rename columns
     uniqueColNames(ir_root.get());
-    createPlanDotFile(*ir_root, DotContentType::IR_DATA, planId, "ir_plan_mat_num");
+    createPlanDotFile(*ir_root, DotContentType::IR_DATA, planId, config, "ir_plan_mat_num");
 
     // Map to Api (Physical) Data
     irToApiData(ir_root.get());
-    createPlanDotFile(*ir_root, DotContentType::API_DATA, planId, "api_plan");
+    createPlanDotFile(*ir_root, DotContentType::API_DATA, planId, config, "api_plan");
 
     // Sequentialize
     std::vector<const PlanNode*> sequenced_plan = to_sequence_children_list<PlanNode>(ir_root.get());
@@ -405,7 +408,7 @@ void DBClient::runOptimizerPipeline(ASTNode* root, uint64_t planId, const std::s
     ItemBuilder itemBuilder;
     std::vector<WorkItem> workItems = itemBuilder.createWorkItems(sequenced_plan, planId);
 
-    if (!clientConfig.standalone) {
+    if (!config.standalone) {
         for (WorkItem item : workItems) {
             tuddbs::TCPMetaInfo info;
             info.package_type = tuddbs::TCPPackageType::NewTask;
@@ -419,11 +422,11 @@ void DBClient::runOptimizerPipeline(ASTNode* root, uint64_t planId, const std::s
         }
     }
 
-    if (clientConfig.writeProto) {
-        savePlanProto(workItems, planId);
+    if (config.writeProto) {
+        savePlanProto(workItems, planId, config);
     }
 
-    if (clientConfig.debug) {
+    if (config.debug) {
         std::lock_guard<std::mutex> lock(coutMutex);
 
         printSequencedPlan(sequenced_plan);
@@ -449,11 +452,17 @@ void DBClient::mainClientLoop() {
 
             for (const std::string& fileQuery : fileQueries) {
                 std::cout << fileQuery << ";" << std::endl << std::endl;
-                threadPool.enqueue([this, fileQuery]() {
+                ClientConfiguration taskConfig = clientConfig;
+                threadPool.enqueue([this, fileQuery, taskConfig]() {
                     uint64_t planId = getNextWorkItemPlanId();
-                    runOptimizerPipeline(createASTRootNode(fileQuery), planId, fileQuery);
+                    ASTNode* root = runOptimizerPipelinePt1(fileQuery);
+                    runOptimizerPipelinePt2(root, planId, fileQuery, taskConfig);
                 });
             }
+
+            // Once launch file queries are queued with the snapshot, clear jsonPlan so subsequent queries fall back to regular SQL
+            clientConfig.jsonPlan = false;
+            clientConfig.jsonPlanFile.clear();
         }
     }
 
@@ -472,19 +481,27 @@ void DBClient::mainClientLoop() {
 
         if (action == ClientAction::SendQuery) {
             clientConfig.inputFile = "";
+            ClientConfiguration taskConfig = clientConfig;
+            clientConfig.jsonPlan = false;
+            clientConfig.jsonPlanFile.clear();
             uint64_t planId = getNextWorkItemPlanId();
-            runOptimizerPipeline(createASTRootNode(query), planId, query);
+            ASTNode* astRoot = runOptimizerPipelinePt1(query);
+            runOptimizerPipelinePt2(astRoot, planId, query, taskConfig);
             saveHistory(query.substr(0, query.size() - 1));
         }
 
         if (action == ClientAction::SqlFile) {
-            for (std::string fileQuery : fileQueries) {
+            for (const std::string& fileQuery : fileQueries) {
                 std::cout << fileQuery << ";" << std::endl << std::endl;
-                threadPool.enqueue([this, fileQuery]() {
+                ClientConfiguration taskConfig = clientConfig;
+                threadPool.enqueue([this, fileQuery, taskConfig]() {
                     uint64_t planId = getNextWorkItemPlanId();
-                    runOptimizerPipeline(createASTRootNode(fileQuery), planId, fileQuery);
+                    ASTNode* root = runOptimizerPipelinePt1(fileQuery);
+                    runOptimizerPipelinePt2(root, planId, fileQuery, taskConfig);
                 });
             }
+            clientConfig.jsonPlan = false;
+            clientConfig.jsonPlanFile.clear();
         }
     }
 }
