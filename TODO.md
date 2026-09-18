@@ -52,18 +52,12 @@ This document outlines observations, known limitations, and recommendations rega
 
 ---
 
-## 6. Materialization Missing Column Warning/Error [ACTIVE]
+## 6. Materialization Missing Column Warning/Error [RESOLVED]
 
-### Issue
-During JSON plan processing with default materialization (`-matType lateMatHybrid`), the optimizer emits repeated error messages:
-```text
-Error: Column date.d_year required but not found in materialization process (matType: late-hybrid).
-```
-
-### Source Location
-- `cpp/code/src/ir_optimizations/ir_optimizations.cpp:703` inside `putLateMaterializationHybrid()` (also present in `ir_post_processing.cpp:246` and lines 335, 518 for other materialization types).
-
-### Trigger & Impact
-- **Trigger**: Occurs when running SSB queries (specifically observed on Q3-1, Q3-2, Q3-4, Q4-1, Q4-2, Q4-3) in JSON mode via `./scripts/generate_dot_plans.sh --type json` or `./scripts/generate_pb_plans.sh --type json`.
-- **Impact**: While the pipeline completes and outputs (`.dot` and `.pb`) are generated, the late-hybrid materialization phase fails to resolve the `date.d_year` column in the IR operator tree.
+### Resolution
+- The table name in the JSON plans was `"dim_date"`, which was historically remapped to `"dates"` in:
+  - `cpp/code/src/ir/plan_node.cpp:27`: `bt.name == "dim_date" ? "dates" : bt.name;`
+  - `cpp/code/src/ir/json_to_abstract.cpp:190`: `if (col.find("d_") == 0) return "dates";`
+- When commit `c337245` updated SQL queries and catalog definitions to use `"date"` instead of `"dates"`, these two JSON plan parsing locations were not updated.
+- Updated both locations to map to `"date"`. All 13 JSON query plans now process through materialization with zero missing column errors.
 

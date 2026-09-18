@@ -24,7 +24,7 @@ BaseType::PlanParams PlanNode::parsePlanParams(const Json::Value& json) {
         bt.schema = btJson.get("schema", "").asString();
 
         // Mismatch between table name in plan and in queries
-        bt.name = bt.name == "dim_date" ? "dates" : bt.name;
+        bt.name = bt.name == "dim_date" ? "date" : bt.name;
 
         params.baseTable = bt;
     }

@@ -187,7 +187,7 @@ namespace {
         if (col.find("c_") == 0)  return "customer";
         if (col.find("s_") == 0)  return "supplier";
         if (col.find("p_") == 0)  return "part";
-        if (col.find("d_") == 0)  return "dates"; // dim_date is currently used in plan, but remapped to dates in parsing
+        if (col.find("d_") == 0)  return "date"; // dim_date is used in plan, remapped to date in parsing
         return "";
     }
 
