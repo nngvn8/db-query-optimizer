@@ -72,6 +72,13 @@ namespace IrTransformHelpers {
     std::string trim(const std::string& s);
 
     /**
+     * @brief Strips surrounding single or double quotes from a string if present.
+     * @param s The string to process.
+     * @return The string without surrounding quotes.
+     */
+    std::string stripQuotes(const std::string& s);
+
+    /**
      * @brief Converts a string to uppercase.
      * @param s The string to convert.
      * @return The uppercase string.
@@ -112,6 +119,13 @@ namespace IrTransformHelpers {
      * @return True if the column is an aggregate, false otherwise.
      */
     bool isAggColumn(const std::string& name);
+
+    /**
+     * @brief Resolves the resulting ColumnType for an aggregate column expression.
+     * @param aggExpr The aggregate column expression (e.g., "COUNT(*)", "SUM(lo_revenue)").
+     * @return The resolved ColumnType.
+     */
+    ColumnType resolveAggColumnType(const std::string& aggExpr);
 
     /**
      * @struct ParsedCondition
@@ -157,10 +171,10 @@ namespace IrTransformHelpers {
         std::string getFirstTokenString(const std::string& input);
 
         /**
-         * @brief Extracts a column and its optional alias from a string.
+         * @brief Splits a column and its optional alias from a string (e.g., "col AS alias").
          * @param input The string to parse.
-         * @return A ColWithAlias struct.
+         * @return A ColWithAlias struct containing the column name and optional alias.
          */
-        ColWithAlias extractAlias(const std::string& input);
+        ColWithAlias splitColumnAlias(const std::string& input);
     }
 }

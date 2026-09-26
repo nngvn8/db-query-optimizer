@@ -40,7 +40,7 @@ std::shared_ptr<PlanNode> AbstractToIr::abstractToIr(std::shared_ptr<PlanNode> n
 
             std::vector<std::variant<uint64_t,float,std::string>> args;
             for (const std::string& arg : conditionFields.arguments)
-                args.push_back(arg);
+                args.push_back(IrTransformHelpers::parseValueByType(arg, colType));
 
             filterNode->irData = FilterView::create(inputCol, comp, std::nullopt, args);
             filterNodes.push_back(filterNode);
@@ -119,7 +119,7 @@ std::shared_ptr<PlanNode> AbstractToIr::abstractToIr(std::shared_ptr<PlanNode> n
 
             ColumnType mapOutColType;
             if (aggInColType1 == ColumnType::TYPE_STRING || aggInColType2 == ColumnType::TYPE_STRING
-                || (op == ARITH_MOD && !(aggInColType1 == ColumnType::TYPE_INTEGER && aggInColType2 == ColumnType::TYPE_INTEGER))) {
+                || (aggOp == ARITH_MOD && !(aggInColType1 == ColumnType::TYPE_INTEGER && aggInColType2 == ColumnType::TYPE_INTEGER))) {
                 throw std::runtime_error("Invalid types for arithmetic operation");
             }
             if (aggInColType1 == ColumnType::TYPE_FLOAT || aggInColType2 == ColumnType::TYPE_FLOAT) {
@@ -207,11 +207,14 @@ std::shared_ptr<PlanNode> AbstractToIr::abstractToIr(std::shared_ptr<PlanNode> n
         std::vector<BaseType::TableColumn> sortCols;
         for (size_t i = 0; i < sort->column_names.size(); ++i) {
             std::string colName = sort->column_names[i];
-            ColumnType type = Catalog::getSSBColumnType("", colName);
             std::string tableName = Catalog::getTableName(colName);
 
+            ColumnType type;
             if (tableName == "Default" && IrTransformHelpers::isAggColumn(colName)) {
                 tableName = "AGG";
+                type = IrTransformHelpers::resolveAggColumnType(colName);
+            } else {
+                type = Catalog::getSSBColumnType(tableName, colName);
             }
 
             std::optional<std::string> alias_opt = sort->aliases[i].empty() ? std::nullopt : std::make_optional(sort->aliases[i]);
@@ -229,16 +232,19 @@ std::shared_ptr<PlanNode> AbstractToIr::abstractToIr(std::shared_ptr<PlanNode> n
     const AbstractResult* result = std::get_if<AbstractResult>(&node->abstractData);
     if (result) {
         std::vector<BaseType::TableColumn> resultCols;
-        for (const auto& colName : result->output_cols) {
-            std::string tableName = Catalog::getTableName(colName);
-            ColumnType type = Catalog::getSSBColumnType("", colName);
-            const IrTransformHelpers::ColWithAlias& colAlias = IrTransformHelpers::ConditionParser::extractAlias(colName);
+        for (const auto& rawCol : result->output_cols) {
+            const IrTransformHelpers::ColWithAlias& colAlias = IrTransformHelpers::ConditionParser::splitColumnAlias(rawCol);
+            std::string colTrimName = IrTransformHelpers::removeAllWhitespace(colAlias.name);
 
-            if (tableName == "Default" && IrTransformHelpers::isAggColumn(colName)) {
+            std::string tableName = Catalog::getTableName(colTrimName);
+            ColumnType type;
+            if (tableName == "Default" && IrTransformHelpers::isAggColumn(colTrimName)) {
                 tableName = "AGG";
+                type = IrTransformHelpers::resolveAggColumnType(colTrimName);
+            } else {
+                type = Catalog::getSSBColumnType(tableName, colTrimName);
             }
 
-            std::string colTrimName = IrTransformHelpers::removeAllWhitespace(colAlias.name);
             BaseType::TableColumn resultCol(BaseType::Table(tableName), colTrimName, type, colAlias.alias);
             resultCols.emplace_back(resultCol);
         }

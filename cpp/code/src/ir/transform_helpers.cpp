@@ -4,6 +4,7 @@
 #include <cctype>
 #include <regex>
 #include <stdexcept>
+#include "util/catalog.hpp"
 
 namespace IrTransformHelpers {
 
@@ -59,19 +60,6 @@ namespace IrTransformHelpers {
         return ARITH_ADD;
     }
 
-    std::variant<uint64_t, float, std::string> parseValueByType(const std::string& val, ColumnType type) {
-        if (type == ColumnType::TYPE_INTEGER) {
-            try { return static_cast<uint64_t>(std::stoull(val)); }
-            catch (...) { return static_cast<uint64_t>(0); }
-        }
-        if (type == ColumnType::TYPE_FLOAT) {
-            try { return std::stof(val); }
-            catch (...) { return 0.0f; }
-        }
-        // Fallback / String
-        return val;
-    }
-
     std::string trim(const std::string& s) {
         size_t start = 0;
         while (start < s.size() && std::isspace(static_cast<unsigned char>(s[start])))
@@ -82,6 +70,30 @@ namespace IrTransformHelpers {
             --end;
 
         return s.substr(start, end - start);
+    }
+
+    std::string stripQuotes(const std::string& s) {
+        std::string trimmed = trim(s);
+        if (trimmed.size() >= 2 &&
+            ((trimmed.front() == '\'' && trimmed.back() == '\'') ||
+             (trimmed.front() == '"' && trimmed.back() == '"'))) {
+            return trimmed.substr(1, trimmed.size() - 2);
+        }
+        return trimmed;
+    }
+
+    std::variant<uint64_t, float, std::string> parseValueByType(const std::string& val, ColumnType type) {
+        std::string cleanVal = stripQuotes(val);
+        if (type == ColumnType::TYPE_INTEGER) {
+            try { return static_cast<uint64_t>(std::stoull(cleanVal)); }
+            catch (...) { return static_cast<uint64_t>(0); }
+        }
+        if (type == ColumnType::TYPE_FLOAT) {
+            try { return std::stof(cleanVal); }
+            catch (...) { return 0.0f; }
+        }
+        // Fallback / String
+        return cleanVal;
     }
 
     std::string toUpper(std::string s) {
@@ -211,7 +223,7 @@ namespace IrTransformHelpers {
             // BETWEEN
             std::regex betweenRegex(R"(^(\w+)\s+BETWEEN\s+(.+)\s+AND\s+(.+)$)", std::regex::icase);
             if (std::regex_match(s, match, betweenRegex)) {
-                return {match[1], "BETWEEN", { _trim(match[2]), _trim(match[3]) }};
+                return {match[1], "BETWEEN", { stripQuotes(_trim(match[2])), stripQuotes(_trim(match[3])) }};
             }
 
             // IN
@@ -224,7 +236,7 @@ namespace IrTransformHelpers {
                 auto end = std::sregex_iterator();
 
                 for (auto it = begin; it != end; ++it) {
-                    args.push_back(_trim(it->str()));
+                    args.push_back(stripQuotes(_trim(it->str())));
                 }
 
                 return {match[1], "IN", args};
@@ -233,7 +245,7 @@ namespace IrTransformHelpers {
             // Standard comparison operators
             std::regex compRegex(R"(^(\w+)\s*(=|<>|!=|<=|>=|<|>)\s*(.+)$)", std::regex::icase);
             if (std::regex_match(s, match, compRegex)) {
-                return {match[1], match[2], { _trim(match[3]) }};
+                return {match[1], match[2], { stripQuotes(_trim(match[3])) }};
             }
 
             throw std::invalid_argument("Invalid SQL condition format");
@@ -258,7 +270,7 @@ namespace IrTransformHelpers {
             return input.substr(start, i - start);
         }
 
-        ColWithAlias extractAlias(const std::string& input) {
+        ColWithAlias splitColumnAlias(const std::string& input) {
             std::string s = _trim(input);
 
             // Make uppercase copy for case-insensitive search
@@ -277,5 +289,32 @@ namespace IrTransformHelpers {
             std::string alias = s.substr(pos + 4);
             return { column, alias };
         }
+    }
+
+    ColumnType resolveAggColumnType(const std::string& aggExpr) {
+        std::string upper = toUpper(aggExpr);
+        if (upper.rfind("COUNT", 0) == 0) return ColumnType::TYPE_INTEGER;
+        if (upper.rfind("AVG", 0) == 0) return ColumnType::TYPE_FLOAT;
+
+        size_t openParen = aggExpr.find('(');
+        std::string inner = (openParen != std::string::npos) ? aggExpr.substr(openParen + 1) : aggExpr;
+        if (!inner.empty() && inner.back() == ')') inner.pop_back();
+
+        if (containsArithMapOp(inner)) {
+            try {
+                auto [in1, op, in2] = parseMapping(inner);
+                ColumnType t1 = Catalog::getSSBColumnType("", in1);
+                ColumnType t2 = Catalog::getSSBColumnType("", in2);
+                if (t1 == ColumnType::TYPE_FLOAT || t2 == ColumnType::TYPE_FLOAT ||
+                    in1.find('.') != std::string::npos || in2.find('.') != std::string::npos) {
+                    return ColumnType::TYPE_FLOAT;
+                }
+                return ColumnType::TYPE_INTEGER;
+            } catch (...) {
+                return ColumnType::TYPE_INTEGER;
+            }
+        }
+        std::string innerCol = ConditionParser::getFirstTokenString(inner);
+        return Catalog::getSSBColumnType("", innerCol);
     }
 }
