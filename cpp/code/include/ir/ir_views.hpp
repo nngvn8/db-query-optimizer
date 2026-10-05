@@ -354,7 +354,10 @@ public:
     }
 
     // Accessors
-    std::vector<BaseType::TableColumn>& groupingCols() { return data.inputColumns; }
+    std::span<BaseType::TableColumn> groupingCols() { 
+        size_t count = data.inputColumns.size() - (op.hasAgg ? 1 : 0);
+        return std::span(data.inputColumns.data(), count); 
+    }
     BaseType::TableColumn& outputIdx() { return data.outputCols[0]; }
     BaseType::TableColumn& outputSortIdx() { return data.outputCols[1]; }
     BaseType::TableColumn& outputCluster() { return data.outputCols[2]; }
