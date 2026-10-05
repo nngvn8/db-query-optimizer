@@ -345,7 +345,7 @@ public:
         irData.inputColumns.push_back(aggCol);
         BaseType::TableColumn outSrtIdx = outputCol;
         BaseType::TableColumn outCluster = outputCol;
-        outSrtIdx.columnName += "_srt";
+        outSrtIdx.columnName += "_full";
         outCluster.columnName += "_clus";
         irData.outputCols = {outputCol, outSrtIdx, outCluster, aggResultCol};
         std::vector<bool> sortOrders(groupingCols.size(), true);
