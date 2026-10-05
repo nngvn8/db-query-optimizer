@@ -265,11 +265,12 @@ WorkItem ItemBuilder::createSortItem(const std::vector<BaseType::TableColumn*>& 
     }
 
     ColumnMessage* idxOut = sortItem->mutable_indexoutput();
-    ColumnMessage* exIdx = sortItem->mutable_existingindex();
-
     setTableColumnType(idxOut, idxOutput);
-    setTableColumnType(exIdx, existingIdx);
-
+    
+    if (existingIdx != nullptr) {
+        ColumnMessage* exIdx = sortItem->mutable_existingindex();
+        setTableColumnType(exIdx, existingIdx);
+    }
     // idx = 0;
     for (const bool& order : sortOrders) {
         // sortItem->set_sortorder(idx, order);
@@ -330,6 +331,12 @@ WorkItem ItemBuilder::createResultItem(const std::string& file, const std::vecto
     for (const std::string& header : headers) {
         resultItem->add_resultheader(header);
     }
+
+    if (resultIdx != nullptr) {
+        ColumnMessage* resIdx = resultItem->mutable_resultindex();
+        setTableColumnType(resIdx, resultIdx);
+    }
+
     return workItem;
 }
 

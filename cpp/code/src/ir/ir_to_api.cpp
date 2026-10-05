@@ -7,8 +7,6 @@
 void irToApiDataSub(PlanNode* node, std::set<const PlanNode*>& visited) {
     if (!node || visited.contains(node)) return;
 
-    static BaseType::TableColumn missingCol;
-
     // Filter Node
     if (auto filterV = node->irData.get_view_if<FilterView>()) {
         ItemBuilder::FilterNode filterStruct;
@@ -76,10 +74,7 @@ void irToApiDataSub(PlanNode* node, std::set<const PlanNode*>& visited) {
                 groupStruct.aggResultColumn = aggResultCol;
             }
         }
-        else {
-            groupStruct.aggColumn = &missingCol;
-            groupStruct.aggResultColumn = &missingCol;
-        }
+
         groupStruct.storeExtends = false;
         groupStruct.sortOrders = groupV->sortOrders();
 
@@ -102,12 +97,22 @@ void irToApiDataSub(PlanNode* node, std::set<const PlanNode*>& visited) {
     else if (auto sortV = node->irData.get_view_if<SortOrderView>()) {
         ItemBuilder::SortNode sortStruct;
 
-        for (auto& desc : sortV->orderDescriptions()) {
-            sortStruct.inputColumns.push_back(&desc.column);
-            sortStruct.sortOrders.push_back(desc.orderType); // assuming bool maps directly
+        if (sortV->orderDescriptions().size() != sortV->sortCols().size()) {
+            throw std::runtime_error("SortOrderView: orderDescriptions and sortCols have different sizes");
         }
+
+        if (sortV->sortCols().empty()) {
+            throw std::runtime_error("No Sort columns passed to the sort operator!");
+        }
+        
+        size_t number_sort_cols = sortV->sortCols().size();
+        for (size_t i = 0; i < number_sort_cols; i++) {
+            sortStruct.inputColumns.push_back(&sortV->sortCols()[i]);
+            sortStruct.sortOrders.push_back(sortV->orderDescriptions()[i].orderType); // assuming bool maps directly
+        }
+        
         sortStruct.idxOutput = &sortV->idxOutput();
-        sortStruct.existingIdx = sortV->existingIdx() ? &*sortV->existingIdx() : &missingCol;
+        sortStruct.existingIdx = sortV->existingIdx().has_value() ? &*sortV->existingIdx() : nullptr;
 
         node->apiData = sortStruct;
     }
@@ -148,7 +153,7 @@ void irToApiDataSub(PlanNode* node, std::set<const PlanNode*>& visited) {
             resultStruct.resultColumns.push_back(&col);
         }
         resultStruct.resultHeaders = selectV->resultHeaders();
-        resultStruct.resultIdx = selectV->resultIdx().has_value() ? &selectV->resultIdx().value() : &missingCol;
+        resultStruct.resultIdx = selectV->resultIdx().has_value() ? &selectV->resultIdx().value() : nullptr;
 
         node->apiData = resultStruct;
     }
