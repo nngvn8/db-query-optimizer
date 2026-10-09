@@ -27,8 +27,9 @@ std::shared_ptr<PlanNode> getFreshIrTree(const std::string& base_dir, const std:
     AbstractToIr::abstractToIr(planNodeRoot);
     ensureCorrectColumnSetup(planNodeRoot);
 
-    std::string dot_name = "ir_json_" + sql_file + ".dot";
-    generatePlanDotFileV2(*planNodeRoot, dot_name, DotContentType::IR_DATA, true);
+    std::string query_name = sql_file.substr(0, sql_file.size() - 4);
+    std::string dot_name = "ir_json_" + query_name + ".dot";
+    generatePlanDotFile(*planNodeRoot, dot_name, DotContentType::IR_DATA, true);
     
     return planNodeRoot;
 }
@@ -41,13 +42,17 @@ std::shared_ptr<PlanNode> getFreshIrTreeFromAst(const std::string& base_dir, con
     ensureCorrectColumnSetup(planNodeRoot);
     delete astRoot;
 
-    std::string dot_name = "ir_ast_" + sql_file + ".dot";
-    generatePlanDotFileV2(*planNodeRoot, dot_name, DotContentType::IR_DATA, true);
+    std::string query_name = sql_file.substr(0, sql_file.size() - 4);
+    std::string dot_name = "ir_sql_" + query_name + ".dot";
+    generatePlanDotFile(*planNodeRoot, dot_name, DotContentType::IR_DATA, true);
 
     return planNodeRoot;
 }
 
 void runPipelines(std::function<std::shared_ptr<PlanNode>()> getTree, const std::string& prefix, const std::string& sql_file) {
+    
+    std::string query_name = sql_file.substr(0, sql_file.size() - 4);
+    
     // 1. Standard Pipeline
     {
         auto root = getTree();
@@ -59,11 +64,11 @@ void runPipelines(std::function<std::shared_ptr<PlanNode>()> getTree, const std:
         uniqueColNames(root.get());
         irToApiData(root.get());
         
-        std::string dot_name = prefix + "_standard_" + sql_file + ".dot";
-        generatePlanDotFileV2(*root, dot_name, DotContentType::API_DATA, true);
+        std::string dot_name = prefix + "_standard_" + query_name + ".dot";
+        generatePlanDotFile(*root, dot_name, DotContentType::API_DATA, true);
     }
 
-    // 2. Late Materialization V2
+    // 2. Late Materialization 
     {
         auto root = getTree();
 
@@ -71,12 +76,12 @@ void runPipelines(std::function<std::shared_ptr<PlanNode>()> getTree, const std:
         mergeSortIntoGroupIfSubset(&root);
         moveAggIntoGroup(root.get());
         putLateMaterializationV2(root.get());
-        grandChildrenOptimization(root.get());
+        // grandChildrenOptimization(root.get());
         uniqueColNames(root.get());
         irToApiData(root.get());
 
-        std::string dot_name = prefix + "_late_v2_" + sql_file + ".dot";
-        generatePlanDotFileV2(*root, dot_name, DotContentType::API_DATA, true);
+        std::string dot_name = prefix + "_late_" + query_name + ".dot";
+        generatePlanDotFile(*root, dot_name, DotContentType::API_DATA, true);
     }
 
     // 3. Late Materialization Hybrid
@@ -91,8 +96,8 @@ void runPipelines(std::function<std::shared_ptr<PlanNode>()> getTree, const std:
         uniqueColNames(root.get());
         irToApiData(root.get());
 
-        std::string dot_name = prefix + "_late_hybrid_" + sql_file + ".dot";
-        generatePlanDotFileV2(*root, dot_name, DotContentType::API_DATA, true);
+        std::string dot_name = prefix + "_late_hybrid_" + query_name + ".dot";
+        generatePlanDotFile(*root, dot_name, DotContentType::API_DATA, true);
     }
 }
 
@@ -106,11 +111,12 @@ int main() {
         const auto& sql_file = ssb_queries[i];
         std::cout << "Processing " << sql_file << "..." << std::endl;
 
+
         // Plan Based
-        runPipelines([&](){ return getFreshIrTree(base_dir, json_file, sql_file); }, "plan", sql_file);
+        runPipelines([&](){ return getFreshIrTree(base_dir, json_file, sql_file); }, "json", sql_file);
 
         // AST Based
-        runPipelines([&](){ return getFreshIrTreeFromAst(base_dir, sql_file); }, "ast", sql_file);
+        runPipelines([&](){ return getFreshIrTreeFromAst(base_dir, sql_file); }, "sql", sql_file);
     }
 
     return 0;
