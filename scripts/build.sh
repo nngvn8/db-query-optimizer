@@ -38,6 +38,9 @@ echo "Configuring and building project in ${BUILD_TYPE} mode..."
 
 cmake -S "${CPP_DIR}" -B "${BUILD_DIR}" -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" -DCMAKE_CXX_FLAGS="-w" -DCMAKE_C_FLAGS="-w"
 NUM_CORES=$(sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 4)
+if [ "$NUM_CORES" -lt 1 ]; then
+    NUM_CORES=1
+fi
 JOBS=$(( NUM_CORES > 2 ? NUM_CORES - 2 : NUM_CORES ))
 cmake --build "${BUILD_DIR}" --config "${BUILD_TYPE}" -j "$JOBS"
 
