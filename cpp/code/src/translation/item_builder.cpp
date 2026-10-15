@@ -87,6 +87,11 @@ WorkItem ItemBuilder::createJoinItem(const JoinNode& node) {
     return createJoinItem(node.innerColumn, node.outerColumn, node.iOutputColumn, node.oOutputColumn, node.joinPredicate);
 }
 
+WorkItem ItemBuilder::createSemiJoinItem(const SemiJoinNode& node) {
+    // For now, translate semijoins to normal Joins since semijoins are not yet available in the processing unit
+    return createJoinItem(node.innerColumn, node.outerColumn, node.iOutputColumn, node.oOutputColumn, node.joinPredicate);
+}
+
 WorkItem ItemBuilder::createJoinItem(const BaseType::TableColumn* innerColumn, const BaseType::TableColumn* outerColumn,
     const BaseType::TableColumn* iOutputColumn, const BaseType::TableColumn* oOutputColumn, const CompType* predicate)
 {
@@ -361,6 +366,9 @@ std::vector<WorkItem> ItemBuilder::createWorkItems(std::vector<const PlanNode*>&
         }
         else if (auto* item = std::get_if<ItemBuilder::JoinNode>(&node->apiData)) {
             w = ItemBuilder::createJoinItem(*item);
+        }
+        else if (auto* item = std::get_if<ItemBuilder::SemiJoinNode>(&node->apiData)) {
+            w = ItemBuilder::createSemiJoinItem(*item);
         }
         else if (auto* item = std::get_if<ItemBuilder::MapNode>(&node->apiData)) {
             w = ItemBuilder::createMapItem(*item);

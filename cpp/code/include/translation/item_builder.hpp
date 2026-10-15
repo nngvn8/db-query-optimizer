@@ -179,6 +179,10 @@ class ItemBuilder {
          */
         WorkItem createJoinItem(const JoinNode& node);
         /**
+         * @brief Creates a WorkItem for a semi-join operation (translated to normal join for now).
+         */
+        WorkItem createSemiJoinItem(const SemiJoinNode& node);
+        /**
          * @brief Creates a WorkItem for a map operation.
          */
         WorkItem createMapItem(const MapNode& node);
