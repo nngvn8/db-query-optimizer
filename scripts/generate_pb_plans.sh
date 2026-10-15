@@ -6,6 +6,7 @@ ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 # Defaults
 TARGET_DIR="${ROOT_DIR}/ssb-queries"
+SQL_FILE=""
 FILE_TYPE="sql"
 MAT_TYPE="lateMatHybrid"
 ENABLE_GCO=true
@@ -26,6 +27,7 @@ Arguments:
 
 Options:
   -d, --dir <path>              Directory containing queries (default: ssb-queries)
+  -f, --file <path>             Specify an SQL query file to run
   -t, --type <sql|json>         Query format to run: 'sql' or 'json' (default: sql)
   -s, --sql                     Convenience flag for --type sql (default)
   -j, --json                    Convenience flag for --type json
@@ -47,6 +49,7 @@ Generated files:
 Examples:
   $0                                      # Run all .sql in ssb-queries with default optimizations
   $0 ssb-queries                          # Same as above with explicit directory
+  $0 -f ssb-queries/q1-1.sql              # Run a specific SQL query file
   $0 --type json ssb-queries              # Run all .json in ssb-queries
   $0 --mat-type std --no-gco              # Run with custom optimization settings
 EOF
@@ -56,8 +59,12 @@ EOF
 # Parse options
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    -h|--help)
+    -h|--help|-help)
       usage
+      ;;
+    -f|--file)
+      SQL_FILE="$2"
+      shift 2
       ;;
     -d|--dir)
       TARGET_DIR="$2"
@@ -131,12 +138,20 @@ if [[ ! -x "${CLIENT_BIN}" ]]; then
   exit 1
 fi
 
-# Validate target directory
-if [[ ! -d "${TARGET_DIR}" ]]; then
-  echo "Error: Target directory '${TARGET_DIR}' does not exist." >&2
-  exit 1
+# Validate target directory / SQL file
+if [[ -n "${SQL_FILE}" ]]; then
+  if [[ ! -f "${SQL_FILE}" ]]; then
+    echo "Error: SQL file '${SQL_FILE}' does not exist." >&2
+    exit 1
+  fi
+  SQL_FILE="$(cd "$(dirname "${SQL_FILE}")" && pwd)/$(basename "${SQL_FILE}")"
+else
+  if [[ ! -d "${TARGET_DIR}" ]]; then
+    echo "Error: Target directory '${TARGET_DIR}' does not exist." >&2
+    exit 1
+  fi
+  TARGET_DIR="$(cd "${TARGET_DIR}" && pwd)"
 fi
-TARGET_DIR="$(cd "${TARGET_DIR}" && pwd)"
 
 # Validate file type
 if [[ "${FILE_TYPE}" != "sql" && "${FILE_TYPE}" != "json" ]]; then
@@ -171,7 +186,11 @@ fi
 
 echo "================================================================"
 echo "Protobuf Plan Generation"
-echo "Target directory : ${TARGET_DIR}"
+if [[ -n "${SQL_FILE}" ]]; then
+  echo "Target SQL file  : ${SQL_FILE}"
+else
+  echo "Target directory : ${TARGET_DIR}"
+fi
 echo "File format      : .${FILE_TYPE}"
 echo "Materialization  : ${MAT_TYPE}"
 echo "Grandchild Opt   : ${ENABLE_GCO}"
@@ -184,7 +203,11 @@ echo "================================================================"
 FILES=()
 PAIRS=()
 
-if [[ "${FILE_TYPE}" == "sql" ]]; then
+if [[ -n "${SQL_FILE}" ]]; then
+  FILES+=("${SQL_FILE}")
+  echo "Processing 1 SQL query file: ${SQL_FILE}"
+
+elif [[ "${FILE_TYPE}" == "sql" ]]; then
   while IFS= read -r f; do
     [[ -n "$f" ]] && FILES+=("$f")
   done < <(find "${TARGET_DIR}" -maxdepth 1 -name "*.sql" -type f | sort -V)
