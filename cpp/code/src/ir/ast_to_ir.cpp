@@ -1,4 +1,5 @@
 #include "ir/ir_transformer.hpp"
+#include "ir/ir_types.hpp"
 #include "ir/transform_helpers.hpp"
 #include "util/catalog.hpp"
 #include "ir/ir_views.hpp"
@@ -161,12 +162,25 @@ std::shared_ptr<PlanNode> astToIr(ASTNode* ast) {
         BaseType::TableColumn leftCol(e->onLeftTable, e->onLeftTableColumn, leftType);
         BaseType::TableColumn rightCol(e->onRightTable, e->onRightTableColumn, rightType);
 
+        // Set smaller table as inner table and swap children if necessary
+        BaseType::TableColumn innerCol = Catalog::getSmallerColumn(leftCol, rightCol);
+        BaseType::TableColumn outerCol;
+        
+        if (leftCol == innerCol) {
+            outerCol = rightCol;
+        }
+        else {
+            outerCol = leftCol;
+            std::swap(ast->left, ast->right);
+        }
+
         node->irData = JoinView::create(
-            leftCol,
-            rightCol,
+            innerCol,
+            outerCol,
             IrTransformHelpers::mapStringToJoinType(e->joinType),
             CompType::COMP_EQ
         );
+
     }
     // Set Ops
     else if (auto e = std::get_if<SetOperationNode>(&ast->val)) {

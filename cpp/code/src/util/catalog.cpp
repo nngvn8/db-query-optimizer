@@ -1,4 +1,5 @@
 #include "util/catalog.hpp"
+#include "ir/ir_types.hpp"
 
 namespace Catalog {
 
@@ -187,5 +188,19 @@ namespace Catalog {
         if (tableName == "date" || tableName == "d") return columnName == "d_datekey";
 
         return false;
+    }
+
+    BaseType::TableColumn getSmallerColumn(const BaseType::TableColumn& col1, const BaseType::TableColumn& col2) {
+
+        // Table sizes in descending order
+        std::vector<std::string> size_ranking = {"lineorder", "part", "customer", "supplier", "date"};
+        
+        auto it_col1 = std::find(size_ranking.begin(), size_ranking.end(), col1.table.name);
+        auto it_col2 = std::find(size_ranking.begin(), size_ranking.end(), col2.table.name);
+
+        // The column further back in the ranking is the smaller table
+        int rel_pos = std::distance(it_col1, it_col2);
+        if (rel_pos > 0) return col2;
+        else return col1;
     }
 }
