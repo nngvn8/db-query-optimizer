@@ -487,6 +487,24 @@ ASTNode* parseQueryExpression(const hsql::SelectStatement* selectStmt){
                     selectClauseDescriptionList.push_back(SelectClauseDescription(tableName, colName, alias));
                     break;
                 }
+                // Plain arithmetic expression without aggregation, e.g. (lo_extendedprice * lo_discount)
+                // Column name must match the Map output column generated in astToIr (column1 + op + column2)
+                case hsql::kExprOperator:{
+                    hsql::Expr* opExpr = selectStmt->selectList->at(i);
+                    std::string op = "";
+                    if(opExpr->opType == hsql::kOpPlus) op = "+";
+                    else if(opExpr->opType == hsql::kOpMinus) op = "-";
+                    else if(opExpr->opType == hsql::kOpAsterisk) op = "*";
+                    else if(opExpr->opType == hsql::kOpSlash) op = "/";
+
+                    std::string left = (opExpr->expr && opExpr->expr->name) ? opExpr->expr->name : "";
+                    std::string right = (opExpr->expr2 && opExpr->expr2->name) ? opExpr->expr2->name : "";
+                    std::string alias = opExpr->alias ? opExpr->alias : "";
+                    selectClauseDescriptionList.push_back(SelectClauseDescription("MAP", left + op + right, alias));
+                    break;
+                }
+                default:
+                    break;
             }
         }
         delete root;
@@ -613,7 +631,33 @@ ASTNode* parseQueryExpression(const hsql::SelectStatement* selectStmt){
                             continue;
                         }
                     }
+                    break;
                 }
+                // Plain arithmetic expression without aggregation -> Map node only
+                case hsql::kExprOperator: {
+                    hsql::Expr* opExpr = selectStmt->selectList->at(i);
+                    if(!opExpr->expr || !opExpr->expr2 || !opExpr->expr->name || !opExpr->expr2->name){
+                        std::cout << "Only arithmetic between two columns is supported in SELECT list!" << std::endl;
+                        break;
+                    }
+                    std::string op;
+                    if(opExpr->opType == hsql::kOpPlus) op = "+";
+                    else if(opExpr->opType == hsql::kOpMinus) op = "-";
+                    else if(opExpr->opType == hsql::kOpAsterisk) op = "*";
+                    else if(opExpr->opType == hsql::kOpSlash) op = "/";
+
+                    ASTNode* node = new ASTNode(Map(Catalog::getTableName(opExpr->expr->name),
+                            opExpr->expr->name,
+                            Catalog::getTableName(opExpr->expr2->name),
+                            opExpr->expr2->name,
+                            op)
+                        );
+                    current->left = node;
+                    current = current->left;
+                    break;
+                }
+                default:
+                    break;
             }
         }
     }
