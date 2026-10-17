@@ -96,5 +96,6 @@ MaterializationData fillMaterializes(PlanNode* node, std::set<BaseType::TableCol
 /**
  * @brief Converts the query plan IR to the API data format.
  * @param node The root of the query plan.
+ * @param inputFile The name of the input file.
  */
-void irToApiData(PlanNode* node);
+void irToApiData(PlanNode* node, std::string inputFile="result");

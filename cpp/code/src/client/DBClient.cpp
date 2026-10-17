@@ -408,7 +408,7 @@ void DBClient::runOptimizerPipelinePt2(ASTNode* root, uint64_t planId, const std
     createPlanDotFile(*ir_root, DotContentType::IR_DATA, planId, config, "ir_plan_mat_num");
 
     // Map to Api (Physical) Data
-    irToApiData(ir_root.get());
+    irToApiData(ir_root.get(), config.inputFile);
     createPlanDotFile(*ir_root, DotContentType::API_DATA, planId, config, "api_plan");
 
     // Sequentialize
