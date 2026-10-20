@@ -1,5 +1,6 @@
 #include "ir_optimizations/ir_optimizations.hpp"
 
+#include "ir/ir_types.hpp"
 #include "ir/ir_views.hpp"
 #include "util/catalog.hpp"
 
@@ -37,6 +38,12 @@ void placeSemiJoins(PlanNode* node, std::set<BaseType::Table> tablesNeededLater)
                     std::swap(semiJoinV.inner(), semiJoinV.outer());
                     std::swap(semiJoinV.innerOut(), semiJoinV.outerOut());
                     std::swap(node->children[0], node->children[1]);
+                    // Position operands stay in their slots; move their value-input associations.
+                    semiJoinData.valuePosMap.clear();
+                    for (const auto& [valueIndex, positionIndex] : node->irData.valuePosMap) {
+                        const size_t swappedIndex = valueIndex == 0 ? 1 : valueIndex == 1 ? 0 : valueIndex;
+                        semiJoinData.valuePosMap.emplace(swappedIndex, positionIndex);
+                    }
                 }
                 node->irData = semiJoinData;
             }
@@ -473,50 +480,103 @@ LateMaterializationData putLateMaterializationV2(PlanNode* node, std::set<BaseTy
     // Rewire children if not leaf node
     else {
         node->children = {};
-        
-        // Provide all materializations needed
-        for (auto& idxCol : node->irData.inputColumns) {
-            
-            // Set most recent materialization of children as column
-            if (const auto& matChild = curMat[idxCol]) {
-                node->children.push_back(matChild);
 
-                // Flag input column as base column, if coming from fetch node
-                if (matChild->irData.is<FetchOp>()) {
+        // If node is able to directly consume PosList
+        if (node->irData.ableConsumePosList) {
+
+            std::vector<std::shared_ptr<PlanNode>> posListChildren;
+            std::vector<BaseType::TableColumn> posListCols;
+
+            size_t posListIdx = node->irData.inputColumns.size();
+
+            for (size_t inputColIdx = 0; inputColIdx < node->irData.inputColumns.size(); ++inputColIdx) {
+                auto& idxCol = node->irData.inputColumns[inputColIdx];
+                
+                // If we already have materialized data available and node can consume it
+                // TODO will there every be a node that can not consume mat data??
+                if (auto matChild = curMat[idxCol]) {
+                    node->children.push_back(matChild);
+                    // Flag input column as base column, if coming from fetch node
+                    if (matChild->irData.is<FetchOp>()) {
+                        idxCol.isBaseColumn = true;
+                    }
+                }
+                // Provide position list, along with base column that is to be materialized
+                else {
+                    // We need to fetch the column we want to materialize the data inside of the join on
+                    std::shared_ptr<PlanNode> fetchNode = std::make_shared<PlanNode>();
+                    fetchNode->irData = FetchView::create(idxCol, false);
+                    node->children.push_back(fetchNode);
                     idxCol.isBaseColumn = true;
+                    
+                    // Add the most recent position list as a child and input column
+                    if (const auto& latestPosListNode = curPos[idxCol.table]) {
+                        posListChildren.push_back(latestPosListNode);
+                        
+                        // Get filter call and push back
+                        auto hasTable = [&idxCol] (BaseType::TableColumn col) { return col.table == idxCol.table; };
+                        BaseType::TableColumn prevPosListCol = *(latestPosListNode->irData.outputCols | std::views::filter(hasTable)).begin();
+                        prevPosListCol.isBaseColumn = false;
+                        posListCols.push_back(prevPosListCol);
+                        
+                        // Update mapping from value columns to their position lists
+                        node->irData.valuePosMap[inputColIdx] = posListIdx;
+                        posListIdx++;
+                    }
                 }
             }
-            
-            // Check if there is a position list we materialized on 
-            else if (const auto& latestPosListNode = curPos[idxCol.table]) {
-                
-                // Fetch Column needed
-                std::shared_ptr<PlanNode> fetchNode = std::make_shared<PlanNode>();
-                fetchNode->irData = FetchView::create(idxCol, false);
 
-                // Find previous position list col
-                auto hasTable = [&idxCol] (BaseType::TableColumn col) { return col.table == idxCol.table; };
-                BaseType::TableColumn prevPosListCol = *(latestPosListNode->irData.outputCols | std::views::filter(hasTable)).begin();
+            // Add all position lists as children 
+            node->children.insert(node->children.end(), posListChildren.begin(), posListChildren.end());
+            // Add all position list columns 
+            node->irData.inputColumns.insert(node->irData.inputColumns.end(), posListCols.begin(), posListCols.end());
+        }
+        // If requires matVals
+        else {
+            // Provide all materializations needed
+            for (auto& idxCol : node->irData.inputColumns) {
                 
-                // Materialize latest position list on it
-                std::shared_ptr<PlanNode> matNode = std::make_shared<PlanNode>();
-                bool matNodeOutputsPosList = false;
-                matNode->irData = MaterializeView::create(idxCol, prevPosListCol, idxCol, matNodeOutputsPosList);
-                matNode->children.push_back(fetchNode);
-                matNode->children.push_back(latestPosListNode);
-                
-                // Flag index column as base column, becaus freshly retrieved
-                MaterializeView(matNode->irData).idxCol().isBaseColumn = true;
-                
-                // Make this input for child
-                node->children.push_back(matNode);
+                // Set most recent materialization of children as column
+                if (const auto& matChild = curMat[idxCol]) {
+                    node->children.push_back(matChild);
 
-                // Register as Materialization
-                curMat[idxCol] = matNode;
-            } 
-            // This should not happen
-            else {
-                std::cout << "Error: Column " << idxCol.table.name << "." << idxCol.columnName << " required but not found in materialization process (matType: late)." << std::endl;
+                    // Flag input column as base column, if coming from fetch node
+                    if (matChild->irData.is<FetchOp>()) {
+                        idxCol.isBaseColumn = true;
+                    }
+                }
+                
+                // Check if there is a position list we materialized on 
+                else if (const auto& latestPosListNode = curPos[idxCol.table]) {
+                    
+                    // Fetch Column needed
+                    std::shared_ptr<PlanNode> fetchNode = std::make_shared<PlanNode>();
+                    fetchNode->irData = FetchView::create(idxCol, false);
+
+                    // Find previous position list col
+                    auto hasTable = [&idxCol] (BaseType::TableColumn col) { return col.table == idxCol.table; };
+                    BaseType::TableColumn prevPosListCol = *(latestPosListNode->irData.outputCols | std::views::filter(hasTable)).begin();
+                    
+                    // Materialize latest position list on it
+                    std::shared_ptr<PlanNode> matNode = std::make_shared<PlanNode>();
+                    bool matNodeOutputsPosList = false;
+                    matNode->irData = MaterializeView::create(idxCol, prevPosListCol, idxCol, matNodeOutputsPosList);
+                    matNode->children.push_back(fetchNode);
+                    matNode->children.push_back(latestPosListNode);
+                    
+                    // Flag index column as base column, becaus freshly retrieved
+                    MaterializeView(matNode->irData).idxCol().isBaseColumn = true;
+                    
+                    // Make this input for child
+                    node->children.push_back(matNode);
+
+                    // Register as Materialization
+                    curMat[idxCol] = matNode;
+                } 
+                // This should not happen
+                else {
+                    std::cout << "Error: Column " << idxCol.table.name << "." << idxCol.columnName << " required but not found in materialization process (matType: late)." << std::endl;
+                }
             }
         }
     }

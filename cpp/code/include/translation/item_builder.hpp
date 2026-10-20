@@ -56,6 +56,8 @@ class ItemBuilder {
             BaseType::TableColumn* iOutputColumn;
             BaseType::TableColumn* oOutputColumn;
             CompType* joinPredicate;
+            BaseType::TableColumn* innerPositionColumn = nullptr;
+            BaseType::TableColumn* outerPositionColumn = nullptr;
         };
 
         /**
@@ -68,6 +70,8 @@ class ItemBuilder {
             BaseType::TableColumn* iOutputColumn;
             BaseType::TableColumn* oOutputColumn;
             CompType* joinPredicate;
+            BaseType::TableColumn* innerPositionColumn = nullptr;
+            BaseType::TableColumn* outerPositionColumn = nullptr;
         };
 
         /**
@@ -178,6 +182,7 @@ class ItemBuilder {
          * @brief Creates a WorkItem for a join operation.
          */
         WorkItem createJoinItem(const JoinNode& node);
+        WorkItem createJoinItem(const SemiJoinNode& node);
         /**
          * @brief Creates a WorkItem for a semi-join operation (translated to normal join for now).
          */
@@ -217,7 +222,9 @@ class ItemBuilder {
             const std::vector<std::variant<uint64_t, float, std::string>>& filterArgVals);
 
         WorkItem createJoinItem(const BaseType::TableColumn* innerColumn, const BaseType::TableColumn* outerColumn,
-            const BaseType::TableColumn* iOutputColumn, const BaseType::TableColumn* oOutputColumn, const CompType* predicate);
+            const BaseType::TableColumn* iOutputColumn, const BaseType::TableColumn* oOutputColumn, const CompType* predicate,
+            const BaseType::TableColumn* innerPositionColumn = nullptr,
+            const BaseType::TableColumn* outerPositionColumn = nullptr);
 
         WorkItem createMapItem(const BaseType::TableColumn* inColumn, const BaseType::TableColumn* outColumn, const ArithOp* operatorType,
             const std::variant<BaseType::TableColumn, uint64_t, float, std::string>& partnerVal);

@@ -52,6 +52,7 @@ public:
         IrData irData;
         irData.outputsPosList = true;
         irData.outputsMatVals = false;
+        irData.ableConsumePosList = true;
         irData.inputColumns = {inner, outer};
 
         BaseType::TableColumn o_inner = inner;
@@ -67,6 +68,8 @@ public:
     // Accessors
     BaseType::TableColumn& inner() { return data.inputColumns[0]; }
     BaseType::TableColumn& outer() { return data.inputColumns[1]; }
+    BaseType::TableColumn* innerPosition() { return data.positionInput(0); }
+    BaseType::TableColumn* outerPosition() { return data.positionInput(1); }
     BaseType::TableColumn& innerOut() { return data.outputCols[0]; }
     BaseType::TableColumn& outerOut() { return data.outputCols[1]; }
     BaseType::Join& joinType() { return op.joinType; }
@@ -97,6 +100,7 @@ public:
         IrData irData;
         irData.outputsPosList = true;
         irData.outputsMatVals = false;
+        irData.ableConsumePosList = true;
         irData.inputColumns = {inner, outer};
 
         BaseType::TableColumn o_inner = inner;
@@ -116,8 +120,10 @@ public:
         IrData irData;
         irData.outputsPosList = true;
         irData.outputsMatVals = false;
+        irData.ableConsumePosList = true;
         irData.inputColumns = data.inputColumns;
         irData.outputCols = data.outputCols;
+        irData.valuePosMap = data.valuePosMap;
 
         BaseType::TableColumn o_inner = irData.outputCols[0];
         BaseType::TableColumn o_outer = irData.outputCols[1];
@@ -133,6 +139,8 @@ public:
     // Accessors
     BaseType::TableColumn& inner() { return data.inputColumns[0]; }
     BaseType::TableColumn& outer() { return data.inputColumns[1]; }
+    BaseType::TableColumn* innerPosition() { return data.positionInput(0); }
+    BaseType::TableColumn* outerPosition() { return data.positionInput(1); }
     BaseType::TableColumn& innerOut() { return data.outputCols[0]; }
     BaseType::TableColumn& outerOut() { return data.outputCols[1]; }
     BaseType::Join& joinType() { return op.joinType; }
@@ -163,6 +171,7 @@ public:
         IrData irData;
         irData.outputsPosList = false;
         irData.outputsMatVals = true;
+        irData.ableConsumePosList = false;
         irData.inputColumns = resultCols;
         irData.outputCols = resultCols;
 
@@ -205,6 +214,7 @@ public:
         IrData irData;
         irData.outputsPosList = false;
         irData.outputsMatVals = true;
+        irData.ableConsumePosList = false;
         irData.inputColumns = {inputCol};
         irData.outputCols = {outputCol};
         irData.opInfo = AggOp{aggFunc};
@@ -239,6 +249,7 @@ public:
         IrData irData;
         irData.outputsPosList = false;
         irData.outputsMatVals = true;
+        irData.ableConsumePosList = false;
         irData.inputColumns = {inputCol};
         irData.outputCols = {inputCol};
         irData.opInfo = FetchOp{wasTableBaseNode};
@@ -280,6 +291,7 @@ public:
         IrData irData;
         irData.outputsPosList = true;
         irData.outputsMatVals = false;
+        irData.ableConsumePosList = false;
         irData.inputColumns = {col1};
         // TODO: should this be pushed as an input column??
         if (col2.has_value()) {
@@ -323,6 +335,7 @@ public:
         IrData irData;
         irData.outputsPosList = true;
         irData.outputsMatVals = true;
+        irData.ableConsumePosList = false;
         irData.inputColumns = groupingCols;
         BaseType::TableColumn outSrtIdx = outputCol;
         BaseType::TableColumn outCluster = outputCol;
@@ -341,6 +354,7 @@ public:
         IrData irData;
         irData.outputsPosList = true;
         irData.outputsMatVals = true;
+        irData.ableConsumePosList = false;
         irData.inputColumns = groupingCols;
         irData.inputColumns.push_back(aggCol);
         BaseType::TableColumn outSrtIdx = outputCol;
@@ -453,6 +467,7 @@ public:
         IrData irData;
         irData.outputsPosList = true;
         irData.outputsMatVals = false;
+        irData.ableConsumePosList = false;
         irData.inputColumns.reserve(orderDescriptions.size() + (existingIdx.has_value() ? 1 : 0));
 
         for (const auto& desc : orderDescriptions) {
@@ -526,6 +541,7 @@ public:
         IrData irData;
         irData.outputsPosList = true;
         irData.outputsMatVals = false;
+        irData.ableConsumePosList = false;
         irData.inputColumns = {inner, outer};
         irData.outputCols = {output};
         irData.opInfo = SetOp{operation};
@@ -561,6 +577,7 @@ public:
         IrData irData;
         irData.outputsPosList = outputsPosList;
         irData.outputsMatVals = !outputsPosList;
+        irData.ableConsumePosList = false;
         irData.inputColumns = {idxCol, filterCol};
         irData.outputCols = {outputCol};
 
@@ -611,6 +628,7 @@ public:
         IrData irData;
         irData.outputsPosList = false;
         irData.outputsMatVals = true;
+        irData.ableConsumePosList = false;
         irData.inputColumns = {column};
         if (std::holds_alternative<BaseType::TableColumn>(partnerVal)) {
             irData.inputColumns.push_back(std::get<BaseType::TableColumn>(partnerVal));

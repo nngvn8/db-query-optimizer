@@ -84,17 +84,39 @@ WorkItem ItemBuilder::createFilterItem(const BaseType::TableColumn* inColumn, co
 // JOIN ITEM
 
 WorkItem ItemBuilder::createJoinItem(const JoinNode& node) {
-    return createJoinItem(node.innerColumn, node.outerColumn, node.iOutputColumn, node.oOutputColumn, node.joinPredicate);
+    return createJoinItem(node.innerColumn, node.outerColumn, node.iOutputColumn, node.oOutputColumn, node.joinPredicate,
+                          node.innerPositionColumn, node.outerPositionColumn);
+}
+
+WorkItem ItemBuilder::createJoinItem(const SemiJoinNode& node) {
+    // Semijoins currently execute as ordinary joins.
+    return createJoinItem(node.innerColumn, node.outerColumn, node.iOutputColumn, node.oOutputColumn,
+                          node.joinPredicate, node.innerPositionColumn, node.outerPositionColumn);
 }
 
 WorkItem ItemBuilder::createSemiJoinItem(const SemiJoinNode& node) {
-    // For now, translate semijoins to normal Joins since semijoins are not yet available in the processing unit
-    return createJoinItem(node.innerColumn, node.outerColumn, node.iOutputColumn, node.oOutputColumn, node.joinPredicate);
+    return createJoinItem(node);
 }
 
 WorkItem ItemBuilder::createJoinItem(const BaseType::TableColumn* innerColumn, const BaseType::TableColumn* outerColumn,
-    const BaseType::TableColumn* iOutputColumn, const BaseType::TableColumn* oOutputColumn, const CompType* predicate)
+    const BaseType::TableColumn* iOutputColumn, const BaseType::TableColumn* oOutputColumn, const CompType* predicate,
+    const BaseType::TableColumn* innerPositionColumn, const BaseType::TableColumn* outerPositionColumn)
 {
+    if (innerPositionColumn || outerPositionColumn) {
+        WorkItem workItem = createWorkItem(OperatorType::OP_HASHJOIN_MAT);
+        auto* joinItem = workItem.mutable_joinmatdata();
+        setTableColumnType(joinItem->mutable_innercolumn(), innerColumn);
+        setTableColumnType(joinItem->mutable_outercolumn(), outerColumn);
+        setTableColumnType(joinItem->mutable_ioutputcolumn(), iOutputColumn);
+        setTableColumnType(joinItem->mutable_ooutputcolumn(), oOutputColumn);
+        if (innerPositionColumn)
+            setTableColumnType(joinItem->mutable_innerpositioncolumn(), innerPositionColumn);
+        if (outerPositionColumn)
+            setTableColumnType(joinItem->mutable_outerpositioncolumn(), outerPositionColumn);
+        joinItem->set_joinpredicate(predicate ? *predicate : CompType::COMP_EQ);
+        return workItem;
+    }
+
     WorkItem workItem = createWorkItem(OperatorType::OP_HASHJOIN); // TODO or MERGEJOIN
     JoinItem* joinItem = workItem.mutable_joindata();
 

@@ -29,6 +29,8 @@ void irToApiDataSub(PlanNode* node, std::set<const PlanNode*>& visited) {
         joinStruct.iOutputColumn = &joinV->innerOut();
         joinStruct.oOutputColumn = &joinV->outerOut();
         joinStruct.joinPredicate = &joinV->joinPredicate();
+        joinStruct.innerPositionColumn = joinV->innerPosition();
+        joinStruct.outerPositionColumn = joinV->outerPosition();
 
         node->apiData = joinStruct;
     }
@@ -42,6 +44,8 @@ void irToApiDataSub(PlanNode* node, std::set<const PlanNode*>& visited) {
         semiJoinStruct.iOutputColumn = &joinV->innerOut();
         semiJoinStruct.oOutputColumn = &joinV->outerOut();
         semiJoinStruct.joinPredicate = &joinV->joinPredicate();
+        semiJoinStruct.innerPositionColumn = joinV->innerPosition();
+        semiJoinStruct.outerPositionColumn = joinV->outerPosition();
 
         node->apiData = semiJoinStruct;
     }

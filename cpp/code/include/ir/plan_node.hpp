@@ -37,6 +37,10 @@ struct IrData {
     bool outputsPosList;
     /// True if the node outputs materialized values.
     bool outputsMatVals;
+    /// True if the node consumes position lists.
+    bool ableConsumePosList;
+    /// Value-input index -> position-input index. 
+    std::map<size_t, size_t> valuePosMap;
 
     /// A variant holding the specific information for the operator.
     using OpInfo = std::variant<std::monostate, JoinOp, SemiJoinOp, GroupOp, FetchOp, AggOp, FilterOp, SortOp, MapOp, SetOp, SelectOp, MatOp>;
@@ -59,6 +63,13 @@ struct IrData {
             return ViewT(*this);
         }
         return std::nullopt;
+    }
+    
+    BaseType::TableColumn* positionInput(size_t valueInputIndex) {
+        auto it = valuePosMap.find(valueInputIndex);
+        return it == valuePosMap.end()
+            ? nullptr
+            : &inputColumns.at(it->second);
     }
 };
 
