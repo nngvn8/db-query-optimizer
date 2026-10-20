@@ -2,17 +2,22 @@
 .PHONY: all run clean clean_exe run_clean run_fresh
 
 # Library file paths
-HSQL_HEADER_DIR = /home/martin/University/09_KDB/sql-parser/hsql/
-HSQL_BIN_DIR = /home/martin/University/09_KDB/sql-parser
+HSQL_HEADER_DIR = ../external/sql-parser/src
+JSONCPP_HEADER_DIR = ../external/jsoncpp/include
+JSONCPP_SRC_DIR = ../external/jsoncpp/src/lib_json
+HSQL_SRC_DIR = ../external/sql-parser/src
 
 PROTO_SRC := $(shell find ../generated/src -name '*.pb.cc')
+JSONCPP_SRC := $(shell find $(JSONCPP_SRC_DIR) -name '*.cpp')
+HSQL_SRC := $(shell find $(HSQL_SRC_DIR) -name '*.cpp')
 
 # Compiler settings
 CXX      := g++																# Compiler
 CXXFLAGS := -std=c++23 -Wall -Wextra -MMD -MP -g							# Flags
-INCLUDES := -I./include -I../generated/include -I$(HSQL_HEADER_DIR)					# Header search paths
-LDFLAGS  := -L$(HSQL_BIN_DIR) -Wl,-rpath,$(HSQL_BIN_DIR)					# Library directory(ies)
-LIBS     := -ljsoncpp -lsqlparser $(shell pkg-config --libs protobuf)		# Libraries to link
+INCLUDES := -I./include -I../generated/include -I$(HSQL_HEADER_DIR)	-I$(JSONCPP_HEADER_DIR)	-I/opt/homebrew/include			# Header search paths
+LDFLAGS  := 
+# LIBS     := -ljsoncpp -lsqlparser $(shell pkg-config --libs protobuf)		# Libraries to link
+LIBS     := $(shell pkg-config --libs protobuf)		# Libraries to link
 
 # Build dir
 BUILD_DIR := ./build
@@ -29,6 +34,8 @@ SRC_DIRS := ./src
 SOURCES := $(shell find $(SRC_DIRS) -name '*.cpp')
 # SOURCES := $(filter-out $(EXCLUDES), $(SOURCES))
 SOURCES += $(PROTO_SRC)
+SOURCES += $(JSONCPP_SRC)
+SOURCES += $(HSQL_SRC)
 SOURCES += ./examples/all_ssbs_both_paths.cpp
 # SOURCES += ./examples/main.cpp
 # SOURCES += ./examples/query_parse_test.cpp

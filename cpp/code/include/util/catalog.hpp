@@ -7,6 +7,7 @@
  */
 
 #include <WorkItem.pb.h>
+#include "ir/base_types.hpp"
 
 /**
  * @namespace Catalog
@@ -38,4 +39,12 @@ namespace Catalog {
      * @return True if the column is unique, false otherwise.
      */
     bool isUnique(std::string tableName, std::string columnName);
+
+    /**
+     * @brief Compares two table columns and returns the column from the smaller table based on SSB table size ranking.
+     * @param col1 First column to compare.
+     * @param col2 Second column to compare.
+     * @return The column belonging to the smaller table.
+     */
+    BaseType::TableColumn getSmallerColumn(const BaseType::TableColumn& col1, const BaseType::TableColumn& col2);
 }

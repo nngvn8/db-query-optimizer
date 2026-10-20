@@ -4,6 +4,8 @@
 #include <set>
 #include <algorithm>
 
+std::filesystem::path INPUT_FILE;
+
 void irToApiDataSub(PlanNode* node, std::set<const PlanNode*>& visited) {
     if (!node || visited.contains(node)) return;
 
@@ -147,7 +149,7 @@ void irToApiDataSub(PlanNode* node, std::set<const PlanNode*>& visited) {
         ItemBuilder::ResultNode resultStruct;
 
         // MISSING INFO: Filename is not in IR.
-        resultStruct.filename = "result.csv";
+        resultStruct.filename = INPUT_FILE;
 
         for (auto& col : selectV->resultCols()) {
             resultStruct.resultColumns.push_back(&col);
@@ -170,7 +172,8 @@ void irToApiDataSub(PlanNode* node, std::set<const PlanNode*>& visited) {
     }
 }
 
-void irToApiData(PlanNode* node) {
+void irToApiData(PlanNode* node, std::string inputFile) {
     std::set<const PlanNode*> visited;
+    INPUT_FILE = std::filesystem::path(inputFile).stem();
     irToApiDataSub(node, visited);
 }

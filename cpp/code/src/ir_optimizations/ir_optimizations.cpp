@@ -32,10 +32,11 @@ void placeSemiJoins(PlanNode* node, std::set<BaseType::Table> tablesNeededLater)
                 SemiJoinView semiJoinV(semiJoinData);
 
                 // Swap inner and outer, if inner is the one needed later
+                // (inputColumns, outputCols and children must stay aligned)
                 if (innerTableNeededLater && !outerTableNeededLater) {
                     std::swap(semiJoinV.inner(), semiJoinV.outer());
                     std::swap(semiJoinV.innerOut(), semiJoinV.outerOut());
-                    std::swap(node->irData.outputCols[0], node->irData.outputCols[1]);
+                    std::swap(node->children[0], node->children[1]);
                 }
                 node->irData = semiJoinData;
             }
@@ -144,8 +145,8 @@ namespace {
 
     int detFilterColIdx(const BaseType::TableColumn& idxCol, const std::shared_ptr<PlanNode>& node) {
 
-        // Is not join
-        if (!node->irData.is<JoinOp>())
+        // Is not join (semi joins also have two outputs aligned with two children)
+        if (!node->irData.is<JoinOp>() && !node->irData.is<SemiJoinOp>())
             return 0;
 
         // Is join and has column as output
