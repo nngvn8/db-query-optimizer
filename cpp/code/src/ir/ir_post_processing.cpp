@@ -103,8 +103,28 @@ namespace {
         std::unordered_set<const PlanNode*> visited;
 
 
-        bfsQueue.push_back({0, node->children[0].get()});
-        bfsQueue.push_back({1, node->children[1].get()});
+        // Add children to the queue
+        PlanNode* child_ptr;
+        
+        // Push back left child
+        if (node->irData.valuePosMap.contains(0)) {
+            int inputColIdx = node->irData.valuePosMap.at(0);
+            child_ptr = node->children[inputColIdx].get();
+        }
+        else {
+            child_ptr = node->children[0].get();
+        }
+        bfsQueue.push_back({0, child_ptr});
+
+        // Push back right child
+        if (node->irData.valuePosMap.contains(1)) {
+            int inputColIdx = node->irData.valuePosMap.at(1);
+            child_ptr = node->children[inputColIdx].get();
+        }
+        else {
+            child_ptr = node->children[1].get();
+        }
+        bfsQueue.push_back({1, child_ptr});
 
         while (!bfsQueue.empty()) {
             idx = bfsQueue.front().first;
