@@ -28,7 +28,7 @@ void printSortItem() {
     sortNode.existingIdx = tc4;
     sortNode.idxOutput = tc1;
 
-    WorkItem workItem = itemBuilder->createSortItem(sortNode);
+    WorkItem workItem = itemBuilder->createSortItem(sortNode, "i_example");
     printItem(workItem);
 }
 
@@ -46,7 +46,7 @@ void printMapItem() {
     // mapNode.partnerVal = "abc";
     // mapNode.partnerVal = *tc1;
 
-    WorkItem workItem = itemBuilder->createMapItem(mapNode);
+    WorkItem workItem = itemBuilder->createMapItem(mapNode, "i_example");
     printItem(workItem);
 }
 
@@ -57,7 +57,7 @@ void printFetchItem() {
     fetchNode.inputColumn = tc1;
     fetchNode.printToFile = true;
 
-    WorkItem workItem = itemBuilder->createFetchItem(fetchNode);
+    WorkItem workItem = itemBuilder->createFetchItem(fetchNode, "i_example");
     printItem(workItem);
 }
 
@@ -72,7 +72,7 @@ void printFilterItem() {
     filterNode.filterArgVals.push_back((float) 12.34);
     filterNode.filterArgVals.push_back(("abcdefg"));
 
-    WorkItem workItem = itemBuilder->createFilterItem(filterNode);
+    WorkItem workItem = itemBuilder->createFilterItem(filterNode, "i_example");
     printItem(workItem);
 }
 
@@ -86,7 +86,7 @@ void printJoinItem() {
     joinNode.oOutputColumn = tc3;
     joinNode.joinPredicate = nullptr;
 
-    WorkItem workItem = itemBuilder->createJoinItem(joinNode);
+    WorkItem workItem = itemBuilder->createJoinItem(joinNode, "i_example");
     printItem(workItem);
 }
 
@@ -98,7 +98,7 @@ void printMatItem() {
     matNode.filterColumn = tc2;
     matNode.outputColumn = tc3;
 
-    WorkItem workItem = itemBuilder->createMaterializeItem(matNode);
+    WorkItem workItem = itemBuilder->createMaterializeItem(matNode, "i_example");
     printItem(workItem);
 }
 
@@ -117,7 +117,7 @@ void printMultiGrpItem() {
     mgNode.sortOrders.push_back(false);
     mgNode.storeExtends = false;
 
-    WorkItem workItem = itemBuilder->createMultiGroupItem(mgNode);
+    WorkItem workItem = itemBuilder->createMultiGroupItem(mgNode, "i_example");
     printItem(workItem);
 }
 
@@ -130,7 +130,7 @@ void printSetOpItem() {
     setNode.outputColumn = tc3;
     setNode.operation = RelOp::REL_INTERSECTION;
 
-    WorkItem workItem = itemBuilder->createSetOperationItem(setNode);
+    WorkItem workItem = itemBuilder->createSetOperationItem(setNode, "i_example");
     printItem(workItem);
 }
 
@@ -144,7 +144,7 @@ void printAggItem() {
     aggNode.groupColumns.push_back("stringcol2");
     aggNode.aggFunc = AggFunc::AGG_COUNT;
 
-    WorkItem workItem = itemBuilder->createAggItem(aggNode);
+    WorkItem workItem = itemBuilder->createAggItem(aggNode, "i_example");
     printItem(workItem);
 }
 
@@ -160,13 +160,13 @@ void printResultItem() {
     resNode.resultHeaders.push_back("header2");
     resNode.filename = "this/is/a/filename.txt";
 
-    WorkItem workItem = itemBuilder->createResultItem(resNode);
+    WorkItem workItem = itemBuilder->createResultItem(resNode, "i_example");
     printItem(workItem);
 }
 
 void printFetchItemWithoutNode() {
     printName("Fetch with Params and no Node");
-    WorkItem workItem = itemBuilder->createFetchItem(tc1, true);
+    WorkItem workItem = itemBuilder->createFetchItem(tc1, true, "i_example");
     printItem(workItem);
 }
 
