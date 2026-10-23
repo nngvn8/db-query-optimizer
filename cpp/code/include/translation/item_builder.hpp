@@ -173,80 +173,86 @@ class ItemBuilder {
         /**
          * @brief Creates a WorkItem for a fetch operation.
          */
-        WorkItem createFetchItem(const FetchNode& node);
+        WorkItem createFetchItem(const FetchNode& node, const std::string& intermediateTableName);
         /**
          * @brief Creates a WorkItem for a filter operation.
          */
-        WorkItem createFilterItem(const FilterNode& node);
+        WorkItem createFilterItem(const FilterNode& node, const std::string& intermediateTableName);
         /**
          * @brief Creates a WorkItem for a join operation.
          */
-        WorkItem createJoinItem(const JoinNode& node);
-        WorkItem createJoinItem(const SemiJoinNode& node);
+        WorkItem createJoinItem(const JoinNode& node, const std::string& intermediateTableName);
         /**
          * @brief Creates a WorkItem for a semi-join operation (translated to normal join for now).
          */
-        WorkItem createSemiJoinItem(const SemiJoinNode& node);
+        WorkItem createSemiJoinItem(const SemiJoinNode& node, const std::string& intermediateTableName);
         /**
          * @brief Creates a WorkItem for a map operation.
          */
-        WorkItem createMapItem(const MapNode& node);
+        WorkItem createMapItem(const MapNode& node, const std::string& intermediateTableName);
         /**
          * @brief Creates a WorkItem for a materialize operation.
          */
-        WorkItem createMaterializeItem(const MaterializeNode& node);
+        WorkItem createMaterializeItem(const MaterializeNode& node, const std::string& intermediateTableName);
         /**
          * @brief Creates a WorkItem for a multi-group operation.
          */
-        WorkItem createMultiGroupItem(const MultiGroupNode& node);
+        WorkItem createMultiGroupItem(const MultiGroupNode& node, const std::string& intermediateTableName);
         /**
          * @brief Creates a WorkItem for a set operation.
          */
-        WorkItem createSetOperationItem(const SetOperationNode& node);
+        WorkItem createSetOperationItem(const SetOperationNode& node, const std::string& intermediateTableName);
         /**
          * @brief Creates a WorkItem for a sort operation.
          */
-        WorkItem createSortItem(const SortNode& node);
+        WorkItem createSortItem(const SortNode& node, const std::string& intermediateTableName);
         /**
          * @brief Creates a WorkItem for an aggregation operation.
          */
-        WorkItem createAggItem(const AggNode& node);
+        WorkItem createAggItem(const AggNode& node, const std::string& intermediateTableName);
         /**
          * @brief Creates a WorkItem for a result operation.
          */
-        WorkItem createResultItem(const ResultNode& node);
+        WorkItem createResultItem(const ResultNode& node, const std::string& intermediateTableName);
 
-        WorkItem createFetchItem(const BaseType::TableColumn* inputColumn, const bool printToFile);
+        WorkItem createFetchItem(const BaseType::TableColumn* inputColumn, const bool printToFile,
+            const std::string& intermediateTableName);
 
         WorkItem createFilterItem(const BaseType::TableColumn* inColumn, const BaseType::TableColumn* outColumn, const CompType& filterType,
-            const std::vector<std::variant<uint64_t, float, std::string>>& filterArgVals);
+            const std::vector<std::variant<uint64_t, float, std::string>>& filterArgVals,
+            const std::string& intermediateTableName);
 
         WorkItem createJoinItem(const BaseType::TableColumn* innerColumn, const BaseType::TableColumn* outerColumn,
             const BaseType::TableColumn* iOutputColumn, const BaseType::TableColumn* oOutputColumn, const CompType* predicate,
-            const BaseType::TableColumn* innerPositionColumn = nullptr,
-            const BaseType::TableColumn* outerPositionColumn = nullptr);
+            const std::string& intermediateTableName, const BaseType::TableColumn* innerPositionColumn = nullptr, const BaseType::TableColumn* outerPositionColumn = nullptr);
 
         WorkItem createMapItem(const BaseType::TableColumn* inColumn, const BaseType::TableColumn* outColumn, const ArithOp* operatorType,
-            const std::variant<BaseType::TableColumn, uint64_t, float, std::string>& partnerVal);
+            const std::variant<BaseType::TableColumn, uint64_t, float, std::string>& partnerVal,
+            const std::string& intermediateTableName);
 
         WorkItem createMaterializeItem(const BaseType::TableColumn* idxColumn, const BaseType::TableColumn* filterColumn,
-            const BaseType::TableColumn* outColumn);
+            const BaseType::TableColumn* outColumn, const std::string& intermediateTableName);
 
         WorkItem createMultiGroupItem(const std::vector<BaseType::TableColumn*>& groupColumns, const BaseType::TableColumn* outIdx,
             const BaseType::TableColumn* outputSortIndex, const BaseType::TableColumn* outCluster, const BaseType::TableColumn* aggColumn,
-            const BaseType::TableColumn* aggResultColumn, const bool& storeExtends, const std::vector<bool>& sortOrders);
+            const BaseType::TableColumn* aggResultColumn, const bool& storeExtends, const std::vector<bool>& sortOrders,
+            const std::string& intermediateTableName);
 
         WorkItem createSetOperationItem(const RelOp& operation, const BaseType::TableColumn* innerColumn,
-            const BaseType::TableColumn* outerColumn, const BaseType::TableColumn* outputColumn);
+            const BaseType::TableColumn* outerColumn, const BaseType::TableColumn* outputColumn,
+            const std::string& intermediateTableName);
 
         WorkItem createSortItem(const std::vector<BaseType::TableColumn*>& inputColumns, const BaseType::TableColumn* idxOutput,
-            const BaseType::TableColumn* existingIdx, const std::vector<bool>& sortOrders);
+            const BaseType::TableColumn* existingIdx, const std::vector<bool>& sortOrders,
+            const std::string& intermediateTableName);
 
         WorkItem createAggItem(const BaseType::TableColumn* inputColumn, const BaseType::TableColumn* outputColumn,
-            const AggFunc& aggFunc, const std::vector<std::string>& groupColumns);
+            const AggFunc& aggFunc, const std::vector<std::string>& groupColumns,
+            const std::string& intermediateTableName);
 
         WorkItem createResultItem(const std::string& file, const std::vector<BaseType::TableColumn*>& resultColumns,
-            const BaseType::TableColumn* resultIdx, const std::vector<std::string>& headers);
+            const BaseType::TableColumn* resultIdx, const std::vector<std::string>& headers,
+            const std::string& intermediateTableName);
 
         /**
          * @brief Creates a vector of WorkItems from a sequence of plan nodes.
