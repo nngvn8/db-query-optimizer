@@ -4,10 +4,10 @@
 #include <set>
 #include <algorithm>
 
-std::filesystem::path INPUT_FILE;
 
-void irToApiDataSub(PlanNode* node, std::set<const PlanNode*>& visited) {
+void irToApiDataSub(PlanNode* node, std::set<const PlanNode*>& visited, const std::string& result_file) {
     if (!node || visited.contains(node)) return;
+    visited.insert(node);
 
     // Filter Node
     if (auto filterV = node->irData.get_view_if<FilterView>()) {
@@ -153,7 +153,7 @@ void irToApiDataSub(PlanNode* node, std::set<const PlanNode*>& visited) {
         ItemBuilder::ResultNode resultStruct;
 
         // MISSING INFO: Filename is not in IR.
-        resultStruct.filename = INPUT_FILE;
+        resultStruct.filename = result_file;
 
         for (auto& col : selectV->resultCols()) {
             resultStruct.resultColumns.push_back(&col);
@@ -172,12 +172,12 @@ void irToApiDataSub(PlanNode* node, std::set<const PlanNode*>& visited) {
                          node->children.end());
 
     for (const auto& child : node->children){
-        irToApiData(child.get());
+        irToApiDataSub(child.get(), visited, result_file);
     }
 }
 
 void irToApiData(PlanNode* node, std::string inputFile) {
     std::set<const PlanNode*> visited;
-    INPUT_FILE = std::filesystem::path(inputFile).stem();
-    irToApiDataSub(node, visited);
+    const std::string result_file = std::filesystem::path(inputFile).stem().string();
+    irToApiDataSub(node, visited, result_file);
 }
