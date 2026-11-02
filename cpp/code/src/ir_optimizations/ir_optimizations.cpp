@@ -373,7 +373,7 @@ LateMaterializationData putLateMaterializationV2(PlanNode* node, std::set<BaseTy
         // (There are nodes that output both matVals and posList)
         if (!child->irData.outputsPosList) {
             curPos.merge(pPos);
-            prevMat.merge(prevMat);
+            curMat.merge(prevMat);
         }
         
         // Create or update materialization if child outputs position list
@@ -556,7 +556,7 @@ LateMaterializationData putLateMaterializationHybrid(PlanNode* node, std::set<Ba
         // (There are nodes that output both matVals and posList)
         if (!child->irData.outputsPosList) {
             curPos.merge(pPos);
-            prevMat.merge(prevMat);
+            curMat.merge(prevMat);
         }
         
         // Create or update materialization if child outputs position list
